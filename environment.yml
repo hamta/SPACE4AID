@@ -1,0 +1,24 @@
+name: S4AI
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - gdal
+  - matplotlib
+  - sortedcontainers
+  - decorator
+  - scipy
+  - pygraphviz
+  - lxml
+  - networkx
+  - pandas
+  - numpy
+  - python=3.7
+  - pyyaml
+  - pydot
+  - doxygen
+  - spyder
+  - pip
+  - pip:
+    - pacsltk
+prefix: /opt/anaconda3/envs/S4AI
