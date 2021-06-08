@@ -1,0 +1,11 @@
+{"LambdaBound":  {"start": 0.1, "end": 0.5, "step": 0.01
+               },
+ "BandwidthScenario": {
+                     "4G": {"bandwidth": 20},         
+                     "5G_2gb": {"bandwidth": 2000},
+                     "5G_4gb": {"bandwidth": 4000}
+                     },
+ "IterationNumber": 10000
+ 
+}
+
