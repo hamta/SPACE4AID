@@ -15,16 +15,17 @@ class ComputationalLayer:
     #   @param performance_evaluator A specialized PerformanceEvaluator,
     #          whose type depends on the type of Resources stored in the 
     #          ComputationalLayer
-    def __init__(self,  performance_evaluator):
-        self.resources = []
+    def __init__(self, name  ):
+        self.name=name
+        self.resources= []
         
-        self.performance_evaluator = performance_evaluator
+       
     
     ## Method to add a given Resource to the ComputationalLayer
     #   @param self The object pointer
     #   @param resource Resources to be added
-    def add_resource(self, resource):
-        self.resources.append(resource)
+    def add_resource(self, resource_idx):
+        self.resources.append(resource_idx)
      
     
     ## Operator to convert a ComputationalLayer object into a string
@@ -58,11 +59,12 @@ class Resource:
     #   @param name
     #   @param cost
     #   @param memory
-    def __init__(self, CLname,name, cost, memory):
+    def __init__(self, CLname,name, cost, memory,performance_evaluator):
         self.name = name
         self.cost = cost
         self.memory = memory
         self.CLname=CLname
+        self.performance_evaluator = performance_evaluator
     ## Operator used to check if two Resource objects are equal
     #
     # It compares the corresponding names
@@ -94,8 +96,8 @@ class VirtualMachine(Resource):
     #   @param cost
     #   @param memory
     #   @param number
-    def __init__(self, CLname, name, cost, memory, number):
-        super().__init__(CLname, name, cost, memory)
+    def __init__(self, CLname, name, cost, memory, performance_evaluator, number):
+        super().__init__(CLname, name, cost, memory, performance_evaluator)
         self.number = number
     
     ## Operator to convert an VirtualMachine object into a string
@@ -118,8 +120,8 @@ class EdgeNode(Resource):
     #   @param cost
     #   @param memory
     #   @param number
-    def __init__(self, CLname, name, cost, memory,number):
-        super().__init__(CLname, name, cost, memory)
+    def __init__(self, CLname, name, cost, memory, performance_evaluator, number):
+        super().__init__(CLname, name, cost, memory, performance_evaluator)
         self.number = number
 
 ## FaaS
@@ -150,9 +152,9 @@ class FaaS(Resource):
     #   @param cold_service_time Response time for cold start requests
     #   @param idle_time_before_kill How long does the platform keep the 
     #          servers after being idle
-    def __init__(self, CLname, name, cost, memory, transition_cost, 
+    def __init__(self, CLname, name, cost, memory, performance_evaluator, transition_cost, 
                   idle_time_before_kill):
-        super().__init__(CLname, name, cost, memory)
+        super().__init__(CLname, name, cost, memory, performance_evaluator)
         self.transition_cost = transition_cost
         # self.warm_service_time = warm_service_time
         # self.cold_service_time = cold_service_time
@@ -168,6 +170,8 @@ class FaaS(Resource):
                                                  cold_service_time, 
                                                  self.idle_time_before_kill)
         return perf[0]['avg_resp_time']
+    
+  
     
     ## Operator to convert a FaaS object into a string
     #   @param self The object pointer
