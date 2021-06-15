@@ -64,10 +64,10 @@ class System:
     #   @param performance_evaluators
     #   @param networkTechnology
     #   @param initial_solution_file includes initial random decision variable
-    def __init__(self, system_file, graph_file):
+    def __init__(self, system_file):
         
         # build graph from the corresponding file
-        self.graph = DAG(graph_file)
+        #self.graph = DAG(graph_file)
         
         
         # read configuration file to store information about components,
@@ -75,22 +75,8 @@ class System:
        
         self.read_configuration_file(system_file)
        
-        self.Lambdas=np.array(list(c.Lambda for c in list(self.components.values()))).T
-                
-        # read random initial solution file to initialize decesion variables
-        #self.read_random_initial_solution_file(initial_solution_file)
-        
-               
-        # creat a list of resource with corresponding computational layer
-        self.resources_CL=self.creat_resource_CL_list()
-        
-        self.CL_resources=self.create_LC_resources_Dict()
-        # creat a list of computational layer with corresponding Network domain
-        self.CL_NDs=self.creat_CL_ND_list()
-        
-        # initialize performance evaluators
-        self.performance_evaluators = None  # TODO: where do we save this?
-        
+      
+      
         
     
     ## Method to read a configuration file providing the system description 
@@ -98,11 +84,16 @@ class System:
     #   @param self The object pointer
     #   @param system_file Configuration file describing the system (json format)
     def read_configuration_file(self, system_file):
-        
+        self.description={}
         # load json file
         with open(system_file) as f:
             data = json.load(f)
         
+        if "DirectedAcyclicGraph" in data.keys():
+            DAG_dict=data["DirectedAcyclicGraph"]
+            self.graph = DAG(DAG_dict)
+            #self.create_datasize_matrix(data_transfer_dict)
+            
         # initialize lambda
         if "Lambda" in data.keys():
             self.Lambda = float(data["Lambda"])
@@ -137,59 +128,83 @@ class System:
         
         # initialize dictionary of resources
         #
+        # edge resources
+        self.dic_map_res_idx={}
+        resource_idx=0
+        self.CLs=[]
+        self.resources = []
+       
+        if "EdgeResources" in data.keys():
+            ER = data["EdgeResources"]
+           
+            for CL in ER:
+                cl=ComputationalLayer(CL)
+                # loop over nodes and add them to the corresponding layer
+                for node in ER[CL]:
+                  if "number" in ER[CL][node].keys() and \
+                      "cost" in ER[CL][node].keys() and "memory" in ER[CL][node].keys():
+                        new_node = EdgeNode(CL, node, float(ER[CL][node]["cost"]),
+                                            float(ER[CL][node]["memory"]),EdgePE(),
+                                            int(ER[CL][node]["number"]))
+                        self.resources.append(new_node)
+                        self.dic_map_res_idx[node]=resource_idx
+                        cl.add_resource(resource_idx)
+                        resource_idx+=1
+                 
+                  else:
+                        print("ERROR: missing field in ", node, " description")
+                        sys.exit(1)
+                  if "description" in ER[CL][node].keys():
+                        self.description[node]=ER[CL][node]["description"]
+                  else:
+                        self.description[node]="No description"
+                self.CLs.append(cl)
+                
+        #
         # cloud resources
         if "CloudResources" in data.keys():
-            
-            self.resources = {}
+            self.cloud_start_index=resource_idx
+           
             CR = data["CloudResources"]
-            self.resources["CloudResources"] = ComputationalLayer(ServerFarmPE())
+            
             for CL in CR:
-                
+                cl=ComputationalLayer(CL)
                 # loop over VMs and add them to the corresponding layer
                 for VM in CR[CL]:
                     if "number" in CR[CL][VM].keys() and \
                         "cost" in CR[CL][VM].keys() and \
                             "memory" in CR[CL][VM].keys():
                         new_vm = VirtualMachine(CL, VM, float(CR[CL][VM]["cost"]), 
-                                                float(CR[CL][VM]["memory"]),
+                                                float(CR[CL][VM]["memory"]), ServerFarmPE(),
                                                 int(CR[CL][VM]["number"]))
-                        self.resources["CloudResources"].add_resource(new_vm)
+                        self.resources.append(new_vm)
+                        self.dic_map_res_idx[VM]=resource_idx
+                        cl.add_resource(resource_idx)
+                        resource_idx+=1
                     else:
                         print("ERROR: missing field in ", VM, "  description")
                         sys.exit(1)
+                    if "description" in CR[CL][VM].keys():
+                        self.description[VM]=CR[CL][VM]["description"]
+                    else:
+                        self.description[VM]="No description"
+                self.CLs.append(cl)
      #
-        # edge resources
         
-        if "EdgeResources" in data.keys():
-            ER = data["EdgeResources"]
-            self.resources["EdgeResources"] = ComputationalLayer(EdgePE())
-            for CL in ER:
-                
-                # loop over nodes and add them to the corresponding layer
-                for node in ER[CL]:
-                  if "number" in ER[CL][node].keys() and \
-                      "cost" in ER[CL][node].keys() and "memory" in ER[CL][node].keys():
-                        new_node = EdgeNode(CL, node, float(ER[CL][node]["cost"]),
-                                            float(ER[CL][node]["memory"]),
-                                            int(ER[CL][node]["number"]))
-                        self.resources["EdgeResources"].add_resource(new_node)
-                  else:
-                        print("ERROR: missing field in ", node, " description")
-                        sys.exit(1)
-        #
         # faas resources
        
         if "FaaSResources" in data.keys():
             FR = data["FaaSResources"]
-            self.resources["FaaSResources"] = ComputationalLayer(FunctionPE())
+            self.FaaS_start_index=resource_idx
             for CL in FR:
+               
                 if "transition_cost" in FR.keys():
                         transition_cost = float(FR["transition_cost"])
                 else:
                         print("ERROR: missing field in FaaSResources description")
                         sys.exit(1)
                 if CL.startswith("computationallayer"):
-                   
+                    cl=ComputationalLayer(CL)
                     # read transition cost
                     
                     
@@ -200,13 +215,21 @@ class System:
                                 "memory" in FR[CL][func].keys() and \
                                  "idle_time_before_kill" in FR[CL][func].keys():
                                 new_f = FaaS(CL, func, float(FR[CL][func]["cost"]), 
-                                             float(FR[CL][func]["memory"]),
+                                             float(FR[CL][func]["memory"]), FunctionPE(),
                                              transition_cost, 
                                              float(FR[CL][func]["idle_time_before_kill"]))
-                                self.resources["FaaSResources"].add_resource(new_f)
+                                self.resources.append(new_f)
+                                self.dic_map_res_idx[func]=resource_idx
+                                cl.add_resource(resource_idx)
+                                resource_idx+=1
                             else:
                                 print("ERROR: missing field in ",func," description")
                                 sys.exit(1)
+                            if "description" in FR[CL][func].keys():
+                                self.description[func]=FR[CL][func]["description"]
+                            else:
+                                self.description[func]="No description"
+                    self.CLs.append(cl)
         
        # load Network Technology
         if "NetworkTechnology" in data.keys():
@@ -256,79 +279,47 @@ class System:
             is_compatible = False
             print("ERROR: no demand matrix available in configuration file")
             sys.exit(1)
-        
+       
         # if demand matrix is available and it is consistent with 
         # compatibility matrix, convert both these dict to arrays
         if is_compatible:
             self.convert_dic_to_matrix()
          
-          
-        if "DataTransfer" in data.keys():
-            self.data_transfer_dict=data["DataTransfer"]
-            self.create_datasize_matrix()
+         
+        
             
         if "Time" in data.keys():
             self.T=float(data["Time"])
+       
 ##############################################################################################
 
-    ## Method creats a square matrix to show the data transfer between each two components
-    # @param self The object pointer
-    def create_datasize_matrix(self):
-        self.data_sizes=np.full((len(self.components), len(self.components)), 0, dtype=float)
-        for c in self.data_transfer_dict:
+    # ## Method creats a square matrix to show the data transfer between each two components
+    # # @param self The object pointer
+    # def create_datasize_matrix(self, data_transfer_dict):
+    #     self.data_sizes=np.full((len(self.components), len(self.components)), 0, dtype=float)
+    #     for c in data_transfer_dict:
                 
-                if "next" in self.data_transfer_dict[c] and \
-                    "data_size" in self.data_transfer_dict[c].keys():
-                    comps=list(self.data_transfer_dict[c]["next"])
-                    sizes=list(self.data_transfer_dict[c]["data_size"])
-                    if len(comps)==len(sizes):
-                        for component in comps:
-                            if component in self.components and \
-                                c in self.components:
-                               x1= list(self.components.keys()).index(c)
-                               x2=list(self.components.keys()).index(component)
-                               self.data_sizes[x1][x2]=sizes[self.data_transfer_dict[c]["next"].index(component)]
-                            else:
-                               print("ERROR: no match between components dict and data transfer dict")
-                               sys.exit(1) 
-                    else:
-                         print("ERROR: no match between components list and data size list")
-                         sys.exit(1)
+    #             if "next" in data_transfer_dict[c] and \
+    #                 "data_size" in data_transfer_dict[c].keys():
+    #                 comps=list(data_transfer_dict[c]["next"])
+    #                 sizes=list(data_transfer_dict[c]["data_size"])
+    #                 if len(comps)==len(sizes):
+    #                     for component in comps:
+    #                         if component in self.dic_map_com_idx and \
+    #                             c in self.dic_map_com_idx:
+    #                            x1= list(self.dic_map_com_idx.keys()).index(c)
+    #                            x2=list(self.dic_map_com_idx.keys()).index(component)
+    #                            self.data_sizes[x1][x2]=sizes[data_transfer_dict[c]["next"].index(component)]
+    #                         else:
+    #                            print("ERROR: no match between components dict and data transfer dict")
+    #                            sys.exit(1) 
+    #                 else:
+    #                      print("ERROR: no match between components list and data size list")
+    #                      sys.exit(1)
     
-    ## Method creates a list of tuple to show each resource belong to which computational layer
-    # @param self The object pointer
-    def creat_resource_CL_list(self):
-        
-        resource_CL_list=[]
-        resource_idx=0
-        for res in self.resources["EdgeResources"].resources:
-            resource_CL_list.append((resource_idx,res.CLname))
-            resource_idx+=1
-        for res in self.resources["CloudResources"].resources:
-            resource_CL_list.append((resource_idx,res.CLname))
-            resource_idx+=1
-        for res in self.resources["FaaSResources"].resources:
-            resource_CL_list.append((resource_idx,res.CLname))
-            resource_idx+=1
-        return resource_CL_list
     
-    ## Method creates a list of tuple to show each computational layer belong to which Network domains
-    # @param self The object pointer
-    def creat_CL_ND_list(self):
-        
-        CL_NDs=[]
-        # get a list of all computational layers
-        computational_layers=list(sorted((set(list(c[1] for c in self.resources_CL)))))
-        # for each computational layer determine that the current layer is located in which network domains
-        for layer in computational_layers:
-            li=list(filter(lambda network_technology: (layer in network_technology.computationallayers)
-                           , self.network_technologies))
-            NDs=[]
-            for l in li:
-                NDs.append(l.ND_name)
-            CL_NDs.append((layer,NDs))
-       
-        return CL_NDs
+    
+   
    
     ## Method initialize the components based on the dictionary of component 
     # extracted from config file and graph, compute the input lambda 
@@ -339,8 +330,10 @@ class System:
     # @param LC Dictionary of LocalConstraints came from configuration file.
     def initialize_components(self, C,LC):
         
-        self.components = {}
+        self.components = []
+        self.dic_map_com_idx={}
         localconstraints={}
+        idx=0
         for c in C :
             # check if the components' names in Components and LocalConstraints are matched
             
@@ -353,20 +346,27 @@ class System:
                         # if the node c has some input edges, its Lambda is equal 
                         # to the sum of products of lambda and weight of its 
                         # input edges.
+                        
                         for n, c, data in self.graph.G.in_edges(c, data=True):
-                            Sum += float(data["weight"]) * self.components[n].Lambda
-                        self.components[c] = Component(c, float(C[c]["memory"]),
-                                                      Sum)
+                            Sum += float(data["transition_probability"]) * self.components[self.dic_map_com_idx[n]].Lambda
+                        self.components.append( Component(c, float(C[c]["memory"]),
+                                                      Sum))
+                        
                     else:
                         # if the node c does not have any input edge, it is the 
                         # first node of a path and its Lambda is equal to input 
                         # lambda.
-                        self.components[c] = Component(c, float(C[c]["memory"]), 
-                                                      self.Lambda)
+                        self.components.append(Component(c, float(C[c]["memory"]), 
+                                                      self.Lambda))
+                else:
+                    print("ERROR: no match between components in DAG and system input file")
+                    sys.exit(1)
+                self.dic_map_com_idx[c]=idx
                         
                 if c  in LC:
-                    localconstraints[c]=LocalConstraint(self.components[c],
+                    localconstraints[c]=LocalConstraint(self.components[self.dic_map_com_idx[c]],
                                                                  float(LC[c]["local_res_time"]))
+                idx+=1
                     
         # create a list of local constraints, each row belong to a component 
         # and each component has max_res_time
@@ -374,16 +374,16 @@ class System:
         self.LC=np.full((len(localconstraints),2), 0, dtype=float)
         LC_idx=0
         for c in localconstraints:
-            if c in self.components:
-                self.LC[LC_idx][0]=list(self.components.keys()).index(c)
+            if c in self.dic_map_com_idx:
+                self.LC[LC_idx][0]=self.dic_map_com_idx[c]
                 self.LC[LC_idx][1]=localconstraints[c].max_res_time
                 LC_idx+=1
             else:
                 print("ERROR: no match between current component in local constraint and components in the system ")
                 sys.exit(1)
         # creat a list of components memory
-        self.component_memory=np.array(list(c.memory for c in list(self.components.values())))
-        
+        #self.component_memory=np.array(list(c.memory for c in list(self.components.values())))
+       
     ## Method to convert dictionaries of global constraints to a numpy array  
     # @param self The object pointer   
     # @param GC dict of global constraint  
@@ -394,8 +394,8 @@ class System:
         for p in GC:
             C_list=[]
             for c in GC[p]["components"]:
-                if c in self.components.keys():
-                    C_list.append(list(self.components.keys()).index(c))
+                if c in self.dic_map_com_idx.keys():
+                    C_list.append(list(self.dic_map_com_idx.keys()).index(c))
                 else:
                     print("ERROR: no match between components and path in global constraints")
                     sys.exit(1)
@@ -413,108 +413,34 @@ class System:
     # @param self The object pointer
     def convert_dic_to_matrix(self):
       
-        # obtain the number of type of resources
-        resource_count = len(self.resources["CloudResources"].resources) + \
-                         len(self.resources["EdgeResources"].resources) + \
-                         len(self.resources["FaaSResources"].resources)
-        
-        # determin that there are how many devices for each type of resources
-        # compute for edge and cloud, for function, it is unlimited 
-        edge_cloud_count=resource_count-len(self.resources["FaaSResources"].resources)
-        self.resource_number = np.full(edge_cloud_count, 
-                                            1, dtype=int)
-        
-        #obtain the number of components 
-        component_count = len(self.compatibility_dict)
-        
+      
         # define and initialize the matrices to zero
-        self.compatibility_matrix = np.full((component_count, resource_count), 
+        self.compatibility_matrix = np.full((len(self.components), len(self.resources)), 
                                             0, dtype=int)
-        self.demand_matrix = np.full((component_count, resource_count), 
+        self.demand_matrix = np.full((len(self.components), len(self.resources)), 
                                      0, dtype=float)
         
-        # Initialize resource memory matrix with infinitive value, 
-        # FaaS resources will have "inf" value
-        self.resource_memory = np.full(resource_count, 
-                                            float("inf"), dtype=float)
-        # Initialize resource cost with zero
-        self.resource_cost = np.full(resource_count, 
-                                            0, dtype=float)
        
-       
+
         
-        component_index = 0
-        edge_seen=False
-        cloud_seen=False
-        FaaS_seen=False
-      
         # Loop over components and resources to compute the integer matrix 
         # from the dictionary
-        for c in self.compatibility_dict:
-            resource_index = 0
-           
-            # edge resources
-            for E in self.resources["EdgeResources"].resources:
-                # check if the current resource is compatible with the 
-                # current component
-                if E.name in self.compatibility_dict[c]:
-                    self.compatibility_matrix[component_index][resource_index] = 1
-                    self.demand_matrix[component_index][resource_index] = self.demand_dict[c][E.name]
-                
-                if not edge_seen:
-                    self.resource_number[resource_index]=E.number
-                    self.resource_memory[resource_index]=E.memory
-                    self.resource_cost[resource_index]=E.cost
-                    
-                
-                resource_index += 1
-            edge_seen=True        
-            
-                  
-            # cloud resources
-            if not cloud_seen:
-                self.cloud_start_index=resource_index
-            for C in self.resources["CloudResources"].resources:
-                # check if the current resource is compatible with the 
-                # current component
-                if C.name in self.compatibility_dict[c]:
-                    self.compatibility_matrix[component_index][resource_index] = 1
-                    self.demand_matrix[component_index][resource_index] = self.demand_dict[c][C.name]
-                
-                
-                if not cloud_seen:
-                    self.resource_number[resource_index]=C.number
-                    self.resource_memory[resource_index]=C.memory
-                    self.resource_cost[resource_index]=C.cost
-                    
-                resource_index += 1
-            cloud_seen=True        
-
-            # faas resources
-            
-            if not FaaS_seen:
-                self.FaaS_start_index=resource_index
-            for F in self.resources["FaaSResources"].resources:   
-                # check if the current resource is compatible with the 
-                # current component
-                if F.name in self.compatibility_dict[c]:
-                    arrival_rate = self.components[c].Lambda
-                    self.compatibility_matrix[component_index][resource_index] = 1
-                 
-                    
-                    warm_service_time=self.demand_dict[c][F.name][0]
-                    cold_service_time=self.demand_dict[c][F.name][1]
-                    self.demand_matrix[component_index][resource_index] = F.get_avg_res_time(arrival_rate, warm_service_time, cold_service_time)
-                  
-                if not FaaS_seen:
-                    self.resource_cost[resource_index]=F.cost
-                    self.FaaS_trans_cost = F.transition_cost  
-                resource_index += 1
-            FaaS_seen=True
-            component_index += 1
        
-        
-    
+        for c in self.compatibility_dict:
+           
+            for res in self.compatibility_dict[c]: 
+                self.compatibility_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = 1
+                if self.dic_map_res_idx[res] < self.FaaS_start_index:
+                    self.demand_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = self.demand_dict[c][res]
+                else:
+                    
+                    arrival_rate = self.components[self.dic_map_com_idx[c]].Lambda
+                    warm_service_time=self.demand_dict[c][res][0]
+                    cold_service_time=self.demand_dict[c][res][1]
+                    self.demand_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = self.resources[self.dic_map_res_idx[res]].get_avg_res_time(
+                        arrival_rate, warm_service_time, cold_service_time)
+
+               
       
     ## Method to get the system description as json object
     #   @param self The object pointer
@@ -560,6 +486,8 @@ class System:
             else:
                 Output[y] = [x]
         return Output  
+    
+    #def create_dic_map_res_com():
         
     ## Method to print the system description (in json format), either on 
     # stdout or onto a given file
@@ -581,8 +509,8 @@ class System:
     ## Method to print the graph onto a gml file (see Graph.DAG.write_DAG)
     #   @param self The object pointer
     #   @param graph_file File where to print the graph (gml format)
-    def print_graph(self, graph_file):
-        self.graph.write_DAG(graph_file)
+    def print_graph(self ):
+        self.graph.write_DAG()
 
 
     ## Method to plot the graph (see Graph.DAG.plot_DAG)
