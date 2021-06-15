@@ -33,22 +33,18 @@ class PerformanceConstraint(ABC):
     #   @param component_idx The index of current component
     def get_perf_evaluation(self,S,y_hat,component_idx):
         
-        key=""
+        
         # get the resource of current component and evaluat the performance of the component
         j=np.nonzero(y_hat[component_idx])[0][0]
        
-        if j<S.cloud_start_index:
-             key="EdgeResources"
-             perf_evaluation = S.resources[key].performance_evaluator.evaluate_component(
-                                     component_idx,j,y_hat, S.demand_matrix, S.Lambdas)
-        elif j<S.FaaS_start_index:
-             key="CloudResources"
-             perf_evaluation = S.resources[key].performance_evaluator.evaluate_component(
-                                     component_idx,j,y_hat, S.demand_matrix, S.Lambdas)
+        if j<S.FaaS_start_index:
+            
+             perf_evaluation = S.resources[j].performance_evaluator.evaluate_component(
+                                     component_idx,j,y_hat, S)
         else:
-             key="FaaSResources"
-             perf_evaluation = S.resources[key].performance_evaluator.evaluate_component(
-                                     component_idx,j, S.demand_matrix)
+           
+             perf_evaluation = S.resources[j].performance_evaluator.evaluate_component(
+                                     component_idx,j, S)
         
         return perf_evaluation
 
@@ -122,13 +118,18 @@ class GlobalConstraint(PerformanceConstraint):
     #   @param S instance of System class
     #   @param return common network domain
     def get_network_delay(self,comp_index,cpm1_resource,cpm2_resource,S):
-       
-       
-        CL1=list(filter(lambda resource: (cpm1_resource in resource), S.resources_CL))[0][1]
-        CL2=list(filter(lambda resource: (cpm2_resource in resource), S.resources_CL))[0][1]
-        x1=list(filter(lambda cl: (CL1 in cl), S.CL_NDs))[0][1]
-        x2=list(filter(lambda cl: (CL2 in cl), S.CL_NDs))[0][1]
-        ND=list(set(x1).intersection(x2))
+        comp1_key = [key for key, value in S.dic_map_com_idx.items() if value == comp_index][0]
+      
+        # CL1=list(filter(lambda resource: (cpm1_resource in resource), S.resources_CL))[0][1]
+        # CL2=list(filter(lambda resource: (cpm2_resource in resource), S.resources_CL))[0][1]
+        CL1=next((cl.name for cl in S.CLs if cpm1_resource in cl.resources ), None)
+        CL2=next((cl.name for cl in S.CLs if cpm2_resource in cl.resources ), None)
+        
+        # x1=list(filter(lambda cl: (CL1 in cl), S.CL_NDs))[0][1]
+        # x2=list(filter(lambda cl: (CL2 in cl), S.CL_NDs))[0][1]
+        ND1=[l.ND_name for l in list(filter(lambda NT: (CL1 in NT.computationallayers), S.network_technologies))]
+        ND2=[l.ND_name for l in list(filter(lambda NT: (CL2 in NT.computationallayers), S.network_technologies))]
+        ND=list(set(ND1).intersection(ND2))
       
         if len(ND)==0:
             print("ERROR: no network domain available between two resources "
@@ -138,16 +139,21 @@ class GlobalConstraint(PerformanceConstraint):
         elif len(ND)==1:
             l=list(filter(lambda network_technology: 
                               (ND[0] in network_technology.ND_name), S.network_technologies))
+            # network_delay=l[0].performance_evaluator.evaluate(
+            #                    l[0].access_delay,l[0].bandwidth, S.data_sizes[comp_index][self.path.index(comp_index)+1])
+            comp2_key = [key for key, value in S.dic_map_com_idx.items() if value == self.path.index(comp_index)+1][0]
+           
             network_delay=l[0].performance_evaluator.evaluate(
-                               l[0].access_delay,l[0].bandwidth, S.data_sizes[comp_index][self.path.index(comp_index)+1])
+                               l[0].access_delay,l[0].bandwidth,S.graph.G.get_edge_data(comp1_key, comp2_key)["data_size"])
         
         else :
+            comp2_key = [key for key, value in S.dic_map_com_idx.items() if value == self.path.index(comp_index)+1][0]
             network_delay=float("inf")
             for nd in ND:
                 l=list(filter(lambda network_technology: 
                               (nd in network_technology.ND_name), S.network_technologies))
                 new_network_delay=l[0].performance_evaluator.evaluate(
-                               l[0].access_delay,l[0].bandwidth, S.data_sizes[comp_index][self.path.index(comp_index)+1])       
+                               l[0].access_delay,l[0].bandwidth, S.graph.G.get_edge_data(comp1_key, comp2_key)["data_size"])
                 if new_network_delay<network_delay:
                    network_delay=new_network_delay 
         return network_delay
