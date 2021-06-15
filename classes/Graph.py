@@ -1,6 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
-
+import sys
 
 ## DAG
 #
@@ -16,35 +16,59 @@ class DAG():
     ## DAG class constructor
     #   @param self The object pointer
     #   @param graph_file File with the graph description (gml or text format)
-    def __init__(self, graph_file):
-        self.read_DAG(graph_file)
+    def __init__(self, graph_dict):
+        self.read_DAG(graph_dict)
           
     
-    ## Method to generate a DAG object starting from the description provided
+    # ## Method to generate a DAG object starting from the description provided
+    # # in a text file (which should be in gml or text format).
+    # #   @param self The object pointer
+    # #   @param graph_file File with the graph description (gml or text format)
+    # def read_DAG(self, graph_file):
+        
+    #     if graph_file.endswith(".gml"):
+    #         self.G = nx.read_gml(graph_file)
+    #     else:
+    #         with open(graph_file) as f:
+    #             # read file lines
+    #             lines = f.read().splitlines()
+    #             # initialize directed graph
+    #             self.G = nx.DiGraph()
+    #             # populate graph
+    #             make_tuple = lambda x : (x[0], x[1], float(x[2]))
+    #             graph_list = list((make_tuple(el.split()) for el in lines))
+    #             self.G.add_weighted_edges_from(graph_list)
+     ## Method to generate a DAG object starting from the description provided
     # in a text file (which should be in gml or text format).
     #   @param self The object pointer
     #   @param graph_file File with the graph description (gml or text format)
-    def read_DAG(self, graph_file):
+    def read_DAG(self, graph_dict):
         
-        if graph_file.endswith(".gml"):
-            self.G = nx.read_gml(graph_file)
-        else:
-            with open(graph_file) as f:
-                # read file lines
-                lines = f.read().splitlines()
-                # initialize directed graph
-                self.G = nx.DiGraph()
-                # populate graph
-                make_tuple = lambda x : (x[0], x[1], float(x[2]))
-                graph_list = list((make_tuple(el.split()) for el in lines))
-                self.G.add_weighted_edges_from(graph_list)
+        self.G=nx.DiGraph()
     
-    
+        for c in graph_dict:
+                
+                if "next" in graph_dict[c] and \
+                    "data_size" in graph_dict[c].keys():
+                    comps=list(graph_dict[c]["next"])
+                    sizes=list(graph_dict[c]["data_size"])
+                    probabilities=list(graph_dict[c]["transition_probability"])
+                    if len(comps)==len(sizes) and len(probabilities)==len(comps):
+                        if c not in self.G:
+                            self.G.add_node(c)
+                        for (next_c, size, probability) in zip(comps, sizes, probabilities):
+                            self.G.add_edge( c,next_c, data_size=size, transition_probability=probability)
+                        
+                            
+                    else:
+                         print("ERROR: no match between components list, probabilities list and data size list")
+                         sys.exit(1)
+       
     ## Method to write the graph object onto a gml file
     #   @param self The object pointer
     #   @param graph_file File where to print the graph (gml format)
-    def write_DAG(self, graph_file):
-        nx.write_gml(self.G, graph_file)
+    def write_DAG(self):
+        nx.write_gml(self.G)
     
     
     ## Method to plot the graph object. Edges have different widths according 
