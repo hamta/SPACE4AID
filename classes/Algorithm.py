@@ -5,6 +5,9 @@ import numpy as np
 import pdb    
 import copy
 import random
+import time 
+import multiprocessing as mpp 
+from multiprocessing import Process, Pool
 
 ## Algorithm
 class Algorithm:
@@ -36,12 +39,12 @@ class Algorithm:
         y=np.full((I, J), 0, dtype=int)
         
         candidate_nodes=[]
-        for l in S.CL_resources:
-            if l == list(S.CL_resources.keys())[-1]:
-                random_num=S.CL_resources[l]
+        for l in S.CLs:
+            if l == list(S.CLs)[-1]:
+                random_num=l.resources
                 candidate_nodes.extend(random_num)
             else:
-                random_num = random.choice(S.CL_resources[l])
+                random_num = random.choice(l.resources)
                 candidate_nodes.append(random_num)
         
         for i in range(I):
@@ -68,7 +71,7 @@ class Algorithm:
         
         for j in range( J):
               if j< S.FaaS_start_index:
-                  number=np.random.randint(1,S.resource_number[j]+1)
+                  number=np.random.randint(1,S.resources[j].number+1)
                     
                   for i in range(I):
                       if y[i][j]>0:
@@ -140,8 +143,8 @@ class Algorithm:
         
         I, J= solution.Y_hat.shape
         flag=True
-        if resource_idx< len(S.resource_number):
-            if S.resource_number[resource_idx]>1:
+        if resource_idx< S.FaaS_start_index:
+            if S.resources[resource_idx].number>1:
              
               # while flag and  solution.Y_hat[:,resource_idx].max()>1:
               #    Max = max(solution.Y_hat[:,resource_idx])
@@ -162,7 +165,7 @@ class Algorithm:
                      if temp[i][resource_idx]>1:
                          temp[i][resource_idx]-=1
                  new_solution=Configuration(temp)
-                 flag, Sum=new_solution.check_feasibility(S)
+                 flag, paths_performance, components_performance=new_solution.check_feasibility(S)
                  if flag:
                     solution= copy.deepcopy(new_solution)
                    
@@ -189,36 +192,78 @@ class RandomGreedy(Algorithm):
     #   @param self The object pointer
     #   @param S an instance of System class 
     #   @param N the number of random solution
-   def random_greedy(self,S,N):
+   def random_greedy_single_processing(self,N):
+       
+        solutions=[]
+        for i in range(N):
+            solutions.append(self.random_greedy())
+        SortedResult=sorted(solutions,key=lambda l:sum(l[0]))
+        return SortedResult[0]
     
-    cost=np.full((1,2), tuple)
-    costs=[]
-    minimum_cost=float("inf")
-    best_solution=None
-    for i in range(N):
-        self.conf[0]=Configuration(self.create_random_initial_solution(2,self.system))
-        solution=self.conf[0]
+   def random_greedy_multiprocessing(self,N):
+            cpuCore=int(mpp.cpu_count())
+            SortedResult=[]
+            if __name__ == '__main__':         
+                    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
+                    start = time.time()
+                    
+                   
+                    with Pool(processes=cpuCore) as pool:
+                          import functools
+                         
+                          partial_gp = functools.partial(self.random_greedy)
+                          result = pool.map(partial_gp, range(N))
+                          #result=pool.starmap(GradientProccess, range=8)
+                        
+                #    for i in range(100):
+                #        print(result[i][0])
+                    end = time.time()
+                   
+                    SortedResult=sorted(result,key=lambda l:sum(l[0]))
+                    # Z=0
+                    # for i in range(N):
+                    #     Z=Z+SortedResult[i][3]
+                     
+                    tm1=end-start
+            return SortedResult[0]
+        
+        
+
+   def random_greedy(self):
+        costs=[np.inf]
+        primary_costs=[np.inf]
+        solution=None
+        primary_solution=None
+        paths_performance=None
+        components_performance=None
       
-        flag=solution.check_feasibility(S)
+        A=Algorithm(self.system)
+        solution=A.conf[0]
+       
+        flag, primary_paths_performance, primary_components_performance =solution.check_feasibility(self.system)
+       
         #pdb.set_trace()
         if flag:
-            cost[0][0]=solution.objective_function(0, S) 
-            I,J=solution.Y_hat.shape
-            for j in range(J):
-                
-                if j>=self.cloud_start_index:
-                    solution= self.reduce_cluster_size(j, solution, S)
            
-            cost[0][1]=solution.objective_function(0, S)
-            
-            costs.append(copy.deepcopy(cost))
-            
-            
-            #pdb.set_trace()    
-            if cost[0][1] < minimum_cost:
-                    minimum_cost=cost[0][1]
-                    best_solution=solution
-    # set the best solution and best value properties                
-    self.best_solution=best_solution
-    self.minimum_cost=minimum_cost
-    #self.costs=costs
+           
+            primary_costs=solution.objective_function(0, self.system) 
+            I,J=solution.Y_hat.shape
+            primary_solution=copy.deepcopy(solution)
+            for j in range(J):
+                solution= A.reduce_cluster_size(j, solution, self.system)
+            flag, paths_performance,components_performance =solution.check_feasibility(self.system)
+            costs=solution.objective_function(0, self.system)
+        return costs,primary_costs, solution, primary_solution, flag, paths_performance, components_performance, primary_paths_performance, primary_components_performance
+
+     
+        
+
+
+
+
+
+
+
+
+
+
