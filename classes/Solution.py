@@ -60,7 +60,7 @@ class Configuration:
         for j in range(J):
             
             if (y[:,j]*np.array(list(c.memory for c in 
-                                     list(S.components.values())))).sum(axis=0) > S.resource_memory[j]:
+                                     S.components))).sum(axis=0) > S.resources[j].memory:
                 return False
         
         return True    
@@ -70,45 +70,56 @@ class Configuration:
     #   @param S an instance of system class
     #   @param path a list of components included in a path
     def check_feasibility(self, S):
-        I= len(S.LC)
+        I= len(S.components)
         flag = False
         Sum=0
         # creat a list to show each component satisfies its local constraint, 
         # if so, the coresponding element is True, and False otherwise.
-        check_components = np.full((I,2), tuple)
-        
+        components_performance = np.full((I,2), tuple)
+        paths_performance=[]
         # check if the preliminary constraints are satisfied
         #flag = self.preliminary_constraints_check_assignments(S.compatibility_matrix,S.resource_number)
         
         # check if the memory constraint is satisfied
         flag=self.memory_constraints_check(S)
+        
         if flag:
              # check local constraints for all components
-           # pdb.set_trace()
+           
             for i in range(I):
-                lc = LocalConstraint(int(S.LC[i][0]),S.LC[i][1])
-                check_components[i][0]=S.LC[i][0]
-                check_components[i][1]=lc.check_feasibility(S,self)
+                L=[item for item in S.LC if i in item]
+                if len(L)>0:
+                    
+                    lc = LocalConstraint(int(L[0][0]),L[0][1])
+                    components_performance[i][0]=int(L[0][0])
+                    components_performance[i][1]=lc.check_feasibility(S,self)
+                else:
+                    lc = LocalConstraint(i,np.inf)
+                    components_performance[i][0]=i
+                    components_performance[i][1]=lc.check_feasibility(S,self)
                 
             
         else:
-            return flag
+            return flag,  paths_performance, components_performance
         
-        flag = all([ comp[1][0] for comp in check_components ] )        
+        flag = all([ comp[1][0] for comp in components_performance ] )        
       
             
          # check global constraint is the local constraints of all components are satisfied
-        for path_idx in S.GC:
-            if flag:
-                
+        
+        if flag:
+           
+            for path_idx in S.GC:
+        
                 gc=GlobalConstraint(path_idx[0],path_idx[1])
                 #performance_of_components=[comp[1][1] for comp in check_components]
                 try:
-                    flag, Sum=gc.check_feasibility(S,self)
+                    # paths_performance include flag and performance in each item
+                    paths_performance.append(gc.check_feasibility(S,self))
                 except:
                     pdb.set_trace()
-        
-        return flag, Sum
+            flag = all([ path[0] for path in paths_performance ] )  
+        return flag, paths_performance, components_performance
 
      ## Method to compute the cost of a feasible solution
     #   @param self The object pointer
@@ -124,22 +135,25 @@ class Configuration:
        x[self.Y_hat.sum(axis=0)>0]=1
        y_bar=np.array(self.Y_hat.max(axis=0), dtype=int) 
        
-       cost=0
+    
+       costs=[]
        # compute cost of edge
        for j in range(S.cloud_start_index):
-           cost+=S.resource_cost[j] * x[j]
+           costs.append(S.resources[j].cost * x[j])
        
         # compute cost of VMs  
        for j in range(S.cloud_start_index,S.FaaS_start_index):
-           cost+=S.resource_cost[j] * y_bar[j]
+           costs.append(S.resources[j].cost* y_bar[j])
           
        # compute the cost of FaaS and transition cost if not using SCAR   
        for j in range(S.FaaS_start_index,J):
-           
-           if y_bar[j]>0:
-               comp_indexes=np.nonzero(self.Y_hat[:,j])[0]
-               for comp_idx in comp_indexes:
-                   cost+= S.resource_cost[j] * S.demand_matrix[comp_idx][j] * S.Lambdas[comp_idx] * S.T 
-                  # + int(not(SCAR)) * S.Lambdas[comp_idx] * S.T
-       
-       return cost
+           comp_indexes=np.nonzero(S.compatibility_matrix[:,j])[0]
+           for comp_idx in comp_indexes:
+               costs.append(S.resources[j].cost * self.Y_hat[comp_idx][j] * S.components[comp_idx].Lambda * S.T )
+           #if y_bar[j]>0:
+               # comp_indexes=np.nonzero(self.Y_hat[:,j])[0]
+               # for comp_idx in comp_indexes:
+               #     cost+= S.resources[j].cost * S.demand_matrix[comp_idx][j] * S.components[comp_idx].Lambda * S.T 
+                   
+       total_cost=sum(costs)
+       return costs
