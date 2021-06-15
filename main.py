@@ -111,7 +111,7 @@ def fun_gready(m,S):
 
 
 
-def main(system_file, graph_file):
+def main(system_file):
     
      system_file=create_pure_json(system_file)
      step=0.01
@@ -132,7 +132,7 @@ def main(system_file, graph_file):
             
             
             a_file.close()
-            S = System(system_file, graph_file)
+            S = System(system_file)
             
             
             start=time.time()
