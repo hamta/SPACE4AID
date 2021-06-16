@@ -16,6 +16,8 @@ import time
 import multiprocessing as mpp 
 from multiprocessing import Process, Pool
 
+ ## Method to create the pure json file from system description by removing the comments lines
+    #   @param main_json_file system description file address
 def create_pure_json(main_json_file):
     data = []
     with open(main_json_file,"r") as fp:
@@ -37,6 +39,11 @@ def create_pure_json(main_json_file):
     filehandle.writelines(data)
     filehandle.close()
     return pure_json    
+
+## Method to generate the output json file as the optimal placement for a specified Lambda
+    #   @param Lambda incoming workload rate
+    #   @param result the optimal result which is a list including all information
+    #   @param S an instance of system class including system description
 def generate_output_json_file(Lambda, result,S):
    
     best_solution=result[2]
@@ -91,32 +98,26 @@ def generate_output_json_file(Lambda, result,S):
     output["global_constraints"]=global_constraints   
         
     output["total_cost"]=sum(result[0])
-    
-    
-    
-    
-   
     output_json="OutputFiles/Lambda_"+str(round(float(Lambda), 5)) + '_output_json.json'
     a_file = open(output_json, "w")
     json.dump(output, a_file, indent=4)
     a_file.close()
     
     
-    
     return output
 
+## Method to create an instance of Algorithm class and run the random gready method used in multiprocessing manner
+    #   @param m parameter 
+    #   @param S an instance of system class including system description
 def fun_gready(m,S):
     GA=RandomGreedy(S)
     return GA.random_greedy()
 
 
 
-def main(system_file):
+def main(system_file, iteration, start_lambda,end_lambda, step):
     
      system_file=create_pure_json(system_file)
-     step=0.01
-     start_lambda=0.15
-     end_lambda=0.5
      
      for Lambda in np.arange(start_lambda, end_lambda,step ):
      
@@ -136,12 +137,12 @@ def main(system_file):
             
             
             start=time.time()
-            N=1000
+         
             
   ################## Multiprocessing ###################
             cpuCore=int(mpp.cpu_count())
             if __name__ == '__main__':         
-                    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
+                   # __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
                     start = time.time()
                     
                    
@@ -149,17 +150,12 @@ def main(system_file):
                           import functools
                          
                           partial_gp = functools.partial(fun_gready, S=S)
-                          result = pool.map(partial_gp, range(N))
-                          #result=pool.starmap(GradientProccess, range=8)
-                        
-                #    for i in range(100):
-                #        print(result[i][0])
+                          result = pool.map(partial_gp, range(int(iteration)))
+                          
                     end = time.time()
                    
                     SortedResult=sorted(result,key=lambda l:sum(l[0]))
-                    # Z=0
-                    # for i in range(N):
-                    #     Z=Z+SortedResult[i][3]
+                    
                      
                     tm1=end-start
 
@@ -170,8 +166,12 @@ def main(system_file):
     
 if __name__ == '__main__':
     system_file = sys.argv[1]
+    iteration = sys.argv[2]
+    start_Lambda= sys.argv[3]
+    end_Lambda= sys.argv[4]
+    step_Lambda= sys.argv[5]
     #system_file ="/Users/hamtasedghani/Desktop/large_scale/10_components/10-instance/data"   
     #system_file ="/Users/hamtasedghani/Desktop/AISPrintFirstPaper/system_description11.json"    
     
     
-    main(system_file)
+    main(system_file, iteration,start_Lambda, end_Lambda, step_Lambda)
