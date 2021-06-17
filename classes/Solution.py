@@ -65,6 +65,26 @@ class Configuration:
         
         return True    
     
+     ## Method to check whether the component placement moves backward from cloud to edge.
+    #   @param self The object pointer
+    #   @param S an instance of system class
+    def move_backward_check(self, S):
+        
+         for node in S.graph.G:
+            # get the component index and find the resource index assigned to it
+            i=S.dic_map_com_idx[node]
+            j=np.nonzero(self.Y_hat[i])[0][0]
+            # check if the current node is located in cloud, if so, it's succesor should be checked whether it is located in cloud too.
+            if j>= S.cloud_start_index:
+                for next_node in S.graph.G._succ[node].keys():
+                    i_next=S.dic_map_com_idx[next_node]
+                    j_next=np.nonzero(self.Y_hat[i_next])[0][0]
+                    if  j_next< S.cloud_start_index:
+                        return False
+         return True           
+       
+            
+    
     ## Method to check the feasibility of the current configuration
     #   @param self The object pointer
     #   @param S an instance of system class
@@ -82,6 +102,10 @@ class Configuration:
         
         # check if the memory constraint is satisfied
         flag=self.memory_constraints_check(S)
+        
+        if flag:
+            # check if the component placement does not move backward from cloud to edge.
+            flag=self.move_backward_check(S)
         
         if flag:
              # check local constraints for all components
