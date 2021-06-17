@@ -119,7 +119,7 @@ def main(system_file, iteration, start_lambda,end_lambda, step):
     
      system_file=create_pure_json(system_file)
      
-     for Lambda in np.arange(start_lambda, end_lambda,step ):
+     for Lambda in np.arange(float(start_lambda), float(end_lambda),float(step) ):
      
             a_file = open(system_file, "r")
             
