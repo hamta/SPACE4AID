@@ -48,13 +48,14 @@ class ServerFarmPE(PerformanceEvaluator):
     #
     #   @return Utilization of the given VirtualMachine object
    
-    def compute_utilization(self, I, j, Y_hat, S):
+    def compute_utilization(self, j, Y_hat, S):
         utilization = 0
-        
-        for i in range(I):
-            if Y_hat[i,j]>0:
-                 
-                utilization += S.demand_matrix[i,j] * S.components[i].Lambda / Y_hat[i,j]
+        for c in S.components:
+          for s in c.deployments:
+              for p in s.partitions:
+                  i=S.dic_map_part_idx[c.name][p.name][0]
+                  h=S.dic_map_part_idx[c.name][p.name][1]
+                  utilization += S.demand_matrix[i][h,j] * Y_hat[i][h,j] * p.part_Lambda
         return utilization
     
     
@@ -71,17 +72,12 @@ class ServerFarmPE(PerformanceEvaluator):
     #
     #   @return Computed performance
    
-    def evaluate_component(self, i, j, Y_hat, S):
+    def evaluate_partition(self, component_idx,h, j, Y_hat, S):
         
-        # number of components and number of resources
-        I, J = Y_hat.shape
-        
-        # compute utilization of the given EdgeNode object
-        utilization = self.compute_utilization(I, j, Y_hat, S)
+        utilization = self.compute_utilization(j, Y_hat, S)
               
-        #return D[i,j] / (1 - utilization)
-        return S.demand_matrix[i,j] / (1 - utilization)
-            
+        return S.demand_matrix[component_idx][h,j] / (1 - utilization)
+        
     
     ## Method to evaluate the performance of all Components deployed onto 
     #  a server farm
@@ -128,8 +124,8 @@ class FunctionPE(PerformanceEvaluator):
     #   @param D Demand matrix
     #
     #   @return Computed performance
-    def evaluate_component(self, i, j, S):
-        return S.demand_matrix[i,j]
+    def evaluate_partition(self, i, h,j, S):
+        return S.demand_matrix[i][h,j]
     
     
     ## Method to evaluate the performance of all Components deployed onto 
@@ -168,10 +164,15 @@ class EdgePE(PerformanceEvaluator):
     #   @param Lambdas Array of Component.Lambda for all Component objects
     #
     #   @return Utilization of the given EdgeNode object
-    def compute_utilization(self, I, j, Y, S):
+    def compute_utilization(self, j, Y, S):
+        
         utilization = 0
-        for i in range(I):
-            utilization += S.demand_matrix[i,j] * Y[i,j] * S.components[i].Lambda
+        for c in S.components:
+          for s in c.deployments:
+              for p in s.partitions:
+                  i=S.dic_map_part_idx[c.name][p.name][0]
+                  h=S.dic_map_part_idx[c.name][p.name][1]
+                  utilization += S.demand_matrix[i][h,j] * Y[i][h,j] * p.part_Lambda
         return utilization
     
     
@@ -187,15 +188,13 @@ class EdgePE(PerformanceEvaluator):
     #   @param Lambdas Array of Component.Lambda for all Component objects
     #
     #   @return Computed performance
-    def evaluate_component(self, i, j, Y, S):
+    def evaluate_partition(self, component_idx, h, j, Y, S):
         
-        # number of components and number of resources
-        I, J = Y.shape
-        
+
         # compute utilization of the given EdgeNode object
-        utilization = self.compute_utilization(I, j, Y, S)
+        utilization = self.compute_utilization(j, Y, S)
               
-        return S.demand_matrix[i,j] / (1 - utilization)
+        return S.demand_matrix[component_idx][h,j] / (1 - utilization)
     
     
     ## Method to evaluate the performance of all Components deployed onto 
