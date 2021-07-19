@@ -48,40 +48,51 @@ def generate_output_json_file(Lambda, result,S):
    
     best_solution=result[2]
     output={}
-    L={}
-    I,J=best_solution.Y_hat.shape
+   
+    comp={}
     output["Lambda"]=round(float(Lambda), 5)
+    for i in range(len(best_solution.Y_hat)):
+        L={}
+       
+        comp_key = [key for key, value in S.dic_map_com_idx.items() if value == i][0]
+        j=np.nonzero(best_solution.Y_hat[i])
+        for h in range(len(j[0])):
+           part_idx= j[0][h]
+           part={}
+           part_key = [key for key, (value1, value2) in S.dic_map_part_idx[comp_key].items() if value1 == i and value2==part_idx][0]
+           res_idx=j[1][h]
+          
+           res_key = [key for key, value in S.dic_map_res_idx.items() if value == res_idx][0]
+           res={}
+           res_des={}
+           res_des["description"]=S.description[res_key]
+           res_des["cost"]=S.resources[res_idx].cost*best_solution.Y_hat[i][part_idx,res_idx]
+           res_des["memory"]=S.resources[res_idx].memory
+           if res_idx< S.FaaS_start_index:    
+                res_des["number"]=int(best_solution.Y_hat[i][part_idx,res_idx])
+           else:
+              
+                res_des["idle_time_before_kill"]=S.resources[res_idx].idle_time_before_kill
+                res_des["transition_cost"]=S.resources[res_idx].transition_cost
+                
+           
+           res[res_key]=res_des
+           CL=S.resources[res_idx].CLname
+           comp_layer={}
+           comp_layer[CL]=res
+           #L[comp_key]=comp_layer
+           L[part_key]=comp_layer
+        L["response_time"]=result[6][i][1][1]
+        List=[item for item in S.LC if i in item]
+        if len(List)>0:
+           
+            L["response_time_threshold"]=List[0][1]
+        else:
+            L["response_time_threshold"]=str(float("inf"))
+        comp[comp_key]=L   
+        
     
-    for i in range(I):
-       comp_key = [key for key, value in S.dic_map_com_idx.items() if value == i][0]
-       res_idx=int(np.nonzero(best_solution.Y_hat[i,:])[0][0])
-      
-       res_key = [key for key, value in S.dic_map_res_idx.items() if value == res_idx][0]
-       res={}
-       res_des={}
-       res_des["description"]=S.description[res_key]
-       res_des["cost"]=result[0][res_idx]
-       res_des["memory"]=S.resources[res_idx].memory
-       if res_idx< S.FaaS_start_index:    
-            res_des["number"]=int(best_solution.Y_hat[i][res_idx])
-       else:
-          
-            res_des["idle_time_before_kill"]=S.resources[res_idx].idle_time_before_kill
-            res_des["transition_cost"]=S.resources[res_idx].transition_cost
-            
-       res_des["response_time"]=result[6][i][1][1]
-       List=[item for item in S.LC if i in item]
-       if len(List)>0:
-          
-           res_des["response_time_threshold"]=List[0][1]
-       else:
-           res_des["response_time_threshold"]=str(float("inf"))
-       res[res_key]=res_des
-       CL=S.resources[res_idx].CLname
-       comp_layer={}
-       comp_layer[CL]=res
-       L[comp_key]=comp_layer
-    output["components"]=L
+    output["components"]=comp
     global_constraints={}
     idx=0
     for path in S.GC:
@@ -97,8 +108,9 @@ def generate_output_json_file(Lambda, result,S):
     global_constraints[P]=p
     output["global_constraints"]=global_constraints   
         
-    output["total_cost"]=sum(result[0])
-    output_json="OutputFiles/Lambda_"+str(round(float(Lambda), 5)) + '_output_json.json'
+    output["total_cost"]=result[0]
+    output_json="Output_Files/Lambda_"+str(round(float(Lambda), 5)) + '_output_json.json'
+   
     a_file = open(output_json, "w")
     json.dump(output, a_file, indent=4)
     a_file.close()
@@ -117,6 +129,7 @@ def fun_gready(m,S):
 
 def main(system_file, iteration, start_lambda,end_lambda, step):
     
+    
      system_file=create_pure_json(system_file)
      
      for Lambda in np.arange(float(start_lambda), float(end_lambda),float(step) ):
@@ -133,16 +146,15 @@ def main(system_file, iteration, start_lambda,end_lambda, step):
             
             
             a_file.close()
-            S = System(system_file)
-            
-            
-            start=time.time()
          
-            
+            S = System(system_file)
+           
+          
+           
   ################## Multiprocessing ###################
             cpuCore=int(mpp.cpu_count())
             if __name__ == '__main__':         
-                   # __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
+                    # __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
                     start = time.time()
                     
                    
@@ -154,7 +166,7 @@ def main(system_file, iteration, start_lambda,end_lambda, step):
                           
                     end = time.time()
                    
-                    SortedResult=sorted(result,key=lambda l:sum(l[0]))
+                    SortedResult=sorted(result,key=lambda l:l[0])
                     
                      
                     tm1=end-start
@@ -165,13 +177,17 @@ def main(system_file, iteration, start_lambda,end_lambda, step):
 
     
 if __name__ == '__main__':
-    system_file = sys.argv[1]
-    iteration = sys.argv[2]
-    start_Lambda= sys.argv[3]
-    end_Lambda= sys.argv[4]
-    step_Lambda= sys.argv[5]
-    #system_file ="/Users/hamtasedghani/Desktop/large_scale/10_components/10-instance/data"   
-    #system_file ="/Users/hamtasedghani/Desktop/AISPrintFirstPaper/system_description11.json"    
+    system_file = sys.argv[1] # system description json file address
+    iteration = sys.argv[2]   #1000
+    start_Lambda= sys.argv[3]  # 0.15
+    end_Lambda= sys.argv[4]    # 0.16
+    step_Lambda= sys.argv[5]   #0.01
     
+    # system_file = "/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/ConfigFiles/Random_Greedy.json"
+    # iteration = 1000
+    # start_Lambda= 0.15
+    # end_Lambda= 0.16
+    # step_Lambda= 0.01
+   
     
     main(system_file, iteration,start_Lambda, end_Lambda, step_Lambda)
