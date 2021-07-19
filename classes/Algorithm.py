@@ -8,7 +8,7 @@ import random
 import time 
 import multiprocessing as mpp 
 from multiprocessing import Process, Pool
-
+import itertools
 ## Algorithm
 class Algorithm:
     
@@ -33,11 +33,17 @@ class Algorithm:
         
         np.seed = seed
        # done=False
-        I,J=S.compatibility_matrix.shape
-        # Initialize assignment matrix
-        y_hat=np.full((I, J), 0, dtype=int)
-        y=np.full((I, J), 0, dtype=int)
+       
+       
         
+        I=len(S.components)
+        J=len(S.resources)
+        y_hat=[]
+        y=[]
+        for i in range(I):
+            H,J=S.compatibility_matrix[i].shape
+            y_hat.append(np.full((H, J), 0, dtype=int))
+            y.append(np.full((H, J), 0, dtype=int))
         candidate_nodes=[]
         for l in S.CLs:
             if l == list(S.CLs)[-1]:
@@ -47,38 +53,81 @@ class Algorithm:
                 random_num = random.choice(l.resources)
                 candidate_nodes.append(random_num)
         
-        for i in range(I):
-            #self.get_compatable_layers(i, S)
+        flag=False
+        prevoius_part=None
+        for comp in S.components:
+            random_dep=random.choice(comp.deployments)
             
-            idx=np.nonzero(S.compatibility_matrix[i,:])[0]
-            #idx[idx>S.FaaS_start_index-1]=10000
-            #idx=list(set(idx))
-            index=list(set(candidate_nodes).intersection(idx))
-            prob=1/len(index)
-            step=0
-            rn=np.random.random()
+            h=0
             
-            for r in np.arange(0,1,prob):
-                if rn>r and rn<=r+prob:
-                    j= index[step]
-                    # if j==10000:
-                    #    j = list(set(candidate_nodes).intersection(idx))
+            for part in random_dep.partitions:
+                
+                
+                i=S.dic_map_part_idx[comp.name][part.name][0]
+                h_idx=S.dic_map_part_idx[comp.name][part.name][1]
+                idx=np.nonzero(S.compatibility_matrix[i][h_idx,:])[0]
+                #idx[idx>S.FaaS_start_index-1]=10000
+                #idx=list(set(idx))
+                index=list(set(candidate_nodes).intersection(idx))
+                prob=1/len(index)
+                step=0
+                rn=np.random.random()
+                
+                for r in np.arange(0,1,prob):
+                    if rn>r and rn<=r+prob:
+                        j= index[step]
                        
-                else:
-                    step+=1
-            y[i][j]=1
-            y_hat[i][j]=1
-        
-        for j in range( J):
-              if j< S.FaaS_start_index:
-                  number=np.random.randint(1,S.resources[j].number+1)
+                    else:
+                        step+=1
+                y[i][h_idx][j]=1
+                y_hat[i][h_idx][j]=1
+                
+                if  S.graph.G.succ[comp.name]!={}:
+                    if part.Next==list(S.graph.G.succ[comp.name].keys())[0]:
                     
-                  for i in range(I):
-                      if y[i][j]>0:
-                          y_hat[i][j] = y[i][j]*number
-              else:
-                  y_hat[i][j] = y[i][j]
-    
+                        S.graph.G[comp.name][part.Next]["data_size"]=part.data_size
+                ############# computing Lambda ################
+                # if S.graph.G.in_edges(comp.name):
+                        
+                #         if h==0:
+                #             Sum = 0
+                #             for n, c, data in S.graph.G.in_edges(comp.name, data=True):
+                #                 Sum += float(data["transition_probability"])*S.components[S.dic_map_part_idx[n][prevoius_part.name][0]].output_Lambda
+                #             part.Lambda=Sum
+                            
+                #         else:
+                #             part.Lambda= prevoius_part.Lambda * (1-part.stop_probability)
+                #         prevoius_part=copy.deepcopy(part)
+                # else:
+                #     if not flag:
+                #         flag=True
+                #         part.Lambda=S.Lambda * (1-part.stop_probability)
+                #         prevoius_part=copy.deepcopy(part)
+                # if part==list(random_dep.partitions)[-1]:
+                #     S.components[S.dic_map_part_idx[comp.name][part.name][0]].output_Lambda= part.Lambda
+                # h+=1  
+                # ############# computing demand of FaaS ################
+                # if j>=S.FaaS_start_index:
+                    
+                #     arrival_rate = part.Lambda
+                #     res=next((k for k in S.dic_map_res_idx if S.dic_map_res_idx[k] == j), None)
+                #     warm_service_time=S.demand_dict[comp.name][part.name][res][0]
+                #     cold_service_time=S.demand_dict[comp.name][part.name][res][1]
+                #     S.demand_matrix[i][h_idx][j] = S.resources[S.dic_map_res_idx[res]].get_avg_res_time(
+                #         arrival_rate, warm_service_time, cold_service_time)
+
+            
+        for j in range(S.FaaS_start_index):
+             
+            number=np.random.randint(1,S.resources[j].number+1)
+              
+            for i in range(I):
+                 H=S.compatibility_matrix[i].shape[0]
+                 for h in range(H):
+                    if y[i][h][j]>0:
+                        y_hat[i][h][j] = y[i][h][j]*number
+             
+        
        
         return  y_hat
  
@@ -141,33 +190,33 @@ class Algorithm:
     #   @param S an instance of System class
     def reduce_cluster_size(self,resource_idx, solution, S):
         
-        I, J= solution.Y_hat.shape
+      
         flag=True
         if resource_idx< S.FaaS_start_index:
             if S.resources[resource_idx].number>1:
+               y_max=[] 
+               for i in range(len(solution.Y_hat)):  
+                  y_max.append(np.array(solution.Y_hat[i].max(axis=0), dtype=int))
+
+               y_bar=[max(i) for i in itertools.zip_longest(*y_max, fillvalue = 0)]
              
-              # while flag and  solution.Y_hat[:,resource_idx].max()>1:
-              #    Max = max(solution.Y_hat[:,resource_idx])
-              #    comps_max=[i for i, j in enumerate(solution.Y_hat[:,resource_idx]) if j == Max]
-                 
-              #    temp=copy.deepcopy(solution.Y_hat)
-              
-              #    for i in comps_max:
-              #        temp[i][resource_idx]-=1
-              #    new_solution=Configuration(temp)
-              #    flag=new_solution.check_feasibility(S)
-              #    if flag:
-              #       solution= new_solution
-               while flag and  solution.Y_hat[:,resource_idx].max()>1:
+               while flag and  y_bar[resource_idx].max()>1:
                  temp=copy.deepcopy(solution.Y_hat)
               
-                 for i in range(I):
-                     if temp[i][resource_idx]>1:
-                         temp[i][resource_idx]-=1
+                 for i in range(len(solution.Y_hat)):
+                     for h in range(len(solution.Y_hat[i])):
+                         if temp[i][h,resource_idx]>1:
+                             temp[i][h,resource_idx]-=1
                  new_solution=Configuration(temp)
+                
                  flag, paths_performance, components_performance=new_solution.check_feasibility(S)
                  if flag:
                     solution= copy.deepcopy(new_solution)
+                    y_max=[] 
+                    for i in range(len(solution.Y_hat)):  
+                          y_max.append(np.array(solution.Y_hat[i].max(axis=0), dtype=int))
+        
+                    y_bar=[max(i) for i in itertools.zip_longest(*y_max, fillvalue = 0)]
                    
         return solution
            
@@ -194,42 +243,47 @@ class RandomGreedy(Algorithm):
     #   @param N the number of random solution
    def random_greedy_single_processing(self,N):
        
-        solutions=[]
-        for i in range(N):
-            solutions.append(self.random_greedy())
-        SortedResult=sorted(solutions,key=lambda l:sum(l[0]))
-        return SortedResult[0]
-    
-   def random_greedy_multiprocessing(self,N):
-            cpuCore=int(mpp.cpu_count())
-            SortedResult=[]
-            if __name__ == '__main__':         
-                    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"       
-                    start = time.time()
-                    
-                   
-                    with Pool(processes=cpuCore) as pool:
-                          import functools
-                         
-                          partial_gp = functools.partial(self.random_greedy)
-                          result = pool.map(partial_gp, range(N))
-                          #result=pool.starmap(GradientProccess, range=8)
-                        
-                #    for i in range(100):
-                #        print(result[i][0])
-                    end = time.time()
-                   
-                    SortedResult=sorted(result,key=lambda l:sum(l[0]))
-                    # Z=0
-                    # for i in range(N):
-                    #     Z=Z+SortedResult[i][3]
-                     
-                    tm1=end-start
-            return SortedResult[0]
+    cost=np.full((1,2), tuple)
+    costs=[]
+    minimum_cost=float("inf")
+    best_solution=None
+    primary_best_solution=None
+   
+    for i in range(N):
         
+        solution=Configuration(self.create_random_initial_solution(2,self.system))
+       
+        
+        flag,  paths_performance, components_performance=solution.check_feasibility(self.system)
+        #pdb.set_trace()
+        if flag:
+            
+            primary_solution=copy.deepcopy(solution)
+            cost[0][0]=solution.objective_function(0, self.system) 
+            J=len(self.system.resources)
+            for j in range(self.system.cloud_start_index,J):
+                
+                #if j>=self.system.cloud_start_index:
+                    solution= self.reduce_cluster_size(j, solution, self.system)
+           
+            cost[0][1]=solution.objective_function(0, self.system)
+            
+            costs.append(copy.deepcopy(cost))
+            
+            
+              
+            if cost[0][1] < minimum_cost:
+                    minimum_cost=cost[0][1]
+                    best_solution=solution
+                    primary_best_solution=primary_solution
+        
+    return minimum_cost, primary_best_solution, best_solution 
+   
+    
         
 
    def random_greedy(self):
+        
         costs=[np.inf]
         primary_costs=[np.inf]
         solution=None
@@ -237,8 +291,8 @@ class RandomGreedy(Algorithm):
         paths_performance=None
         components_performance=None
       
-        A=Algorithm(self.system)
-        solution=A.conf[0]
+        #A=Algorithm(self.system)
+        solution=self.conf[0]
        
         flag, primary_paths_performance, primary_components_performance =solution.check_feasibility(self.system)
        
@@ -247,10 +301,11 @@ class RandomGreedy(Algorithm):
            
            
             primary_costs=solution.objective_function(0, self.system) 
-            I,J=solution.Y_hat.shape
+            J=len(self.system.resources)
             primary_solution=copy.deepcopy(solution)
             for j in range(J):
-                solution= A.reduce_cluster_size(j, solution, self.system)
+                solution= self.reduce_cluster_size(j, solution, self.system)
+            
             flag, paths_performance,components_performance =solution.check_feasibility(self.system)
             costs=solution.objective_function(0, self.system)
         return costs,primary_costs, solution, primary_solution, flag, paths_performance, components_performance, primary_paths_performance, primary_components_performance
