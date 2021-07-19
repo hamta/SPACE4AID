@@ -7,7 +7,8 @@ from classes.Solution import Configuration
 import json
 import sys
 import numpy as np
-import pdb    
+import pdb 
+import copy   
 
 ## System
 #
@@ -282,6 +283,7 @@ class System:
        
         # if demand matrix is available and it is consistent with 
         # compatibility matrix, convert both these dict to arrays
+        
         if is_compatible:
             self.convert_dic_to_matrix()
          
@@ -332,15 +334,22 @@ class System:
         
         self.components = []
         self.dic_map_com_idx={}
+        self.dic_map_part_idx={}
         localconstraints={}
-        idx=0
+        comp_idx=0
+      
         for c in C :
+                
             # check if the components' names in Components and LocalConstraints are matched
             
                 
                 # check if the dict component of input file is in the graph
                 if self.graph.G.has_node(c):
                     # check if the node c has any input edge
+                    if len(C[c])>0:
+                            deployments=[]
+                            part_idx=0
+                            temp={}
                     if self.graph.G.in_edges(c):
                         Sum = 0
                         # if the node c has some input edges, its Lambda is equal 
@@ -348,25 +357,65 @@ class System:
                         # input edges.
                         
                         for n, c, data in self.graph.G.in_edges(c, data=True):
-                            Sum += float(data["transition_probability"]) * self.components[self.dic_map_com_idx[n]].Lambda
-                        self.components.append( Component(c, float(C[c]["memory"]),
-                                                      Sum))
+                            Sum += float(data["transition_probability"]) * self.components[self.dic_map_com_idx[n]].comp_Lambda
+                        
+                       
+                            
+                            for s in C[c]:
+                                part_Lambda=-1
+                                if  len(C[c][s])>0:
+                                    partitions=[]
+                                    for h in C[c][s]:
+                                        if part_Lambda>-1:
+                                            part_Lambda=part_Lambda*(1-float(C[c][s][h]["stop_probability"]))
+                                        else:
+                                            part_Lambda=copy.deepcopy(Sum)
+                                        temp[h]=(comp_idx,part_idx)
+                                        partitions.append(Component.Deployment.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
+                                                                                         float(C[c][s][h]["stop_probability"]),
+                                                                                         C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
+                                        part_idx+=1
+                                deployments.append(Component.Deployment(s,partitions))    
+                            self.dic_map_part_idx[c]=temp
+                        comp=Component(c,deployments,Sum)
+                        
+                        self.components.append(comp)
                         
                     else:
                         # if the node c does not have any input edge, it is the 
                         # first node of a path and its Lambda is equal to input 
                         # lambda.
-                        self.components.append(Component(c, float(C[c]["memory"]), 
-                                                      self.Lambda))
+                         
+                         
+                            
+                            for s in C[c]:
+                                part_Lambda=-1
+                                if  len(C[c][s])>0:
+                                    partitions=[]
+                                    for h in C[c][s]:
+                                        if part_Lambda>-1:
+                                            part_Lambda=part_Lambda*(1-float(C[c][s][h]["stop_probability"]))
+                                        else:
+                                            part_Lambda=copy.deepcopy(self.Lambda)
+                                        temp[h]=(comp_idx,part_idx)
+                                        partitions.append(Component.Deployment.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
+                                                                                         float(C[c][s][h]["stop_probability"]),
+                                                                                         C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
+                                        part_idx+=1
+                                        
+                                deployments.append(Component.Deployment(s,partitions))    
+                            self.dic_map_part_idx[c]=temp
+                       
+                            self.components.append(Component(c,deployments, self.Lambda))
                 else:
                     print("ERROR: no match between components in DAG and system input file")
                     sys.exit(1)
-                self.dic_map_com_idx[c]=idx
+                self.dic_map_com_idx[c]=comp_idx
                         
                 if c  in LC:
                     localconstraints[c]=LocalConstraint(self.components[self.dic_map_com_idx[c]],
                                                                  float(LC[c]["local_res_time"]))
-                idx+=1
+                comp_idx+=1
                     
         # create a list of local constraints, each row belong to a component 
         # and each component has max_res_time
@@ -412,33 +461,43 @@ class System:
     # denotes a resource with integer indexes
     # @param self The object pointer
     def convert_dic_to_matrix(self):
-      
-      
+        
+        self.compatibility_matrix=[]
+        self.demand_matrix=[]
+        comp_idx=0
+        for comp in self.components:
+            p=0
+            for dep in comp.deployments:
+                p+=len(dep.partitions)
+            self.compatibility_matrix.append( np.full((p, len(self.resources)), 
+                                            0, dtype=int))
         # define and initialize the matrices to zero
-        self.compatibility_matrix = np.full((len(self.components), len(self.resources)), 
-                                            0, dtype=int)
-        self.demand_matrix = np.full((len(self.components), len(self.resources)), 
-                                     0, dtype=float)
+        
+            self.demand_matrix.append( np.full((p, len(self.resources)), 
+                                     0, dtype=float))
         
        
 
-        
+      
         # Loop over components and resources to compute the integer matrix 
         # from the dictionary
-       
+        
         for c in self.compatibility_dict:
            
-            for res in self.compatibility_dict[c]: 
-                self.compatibility_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = 1
-                if self.dic_map_res_idx[res] < self.FaaS_start_index:
-                    self.demand_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = self.demand_dict[c][res]
-                else:
-                    
-                    arrival_rate = self.components[self.dic_map_com_idx[c]].Lambda
-                    warm_service_time=self.demand_dict[c][res][0]
-                    cold_service_time=self.demand_dict[c][res][1]
-                    self.demand_matrix[self.dic_map_com_idx[c]][self.dic_map_res_idx[res]] = self.resources[self.dic_map_res_idx[res]].get_avg_res_time(
-                        arrival_rate, warm_service_time, cold_service_time)
+            for part in self.compatibility_dict[c]: 
+                for res in self.compatibility_dict[c][part]:
+                    comp_idx=self.dic_map_part_idx[c][part][0]
+                    part_idx=self.dic_map_part_idx[c][part][1]
+                    self.compatibility_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]] = 1
+                    if self.dic_map_res_idx[res] < self.FaaS_start_index:
+                        self.demand_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]] = self.demand_dict[c][part][res]
+                    else:
+                        
+                        arrival_rate = self.components[self.dic_map_com_idx[c]].comp_Lambda
+                        warm_service_time=self.demand_dict[c][part][res][0]
+                        cold_service_time=self.demand_dict[c][part][res][1]
+                        self.demand_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]]  = self.resources[self.dic_map_res_idx[res]].get_avg_res_time(
+                            arrival_rate, warm_service_time, cold_service_time)
 
                
       
