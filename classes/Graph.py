@@ -1,7 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import sys
-
+import pdb
 ## DAG
 #
 # Class to represent a Directed Acyclic Graph. The nodes represent the names 
@@ -48,16 +48,20 @@ class DAG():
     
         for c in graph_dict:
                 
-                if "next" in graph_dict[c] and \
-                    "data_size" in graph_dict[c].keys():
+                # if "next" in graph_dict[c] and \
+                #     "data_size" in graph_dict[c].keys():
+                if "next" in graph_dict[c]:
                     comps=list(graph_dict[c]["next"])
-                    sizes=list(graph_dict[c]["data_size"])
+                    #sizes=list(graph_dict[c]["data_size"])
                     probabilities=list(graph_dict[c]["transition_probability"])
-                    if len(comps)==len(sizes) and len(probabilities)==len(comps):
+                    #if len(comps)==len(sizes) and len(probabilities)==len(comps):
+                    if len(probabilities)==len(comps):
                         if c not in self.G:
                             self.G.add_node(c)
-                        for (next_c, size, probability) in zip(comps, sizes, probabilities):
-                            self.G.add_edge( c,next_c, data_size=size, transition_probability=probability)
+                        # for (next_c, size, probability) in zip(comps, sizes, probabilities):
+                        #     self.G.add_edge( c,next_c, data_size=size, transition_probability=probability)
+                        for (next_c, probability) in zip(comps,  probabilities):
+                            self.G.add_edge( c,next_c, transition_probability=probability, data_size=0)
                         
                             
                     else:
@@ -140,12 +144,12 @@ class Component():
     #   @param memory
     #   @param Lambda
 
-    def __init__(self,name, memory, Lambda):
+    def __init__(self,name, deployments, comp_Lambda):
         self.name = name
-        self.memory = memory
-        self.Lambda = Lambda
+        self.deployments=deployments
+        self.comp_Lambda=comp_Lambda
         
-
+   
     ## Operator used to check if two Component objects are equal
     #
     # It compares the corresponding names
@@ -161,3 +165,24 @@ class Component():
             format(self.name, self.memory, self.Lambda )
         return s
     
+    class  Deployment():
+       
+        def __init__(self,name, partitions):
+             self.name = name
+             self.partitions = partitions
+             
+       
+             
+        class Partition():
+            
+             def __init__(self,name, memory, part_Lambda, stop_probability, Next, data_size):
+                 self.name = name
+                 self.memory = memory
+                 self.part_Lambda = part_Lambda
+                 self.stop_probability=stop_probability
+                 self.Next = Next
+                 self.data_size = data_size
+                 
+                 
+                 
+                 
