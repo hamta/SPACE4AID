@@ -1,6 +1,7 @@
 import numpy as np
 from classes.Constraints import LocalConstraint, GlobalConstraint
 import pdb
+import itertools
 ## Configuration
 class Configuration:
     
@@ -20,7 +21,7 @@ class Configuration:
     #          to each Component
     def __init__(self, Y_hat):
         self.Y_hat = Y_hat
-        self.n_components, self.n_resources = Y_hat.shape
+        self.n_components=len(Y_hat)
         self.local_slack_value=np.full(self.n_components,np.inf,dtype=float)
         self.global_slack_value=None
     
@@ -52,16 +53,23 @@ class Configuration:
     def memory_constraints_check(self, S):
         
         # creat y from y_hat
-        y = np.array(self.Y_hat > 0, dtype=int)
-        I,J=self.Y_hat.shape
+        I= len(S.components)
+        J= len(S.resources)
+        y=[]
+        for i in range(I):
+            y.append(np.array(self.Y_hat[i] > 0, dtype=int))
+       
         
         # for each column check is the sum of memory requrement of the components which is assigned to 
         # current resource is greater than the maximum capacity of the current resource
         for j in range(J):
-            
-            if (y[:,j]*np.array(list(c.memory for c in 
-                                     S.components))).sum(axis=0) > S.resources[j].memory:
-                return False
+            memory=0
+            for i ,c in zip(y, S.components):
+                memory+=(i[:,j]*np.array(list(h.memory for s in c.deployments for h in s.partitions))).sum(axis=0)
+                # if (i[:,j]*np.array(list(h.memory for h in 
+                #                      S.components))).sum(axis=0) > S.resources[j].memory:
+                if memory>S.resources[j].memory:
+                    return False
         
         return True    
     
@@ -70,17 +78,22 @@ class Configuration:
     #   @param S an instance of system class
     def move_backward_check(self, S):
         
+         last_part_res=-1
          for node in S.graph.G:
+          
+                
             # get the component index and find the resource index assigned to it
             i=S.dic_map_com_idx[node]
-            j=np.nonzero(self.Y_hat[i])[0][0]
-            # check if the current node is located in cloud, if so, it's succesor should be checked whether it is located in cloud too.
-            if j>= S.cloud_start_index:
-                for next_node in S.graph.G._succ[node].keys():
-                    i_next=S.dic_map_com_idx[next_node]
-                    j_next=np.nonzero(self.Y_hat[i_next])[0][0]
-                    if  j_next< S.cloud_start_index:
-                        return False
+            for y in self.Y_hat[i]:
+                h=np.nonzero(y)
+                if np.size(h)>0:
+                    if last_part_res>-1:
+                         if last_part_res>= S.cloud_start_index:
+                                if h[0][0]<S.cloud_start_index:
+                                    return False
+                    last_part_res=h[0][0]
+                    
+           
          return True           
        
             
@@ -132,7 +145,7 @@ class Configuration:
          # check global constraint is the local constraints of all components are satisfied
         
         if flag:
-           
+            
             for path_idx in S.GC:
         
                 gc=GlobalConstraint(path_idx[0],path_idx[1])
@@ -152,14 +165,19 @@ class Configuration:
     #   @param SCAR a boolean valuse shows if SCAR is used
     def objective_function(self, solution_idx, S):
        
-       I,J=self.Y_hat.shape 
+       J=len(S.resources)
         
        x = np.full(J, 0, dtype=int) 
        #y = np.array(self.conf[solution_idx].Y_hat > 0, dtype=int) 
-       x[self.Y_hat.sum(axis=0)>0]=1
-       y_bar=np.array(self.Y_hat.max(axis=0), dtype=int) 
+       for i in range(len(self.Y_hat)):
+           x[self.Y_hat[i].sum(axis=0)>0]=1
        
-    
+       y_max=[]
+       for i in range(len(self.Y_hat)):  
+          y_max.append(np.array(self.Y_hat[i].max(axis=0), dtype=int))
+      #y_bar =np.array(self.Y_hat.max(axis=0), dtype=int) 
+       y_bar=[max(i) for i in itertools.zip_longest(*y_max, fillvalue = 0)]
+       
        costs=[]
        # compute cost of edge
        for j in range(S.cloud_start_index):
@@ -168,16 +186,17 @@ class Configuration:
         # compute cost of VMs  
        for j in range(S.cloud_start_index,S.FaaS_start_index):
            costs.append(S.resources[j].cost* y_bar[j])
-          
+         
        # compute the cost of FaaS and transition cost if not using SCAR   
        for j in range(S.FaaS_start_index,J):
-           comp_indexes=np.nonzero(S.compatibility_matrix[:,j])[0]
-           for comp_idx in comp_indexes:
-               costs.append(S.resources[j].cost * self.Y_hat[comp_idx][j] * S.components[comp_idx].Lambda * S.T )
+           for i in range(len(self.Y_hat)):  
+               part_indexes=np.nonzero(S.compatibility_matrix[i][:,j])[0]
+               for part_idx in part_indexes:
+                   costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.components[i].comp_Lambda * S.T )
            #if y_bar[j]>0:
                # comp_indexes=np.nonzero(self.Y_hat[:,j])[0]
                # for comp_idx in comp_indexes:
                #     cost+= S.resources[j].cost * S.demand_matrix[comp_idx][j] * S.components[comp_idx].Lambda * S.T 
                    
        total_cost=sum(costs)
-       return costs
+       return total_cost
