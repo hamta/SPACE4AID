@@ -735,5 +735,3 @@ class HyperOpt():
 class IteratedLocalSearch(Algorithm):
     
     pass
-
-
