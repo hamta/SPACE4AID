@@ -1,11 +1,19 @@
+from classes.Logger import Logger
 from abc import ABC, abstractmethod
+import numpy as np
+import copy
+import sys
+
 
 ## PerformanceEvaluator
 #
-# Class used to evaluate the performance of a specific Resource type
+# Abstract class used to represent a performance evaluator, namely an object 
+# that evaluates the performance of a Graph.Component.Deployment.Partition 
+# executed on different types of resources
 class PerformanceEvaluator(ABC):
-    
-    ## Method to evaluate the performance of a Resource (abstract)
+
+    ## Method to evaluate the performance of a 
+    # Graph.Component.Deployment.Partition object
     #   @param self The object pointer
     @abstractmethod
     def evaluate(self):
@@ -14,214 +22,294 @@ class PerformanceEvaluator(ABC):
 
 ## NetworkPE
 #
-# Specialization of PerformanceEvaluator designed to evaluate the performance 
-# of a NetworkTechnology object
+# Class designed to evaluate the performance of a NetworkTechnology object, 
+# namely the time required to transfer data between two consecutive 
+# Graph.Component or Graph.Component.Deployment.Partition objects executed on 
+# different devices in the same network domain
 class NetworkPE(PerformanceEvaluator):
 
     ## Method to evaluate the performance of a NetworkTechnology object
-    #
     #   @param self The object pointer
-    #   @param access_delay
-    #   @param bandwidth
+    #   @param access_delay Access delay characterizing the network domain
+    #   @param bandwidth Bandwidth characterizing the network domain
     #   @param data Amount of data transferred
-    #   @return Computed performance
-    def evaluate(self, access_delay, bandwidth,data):
+    #   @return Network transfer time
+    def evaluate(self, access_delay, bandwidth, data):
         return access_delay + (data / bandwidth)
     
 
 ## ServerFarmPE
 #
-# Specialization of PerformanceEvaluator designed to evaluate the performance 
-# of a server farm (i.e., a group of VirtualMachine objects)
+# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition 
+# object executed in a server farm (i.e., a group of Resources.VirtualMachine 
+# objects)
 class ServerFarmPE(PerformanceEvaluator):
     
-    
-    ## Method to compute the utilization of a specific VirtualMachine object
-    #
+    ## Method to compute the utilization of a specific 
+    # Resources.VirtualMachine object
     #   @param self The object pointer
-    #   @param I Number of existing Component objects
-    #   @param j Index of the EdgeNode object
-    #   @param Y_hat Amount of Resources assigned to each Component, 
-    #          returned by Configuration.get_number_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Utilization of the given VirtualMachine object
-   
+    #   @param j Index of the Resources.VirtualMachine object
+    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
+    #                Graph.Component object
+    #   @param S A System.System object
+    #   @return Utilization of the given Resources.VirtualMachine object
     def compute_utilization(self, j, Y_hat, S):
         utilization = 0
+        # loop over all components
         for c in S.components:
-          for s in c.deployments:
-              for p in s.partitions:
-                  i=S.dic_map_part_idx[c.name][p.name][0]
-                  h=S.dic_map_part_idx[c.name][p.name][1]
-                  utilization += S.demand_matrix[i][h,j] * Y_hat[i][h,j] * p.part_Lambda
+            # loop over all the candidate deployments
+            #for s in c.deployments:
+                # loop over all partitions in the deployment
+                for p in c.partitions:
+                    # get the index of the component and the index of the
+                    # partition
+                    i = S.dic_map_part_idx[c.name][p.name][0]
+                    h = S.dic_map_part_idx[c.name][p.name][1]
+                    # compute the utilization
+                    if Y_hat[i][h,j] > 0:
+                        utilization += S.demand_matrix[i][h,j] * \
+                                         p.part_Lambda / Y_hat[i][h,j]
+                                        
         return utilization
     
-    
-    ## Method to evaluate the performance of a specific Component deployed 
-    #  onto a VirtualMachine object
-    #
+    ## Method to evaluate the performance of a specific 
+    # Graph.Component.Deployment.Partition object executed onto a 
+    # Resources.VirtualMachine
     #   @param self The object pointer
-    #   @param i Component index
-    #   @param j Resource index
-    #   @param Y_hat Amount of Resources assigned to each Component, 
-    #          returned by Configuration.get_number_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Computed performance
-   
-    def evaluate_partition(self, component_idx,h, j, Y_hat, S):
-        
+    #   @param i Index of the Graph.Component
+    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param j Index of the Resources.VirtualMachine
+    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
+    #                Graph.Component object
+    #   @param S A System.System object
+    #   @return Response time
+    def evaluate(self, i, h, j, Y_hat, S):
+        # compute the utilization
         utilization = self.compute_utilization(j, Y_hat, S)
-              
-        return S.demand_matrix[component_idx][h,j] / (1 - utilization)
-        
-    
-    ## Method to evaluate the performance of all Components deployed onto 
-    #  a server farm
-    #
-    #   @param self The object pointer
-    #   @param assignments List of pairs representing assignments; either all 
-    #          the assignments using Cloud resources or a subset of 
-    #          assignments living onto a specific path
-    #   @param Y_hat Amount of Resources assigned to each Component, 
-    #          returned by Configuration.get_number_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Computed performance
-    def evaluate(self, assignments, Y_hat, S):
-       
-        # number of components and number of resources
-        I, J = Y_hat.shape
-        
-        # evaluate performance of all components, given the corresponding
-        # assignment
-        value = 0
-        for assignment in assignments:
-            i = assignment[0]
-            j = assignment[1]
-            value += self.evaluate_component(i, j, Y_hat, S)
-              
-        return value
+        # compute the response time
+        r = 0.
+        if Y_hat[i][h,j] > 0:
+            r = S.demand_matrix[i][h,j] / (1 - utilization) 
+        return r
                 
 
 ## FunctionPE
 #
-# Specialization of PerformanceEvaluator designed to evaluate the performance 
-# of a FaaS object
+# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition 
+# object executed on a Resources.FaaS configuration
 class FunctionPE(PerformanceEvaluator):
     
-    
-    ## Method to evaluate the performance of a specific Component deployed 
-    #  onto a FaaS object
-    #
+    ## Method to evaluate the performance of a specific 
+    # Graph.Component.Deployment.Partition object executed onto a Resources.FaaS object
     #   @param self The object pointer
-    #   @param i Component index
-    #   @param j Resource index
-    #   @param D Demand matrix
-    #
-    #   @return Computed performance
-    def evaluate_partition(self, i, h,j, S):
+    #   @param i Index of the Graph.Component
+    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param j Index of the Resources.FaaS object
+    #   @param S A System.System object
+    #   @return Response time
+    def evaluate(self, i, h, j, S):
         return S.demand_matrix[i][h,j]
-    
-    
-    ## Method to evaluate the performance of all Components deployed onto 
-    #  FaaS objects
-    #
-    #   @param self The object pointer
-    #   @param assignments List of pairs representing assignments; either all 
-    #          the assignments using FaaS resources or a subset of 
-    #          assignments living onto a specific path
-    #   @param D Demand matrix
-    #
-    #   @return Computed performance
-    def evaluate(self, assignments, S): 
-        value = 0
-        for assignment in assignments:
-            i = assignment[0]
-            j = assignment[1]
-            value += self.evaluate_component(i, j, S)
-        return value
 
 
 ## EdgePE
 #
-# Specialization of PerformanceEvaluator designed to evaluate the performance 
-# of all edge Resources
+# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition  
+# object executed on a Resources.EdgeNode 
 class EdgePE(PerformanceEvaluator):
     
-    ## Method to compute the utilization of a specific EdgeNode object
-    #
+    ## Method to compute the utilization of a specific 
+    # Resources.EdgeNode object
     #   @param self The object pointer
-    #   @param I Number of existing Component objects
-    #   @param j Index of the EdgeNode object
-    #   @param Y Assignment matrix returned by 
-    #          Configuration.get_assignment_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Utilization of the given EdgeNode object
+    #   @param j Index of the Resources.EdgeNode object
+    #   @param Y Assignment matrix
+    #   @param S A System.System object
+    #   @return Utilization of the given Resources.EdgeNode object
     def compute_utilization(self, j, Y, S):
-        
         utilization = 0
+        # loop over all components
         for c in S.components:
-          for s in c.deployments:
-              for p in s.partitions:
-                  i=S.dic_map_part_idx[c.name][p.name][0]
-                  h=S.dic_map_part_idx[c.name][p.name][1]
-                  utilization += S.demand_matrix[i][h,j] * Y[i][h,j] * p.part_Lambda
+            # loop over all candidate deployments
+            # for s in c.deployments:
+                # loop over all partitions in the candidate deployment
+                for p in c.partitions:
+                    # get the index of the component and the index of the
+                    # partition
+                    i = S.dic_map_part_idx[c.name][p.name][0]
+                    h = S.dic_map_part_idx[c.name][p.name][1]
+                    # compute the utilization
+                    utilization += S.demand_matrix[i][h,j] * \
+                                    Y[i][h,j] * \
+                                        p.part_Lambda
         return utilization
     
-    
-    ## Method to evaluate the performance of a specific Component deployed 
-    #  onto an EdgeNode object
-    #
+    ## Method to evaluate the performance of a specific 
+    # Graph.Component.Deployment.Partition object executed onto a 
+    # Resources.EdgeNode
     #   @param self The object pointer
-    #   @param i Component index
-    #   @param j Resource index
-    #   @param Y Assignment matrix returned by 
-    #          Configuration.get_assignment_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Computed performance
-    def evaluate_partition(self, component_idx, h, j, Y, S):
-        
-
-        # compute utilization of the given EdgeNode object
+    #   @param i Index of the Graph.Component
+    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param j Index of the Resources.EdgeNode
+    #   @param Y Assignment matrix
+    #   @param S A System.System object
+    #   @return Response time
+    def evaluate(self, i, h, j, Y, S):
+        # compute utilization
         utilization = self.compute_utilization(j, Y, S)
-              
-        return S.demand_matrix[component_idx][h,j] / (1 - utilization)
-    
-    
-    ## Method to evaluate the performance of all Components deployed onto 
-    #  edge resources
-    #
-    #   @param self The object pointer
-    #   @param assignments List of pairs representing assignments; either all 
-    #          the assignments using Edge resources or a subset of 
-    #          assignments living onto a specific path
-    #   @param Y Assignment matrix returned by 
-    #          Configuration.get_assignment_matrix()
-    #   @param D Demand matrix
-    #   @param Lambdas Array of Component.Lambda for all Component objects
-    #
-    #   @return Computed performance
-    def evaluate(self, assignments, Y, S):
-        
-        # number of components and number of resources
-        I, J = Y.shape
-        
-        # evaluate performance of all components, given the corresponding
-        # assignment
-        value = 0
-        for assignment in assignments:
-            i = assignment[0]
-            j = assignment[1]
-            value += self.evaluate_component(i, j, Y, S)
-              
-        return value
+        # compute response time
+        return S.demand_matrix[i][h,j] * Y[i][h,j] / (1 - utilization)
 
+
+## SystemPerformanceEvaluator
+#
+# Class used to evaluate the performance of a Graph.Component object given 
+# the information about the Resources.Resource where it is executed
+class SystemPerformanceEvaluator:
+    
+    ## @var logger
+    # Object of Logger type, used to print general messages
+    
+    
+    ## SystemPerformanceEvaluator class constructor
+    #   @param self The object pointer
+    #   @param log Object of Logger type
+    def __init__(self, log=Logger()):
+        self.logger = log
+    
+    
+    ## Method to evaluate the response time of the Graph.Component object 
+    # identified by the given index
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
+    #                Graph.Component object
+    #   @param component_idx The index of the current component
+    #   @return Response time
+    def get_perf_evaluation(self, S, Y_hat, component_idx):
+        
+        # check if the memory constraints are satisfied
+        self.logger.log("Evaluating component {}".format(component_idx), 5)
+        
+        # initialize response time
+        perf_evaluation = 0
+        
+        # get the indices of the resource where the partitions of the current 
+        # component are executed
+        j = np.nonzero(Y_hat[component_idx])
+        
+        # loop over all partitions
+        self.logger.level += 1
+        self.logger.log("Evaluating partition response times", 6)
+        self.logger.level += 1
+        for h in range(len(j[0])):
+            # evaluate the response time (note: Y_hat and the assignment 
+            # matrix Y coincide for Resources.EdgeNode objects)
+            if j[1][h] < S.FaaS_start_index:
+                p = S.resources[j[1][h]].evaluate_partition(component_idx,
+                                                            j[0][h],j[1][h],
+                                                            Y_hat, S)
+            else:
+                p = S.resources[j[1][h]].evaluate_partition(component_idx,
+                                                            j[0][h],j[1][h],
+                                                            S)
+            self.logger.log("{} --> {}".format(h, p), 7)
+            perf_evaluation += p
+            if perf_evaluation<0:
+              
+                return float("inf")
+        self.logger.level -= 1
+        self.logger.log("time --> {}".format(perf_evaluation), 6)
+        
+        # compute the network transfer time among partitions
+        self.logger.log("Evaluating network delay", 6)
+        if len(j[0]) > 1:
+            self.logger.level += 1
+            network_delay = 0
+            # loop over all partitions
+            for h in range(len(j[0]) - 1):
+                # determine the name of the partition
+                #for comp in S.dic_map_part_idx:
+                #    for part in S.dic_map_part_idx[comp]:
+                #        cp_indices = S.dic_map_part_idx[comp][part]
+                #        if cp_indices == (component_idx, j[0][h]):
+                #            part_name = copy.deepcopy(part)
+                # get the data transferred from the partition
+                #for dep in S.components[component_idx].deployments:
+                #    for partition in dep.partitions:
+                #        if partition.name == part_name:
+                #            data_size = partition.data_size
+                
+                # get the data transferred from the partition
+                data_size=S.components[component_idx].partitions[j[0][h]].data_size
+                # compute the network transfer time
+                nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
+                self.logger.log("{} --> {}".format(h, nd), 7)
+                network_delay += nd
+            # update the response time
+            perf_evaluation += network_delay
+            self.logger.level -= 1
+            self.logger.log("time --> {}".format(network_delay), 6)
+        
+        self.logger.level -= 1
+        self.logger.log("time --> {}".format(perf_evaluation), 5)
+        
+        return perf_evaluation
+
+    
+    ## Method to evaluate the response time of the all Graph.Component objects
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
+    #                Graph.Component object
+    #   @return 1D numpy array with the response times of all components
+    def compute_performance(self, S, Y_hat):
+        I = len(Y_hat)
+        response_times = np.full(I, np.inf)
+        for i in range(I):
+            response_times[i] = self.get_perf_evaluation(S, Y_hat, i)
+        return response_times
+
+
+    ## Static method to compute the network delay due to data transfer 
+    # operations between two consecutive components (or partitions), executed 
+    # on different resources in the same network domain
+    #   @param self The object pointer
+    #   @param cpm1_resource Resource index of first component
+    #   @param cpm2_resource Resource index of second component
+    #   @param S A System.System object
+    #   @param data_size Amount of transferred data
+    #   @return Network transfer time
+    def get_network_delay(self, cpm1_resource, cpm2_resource, S, data_size):
+       
+        # get the names of the computational layers where the two resources 
+        # are located
+        CL1 = S.resources[cpm1_resource].CLname
+        CL2 = S.resources[cpm2_resource].CLname
+        
+        # get the lists of network domains containing the two computational 
+        # layers and compute their intersection
+        ND1 = list(filter(lambda NT: (CL1 in NT.computationallayers), S.network_technologies))
+        ND2 = list(filter(lambda NT: (CL2 in NT.computationallayers), S.network_technologies))
+        ND = list(set(ND1).intersection(ND2))
+      
+        # there must exist a common network domain, otherwise the components
+        # cannot communicate with each other
+        if len(ND) == 0:
+            print("ERROR: no network domain available between two resources "
+              + str(cpm1_resource) + " and " + str(cpm2_resource)) 
+            sys.exit(1)
+        # if only one domain is common to the two layers, evaluate the 
+        # network delay on that domain
+        elif len(ND) == 1:
+            network_delay = ND[0].evaluate_performance(data_size)
+        else:
+            # else, the network transfer time is the minimum among the times 
+            # required with the different network domains
+            network_delay = float("inf")
+            for nd in ND:
+                new_network_delay = nd.evaluate_performance(data_size)
+                if new_network_delay < network_delay:
+                   network_delay = new_network_delay 
+        
+        return network_delay
+    
+    
