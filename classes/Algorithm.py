@@ -33,6 +33,7 @@ class Algorithm:
     
     ## Method to create the initial random solution
     #   @param self The object pointer
+    #   @param seed seed for np.random
     #   @return List of 2D numpy matrices denoting the amount of  
     #           Resources.Resource assigned to each 
     #           Graph.Component.Partition object
