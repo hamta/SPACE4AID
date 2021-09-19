@@ -1,4 +1,3 @@
-
 from classes.System import System
 from classes.Algorithm import  RandomGreedy, HyperOpt
 import matplotlib.pyplot as plt
@@ -235,9 +234,9 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     RandomGreedy_solutions=random_greedy_result[0]
                     res_parts_random_list, VM_numbers_random_list, CL_res_random_list =random_greedy_result[3]
                     RandomGreedy_execution_time.append(time.time()-start)
-                    pdb.set_trace()
+                   
                     print("\n RandomGreedy_minimum_cost="+str(new_RandomGreedy_minimum_cost)+"\n")
-                    pdb.set_trace()
+                   
                     vals_list=Hyp.creat_trials_by_RandomGreedy(RandomGreedy_solutions, res_parts_random_list, VM_numbers_random_list, CL_res_random_list)
                     start=time.time()
                     new_mixed_minimum_cost, new_mixed_best_solution =Hyp.random_hyperopt(iteration_number, vals_list)
