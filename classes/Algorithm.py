@@ -6,9 +6,8 @@ import sys
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
 from hyperopt.fmin import generate_trials_to_calculate
 import time
-from datetime import datetime
 import random
-import pdb
+
 
 ## Algorithm
 class Algorithm:
@@ -37,8 +36,11 @@ class Algorithm:
     #   @return List of 2D numpy matrices denoting the amount of  
     #           Resources.Resource assigned to each 
     #           Graph.Component.Partition object
-    def create_random_initial_solution(self):
+    #
+    def create_random_initial_solution(self, seed=None):
+       # set seed for random number generation
         
+        np.random.seed(seed)
         # increase indentation level for logging
         self.logger.level += 1
         
@@ -261,7 +263,7 @@ class RandomGreedy(Algorithm):
     #   @param self The object pointer
     #   @return Two tuples, storing the solution, its cost and its 
     #           performance results before and after the update
-    def step(self):
+    def step(self,seed=None):
         
         # increase indentation level for logging
         self.logger.level += 1
@@ -278,7 +280,7 @@ class RandomGreedy(Algorithm):
         # generate random solution and check its feasibility
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
-        y_hat, res_parts_random, VM_numbers_random, CL_res_random=self.create_random_initial_solution()
+        y_hat, res_parts_random, VM_numbers_random, CL_res_random=self.create_random_initial_solution(seed)
         solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
         performance = solution.check_feasibility(self.system)
@@ -325,10 +327,10 @@ class RandomGreedy(Algorithm):
     #   @param seed Seed for random number generation
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
-    def random_greedy(self, seed, MaxIt = 1):
-        
+    def random_greedy(self, seed=None, MaxIt = 1):
+              
         # set seed for random number generation
-        random.seed(datetime.now())
+        #np.random.seed(seed*pid*pid)
         
         best_result = [None, np.infty, (False, None, None)]
         new_best_result = [None, np.infty, (False, None, None)]
@@ -342,7 +344,9 @@ class RandomGreedy(Algorithm):
             self.logger.log("#iter {}".format(iteration), 2)
             self.logger.level += 1
             # perform a step
-            result, new_result, random_param = self.step()
+            if seed!=None:
+                seed=seed*iteration
+            result, new_result, random_param = self.step(seed)
             solutions.append(new_result[0])
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
@@ -384,6 +388,7 @@ class HyperOpt():
    ## The objective function of HyperOpt  
     #   @param self The object pointer
     #   @param args All arguments with their search space     
+    #   @return a solution found by HyperOpt
    def objective(self,args):
        
        # get the search space of all parameters
@@ -494,8 +499,11 @@ class HyperOpt():
     #   @param self The object pointer
     #   @param iteration_number The iteration number for HyperOpt
     #   @param vals_list The list of value to feed the result of RandomGreedy to HyperOpt  
+    #   @return the best cost and the best solution found by HyperOpt
    def random_hyperopt(self, iteration_number,vals_list=[]):  
-      
+        #np.random.seed(int(time.time()))
+        # set the seed for replicability
+        #os.environ['HYPEROPT_FMIN_SEED'] = "1"#str(np.random.randint(1,1000))
         # Create search spaces for all random variable by defining a dictionary for each of them
         resource_random_list=[]
         for idx, l in enumerate(self.system.CLs):
@@ -526,7 +534,8 @@ class HyperOpt():
         for j in range(self.system.FaaS_start_index):
              
             VM_number_random_list.append( hp.randint("VM"+str(j),self.system.resources[j].number))
-       
+        
+        
         # creat a list of search space including all variables 
         space1 = resource_random_list
         space2 = deployment_random_list 
@@ -542,7 +551,11 @@ class HyperOpt():
         # if there is some result from RandomGreedy to feed to HyperOpt
         if len(vals_list)>0:
             trials=generate_trials_to_calculate(vals_list)
-            
+        
+       
+        # If we need to use a seed for replicability after each execution of fmin method
+        # we can use a fixed seed for: "rstate = np.random.RandomState(seed)" 
+        # and set rstate=rstate as a parameter of fmin.
         # run fmin method to search and find the best solution
         try:
             best = fmin(fn=self.objective, space=space, algo=tpe.suggest, trials=trials,  max_evals=iteration_number)
@@ -553,76 +566,60 @@ class HyperOpt():
         # check if HyperOpt could find solution
         if best_cost== float("inf"):
             # if HyperOpt cannot find any feasible solution
-            return best_cost,None
+             solution=None
         else:
-           
+             # if HyperOp find a feasible solution extract the solution from fmin output
             best_cost=trials.best_trial["result"]["loss"]
-            resource_random_list=[]
-            for idx, l in enumerate(self.system.CLs):
-                if l != list(self.system.CLs)[-1]:
-                  
-                    resource_random_list.append( best["res"+str(idx)])
-                    #candidate_nodes.append(l.resources[random_num])
+            cost, solution=self.extract_HyperOpt_result(best)
+          
+        return best_cost, solution
             
+   ## Method to extract the best solution of HperOpt and converting it to Y_hat
+    #   @param self The object pointer
+    #   @param best The output of fmin method   
+    #   @return the best cost and the best solution found by HyperOpt      
+   def extract_HyperOpt_result(self,best ):
            
-            deployment_random_list=[]
-            prob_res_selection_dep_list=[]
-           
-            for idx, comp in enumerate(self.system.components):
-                max_part=0
-                res_random=[]
-                deployment_random_list.append(best["dep"+str(idx)])
-                #random_dep=comp.deployments[random_num]
-                for  dep in comp.deployments:
-                    if max_part<len(dep.partitions):
-                        max_part=len(dep.partitions)
-                for i in range( max_part):
-                    res_random.append( best["com_res"+str(idx)+str(i)])
-                prob_res_selection_dep_list.append(res_random)    
-            VM_number_random_list=[]    
-            for j in range(self.system.FaaS_start_index):
-                 
-                VM_number_random_list.append(best["VM"+str(j)])
             I=len(self.system.components)
             J=len(self.system.resources)
             y_hat=[]
             y=[]
+            # initialize Y_hat and y by 0
             for i in range(I):
                 H,J=self.system.compatibility_matrix[i].shape
                 y_hat.append(np.full((H, J), 0, dtype=int))
                 y.append(np.full((H, J), 0, dtype=int))
+       
+            # initialize the list of selected resources by best solution of HyperOpt 
+            resource_random_list=[]
+            # extract the selected resources by best solution of HyperOpt in CLs 
             candidate_nodes=[]
-            #pdb.set_trace()
-            
             for idx, l in enumerate(self.system.CLs):
                 if l == list(self.system.CLs)[-1]:
                     random_num=l.resources
                     candidate_nodes.extend(random_num)
                 else:
-                    #pdb.set_trace()  
-                    #resource_random_list.append( hp.randint("res"+str(idx),len(l.resources)))
-                    candidate_nodes.append(l.resources[resource_random_list[idx]])
+                    candidate_nodes.append(l.resources[best["res"+str(idx)]])
+                    resource_random_list.append( best["res"+str(idx)])
             
            
-           
+             # extract the selected deployments of components by best solution of HyperOpt
             for comp_idx, comp in enumerate(self.system.components):
-               # deployment_random_list.append(hp.randint("dep"+str(idx),len(comp.deployments)))
-                random_dep=comp.deployments[deployment_random_list[comp_idx]]
                 
+                random_dep=comp.deployments[best["dep"+str(comp_idx)]]
+                #deployment_random_list.append(best["dep"+str(idx)])
                 h=0
-                
                 for part_idx, part in enumerate(random_dep.partitions):
                     
-                    
+                     # pick the selected compatible resources by the best solution of HperOpt for each partition
+                     #  and set Y_hat according to it 
                     i=self.system.dic_map_part_idx[comp.name][comp.partitions[part].name][0]
                     h_idx=self.system.dic_map_part_idx[comp.name][comp.partitions[part].name][1]
                     idx=np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
-                   
                     index=list(set(candidate_nodes).intersection(idx))
                     prob=1/len(index)
                     step=0
-                    rn=prob_res_selection_dep_list[comp_idx][part_idx]
-                    
+                    rn=best["com_res"+str(comp_idx)+str(part_idx)]
                     for r in np.arange(0,1,prob):
                         if rn>r and rn<=r+prob:
                             j= index[step]
@@ -636,7 +633,8 @@ class HyperOpt():
                         if comp.partitions[part].Next==list(self.system.graph.G.succ[comp.name].keys())[0]:
                         
                             self.system.graph.G[comp.name][comp.partitions[part].Next]["data_size"]=comp.partitions[part].data_size
-                   
+
+            # pick the number of VM selected by best solution of HyperOpt and set it in Y_hat     
             if self.system.FaaS_start_index!=float("inf"):
                 edge_VM=self.system.FaaS_start_index
             else:
@@ -644,49 +642,54 @@ class HyperOpt():
             for j in range(edge_VM):
             
                  
-                #VM_number_random_list.append( hp.randint("VM"+str(idx),self.system.resources[j].number))
-                  
                 for i in range(I):
                      H=self.system.compatibility_matrix[i].shape[0]
                      for h in range(H):
                         if y[i][h][j]>0:
-                            y_hat[i][h][j] = y[i][h][j]*(VM_number_random_list[j]+1)
+                            y_hat[i][h][j] = y[i][h][j]*(best["VM"+str(j)]+1)
          
-            #A=Algorithm(self.system,y_hat)
+            # create the solution by new Y_hat extracted by the best solution of HyperOpt
             solution=Configuration(y_hat)
-            # for j in range(J):
-            #     solution= A.reduce_cluster_size(j, solution, self.system)
-            costs=solution.objective_function(self.system)
+            # compute cost
+            cost=solution.objective_function(self.system)
+                
+                
+  
            
-            return costs, solution
+            return cost, solution
 
-
-   def creat_trials_by_RandomGreedy(self, solutions, res_parts_random_list, VM_numbers_random_list, CL_res_random_list):
+   ## Method to create the trials according to solutions of random greedy to feed HyperOpt
+    #   @param self The object pointer
+    #   @param solutions The solutions of random greedy
+    #   @param res_parts_random_list The lists of random parameters needed to select compatible resources assigned to partitions
+    #   @param VM_numbers_random_list The list of random number selected by random greedy
+    #   @param CL_res_random_list The list of randomly selected resources in CLs by random greedy
+    #   @return a list of values to feed HyperOpt
+   def creat_trials_by_RandomGreedy(self, solutions, res_parts_random_list, 
+                                    VM_numbers_random_list, CL_res_random_list):
     
-   
+        # Initialize the list of values to feed HyperOpt
         vals_list=[]
+        # For all solutions found by random greedy, create the parameters that HyperOpt needs to create the same solutions
         for solution_idx, solution in enumerate(solutions):
-           
-           flag, primary_paths_performance, primary_components_performance =solution.check_feasibility(self.system)
-           if flag:
-               
-               costs=solution.objective_function(self.system)
+          
            vals={}
-           
            com_res={}
            dep={}
-           res={}
-           VM={}
+           # initialize the resources assigned to parts by random value, 
+           # it is necessary for HyperOpt to has the space of all parameters even if the deployment of the partition
+           # is not selected by random greedy. The deployments selected by random greedy 
+           # will assigned to the same resources as random greedy while the others will assign to resources randomly. 
            for idx, comp in enumerate(self.system.components):
-                max_part=0
+                 max_part=0
                
-                for  dep in comp.deployments:
-                    if max_part<len(list(dep.partitions)):
-                        max_part=len(list(dep.partitions))
-                for i in range( max_part):
-                    vals["com_res"+str(idx)+str(i)]=random.random()
-                    com_res["com_res"+str(idx)+str(i)]=random.random()
-                    
+                 for  dep in comp.deployments:
+                     if max_part<len(list(dep.partitions)):
+                         max_part=len(list(dep.partitions))
+                 for i in range( max_part):
+                     vals["com_res"+str(idx)+str(i)]=random.random()
+                     
+           # for each component and deployment, set the random parameters selected by random greedy         
            for comp_idx, y in enumerate(solution.Y_hat):
                
                
@@ -703,11 +706,11 @@ class HyperOpt():
                                vals["dep"+str(comp_idx)]=dep_idx
                              
                                vals["com_res"+str(comp_idx)+str(dep.partitions.index(h))]=res_parts_random_list[solution_idx][comp_idx][dep.partitions.index(h)]
-                              
+           # set the selected node selected by random greedy                   
            for idx, l in enumerate(CL_res_random_list[solution_idx]):
                            
                         vals["res"+str(idx)]=l
-                        
+           # set the number of VM selected by random greedy             
            if self.system.FaaS_start_index!=float("inf"):
                 edge_VM=self.system.FaaS_start_index
            else:
@@ -735,3 +738,5 @@ class HyperOpt():
 class IteratedLocalSearch(Algorithm):
     
     pass
+
+
