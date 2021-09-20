@@ -33,15 +33,12 @@ class Algorithm:
     
     ## Method to create the initial random solution
     #   @param self The object pointer
-    #   @param seed seed for np.random
     #   @return List of 2D numpy matrices denoting the amount of  
     #           Resources.Resource assigned to each 
     #           Graph.Component.Partition object
     #
-    def create_random_initial_solution(self, seed=None):
-       # set seed for random number generation
-        
-        np.random.seed(seed)
+    def create_random_initial_solution(self):
+      
         # increase indentation level for logging
         self.logger.level += 1
         
@@ -264,7 +261,7 @@ class RandomGreedy(Algorithm):
     #   @param self The object pointer
     #   @return Two tuples, storing the solution, its cost and its 
     #           performance results before and after the update
-    def step(self,seed=None):
+    def step(self):
         
         # increase indentation level for logging
         self.logger.level += 1
@@ -281,7 +278,7 @@ class RandomGreedy(Algorithm):
         # generate random solution and check its feasibility
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
-        y_hat, res_parts_random, VM_numbers_random, CL_res_random=self.create_random_initial_solution(seed)
+        y_hat, res_parts_random, VM_numbers_random, CL_res_random=self.create_random_initial_solution()
         solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
         performance = solution.check_feasibility(self.system)
@@ -328,10 +325,10 @@ class RandomGreedy(Algorithm):
     #   @param seed Seed for random number generation
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
-    def random_greedy(self, seed=None, MaxIt = 1):
+    def random_greedy(self, seed, MaxIt = 1):
               
         # set seed for random number generation
-        #np.random.seed(seed*pid*pid)
+        np.random.seed(seed)
         
         best_result = [None, np.infty, (False, None, None)]
         new_best_result = [None, np.infty, (False, None, None)]
@@ -347,7 +344,7 @@ class RandomGreedy(Algorithm):
             # perform a step
             if seed!=None:
                 seed=seed*iteration
-            result, new_result, random_param = self.step(seed)
+            result, new_result, random_param = self.step()
             solutions.append(new_result[0])
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
@@ -498,10 +495,11 @@ class HyperOpt():
 
     ## Random optimization function by HyperOpt  
     #   @param self The object pointer
+    #   @param seed Seed for random number generation
     #   @param iteration_number The iteration number for HyperOpt
     #   @param vals_list The list of value to feed the result of RandomGreedy to HyperOpt  
     #   @return the best cost and the best solution found by HyperOpt
-   def random_hyperopt(self, iteration_number,vals_list=[]):  
+   def random_hyperopt(self,seed, iteration_number,vals_list=[]):  
         #np.random.seed(int(time.time()))
         # set the seed for replicability
         #os.environ['HYPEROPT_FMIN_SEED'] = "1"#str(np.random.randint(1,1000))
@@ -554,12 +552,12 @@ class HyperOpt():
             trials=generate_trials_to_calculate(vals_list)
         
        
-        # If we need to use a seed for replicability after each execution of fmin method
-        # we can use a fixed seed for: "rstate = np.random.RandomState(seed)" 
-        # and set rstate=rstate as a parameter of fmin.
-        # run fmin method to search and find the best solution
+       
+       # set seed
+        rstate = np.random.RandomState(seed)
         try:
-            best = fmin(fn=self.objective, space=space, algo=tpe.suggest, trials=trials,  max_evals=iteration_number)
+             # run fmin method to search and find the best solution
+            best = fmin(fn=self.objective, space=space, algo=tpe.suggest, trials=trials,  max_evals=iteration_number,rstate=rstate)
         except:
             
             best_cost= float("inf")

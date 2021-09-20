@@ -15,6 +15,7 @@ import xlsxwriter
 from hyperopt import hp, Trials
 from datetime import datetime
 import pyspark
+import multiprocessing as mpp
 
 ## Method to create the pure json file from system description by removing 
 # the comments lines
@@ -173,9 +174,10 @@ def draw_plots(output_folder_list,bandwidth_scenarios, descriptions):
 #   @param temp_folder The address of temp_folder
 #   @param output_folder The address of output_folder
 #   @param Lambdas A list of incoming workload rate
-#   @param descriptions A list of methods     
+#   @param descriptions A list of methods   
+#   @param seed Seed for random number generation  
 def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number, 
-                        temp_folder,output_folder, Lambda_list, descriptions):
+                        temp_folder,output_folder, Lambda_list, descriptions, seed):
     
     for file_name in descriptions:   
         for bandwidth_scenario in bandwidth_scenarios: 
@@ -214,18 +216,19 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     
                     a_file.close()
                     S = System(system_file)
-                 
+                    
                     start=time.time()
                     Hyp=HyperOpt(S)
-                  
-                    new_HyperOpt_minimum_cost, new_HyperOpt_best_solution =Hyp.random_hyperopt(iteration_number)
+                    proc = mpp.current_process()
+                    pid = proc.pid
+                    seed=seed*pid*pid
+                    new_HyperOpt_minimum_cost, new_HyperOpt_best_solution =Hyp.random_hyperopt(seed,iteration_number)
                     HyperOpt_execution_time.append(time.time()-start)
                    
                     
                     start=time.time()
                     GA=RandomGreedy(S)
-                    # if seed=None, it generate random numbers by np.random 
-                    seed=int(Lambda*(100**round_num))
+                    
                     random_greedy_result=GA.random_greedy(seed, MaxIt=iteration_number)
                     new_RandomGreedy_minimum_cost=random_greedy_result[2][1]
                     new_RandomGreedy_best_solution=random_greedy_result[2][0]
@@ -239,7 +242,7 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                    
                     vals_list=Hyp.creat_trials_by_RandomGreedy(RandomGreedy_solutions, res_parts_random_list, VM_numbers_random_list, CL_res_random_list)
                     start=time.time()
-                    new_mixed_minimum_cost, new_mixed_best_solution =Hyp.random_hyperopt(iteration_number, vals_list)
+                    new_mixed_minimum_cost, new_mixed_best_solution =Hyp.random_hyperopt(seed,iteration_number, vals_list)
                     mixed_execution_time.append(time.time()-start)
                    
                     Lambdas.append(Lambda)
@@ -295,7 +298,7 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
 
 
 
-def main( temp_folder,config_folder,output_folder):     
+def main( temp_folder,config_folder,output_folder,seed):     
      
    
     input_file=config_folder+"/Input_file.json"
@@ -336,7 +339,7 @@ def main( temp_folder,config_folder,output_folder):
     descriptions=["RandomGreedy"]
     generate_json_files (Lambdas,config_folder, temp_folder, bandwidth_scenarios, descriptions) 
     
-    mixed_RandomGreedy_HyperOpt( bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions)
+    mixed_RandomGreedy_HyperOpt( bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed)
       
     #draw_plots(output_folder,bandwidth_scenarios, descriptions)
       
@@ -346,7 +349,8 @@ if __name__ == '__main__':
     temp_folder=sys.argv[1]   # address of temp files' folder
     config_folder=sys.argv[2]  # address of config folder
     output_folder=sys.argv[3]   # address of output folder
-  
+    seed=sys.argv[4]
+    
     # temp_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Temp_files"
     # config_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/ConfigFiles"
     # # # output_folder2="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files-5000Iterations"
@@ -355,6 +359,6 @@ if __name__ == '__main__':
     # output_folder2="/Users/hamtasedghani/Desktop/USB/Output_Files-5000Iterations/Newoutput-without createValTime"
     # output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
     # output_folder=[output_folder1,output_folder2]
-    
-    main( temp_folder,config_folder,output_folder)
+    # seed=2
+    main( temp_folder,config_folder,output_folder,seed)
     
