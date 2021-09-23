@@ -10,3 +10,4 @@ pyyaml
 pygraphviz
 sortedcontainers
 pacsltk
+hyperopt
