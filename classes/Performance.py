@@ -8,12 +8,12 @@ import sys
 ## PerformanceEvaluator
 #
 # Abstract class used to represent a performance evaluator, namely an object 
-# that evaluates the performance of a Graph.Component.Deployment.Partition 
-# executed on different types of resources
+# that evaluates the performance of a Graph.Component.Partition executed on 
+# different types of resources
 class PerformanceEvaluator(ABC):
 
     ## Method to evaluate the performance of a 
-    # Graph.Component.Deployment.Partition object
+    # Graph.Component.Partition object
     #   @param self The object pointer
     @abstractmethod
     def evaluate(self):
@@ -24,7 +24,7 @@ class PerformanceEvaluator(ABC):
 #
 # Class designed to evaluate the performance of a NetworkTechnology object, 
 # namely the time required to transfer data between two consecutive 
-# Graph.Component or Graph.Component.Deployment.Partition objects executed on 
+# Graph.Component or Graph.Component.Partition objects executed on 
 # different devices in the same network domain
 class NetworkPE(PerformanceEvaluator):
 
@@ -40,7 +40,7 @@ class NetworkPE(PerformanceEvaluator):
 
 ## ServerFarmPE
 #
-# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition 
+# Class designed to evaluate the performance of a Graph.Component.Partition 
 # object executed in a server farm (i.e., a group of Resources.VirtualMachine 
 # objects)
 class ServerFarmPE(PerformanceEvaluator):
@@ -57,27 +57,23 @@ class ServerFarmPE(PerformanceEvaluator):
         utilization = 0
         # loop over all components
         for c in S.components:
-            # loop over all the candidate deployments
-            #for s in c.deployments:
-                # loop over all partitions in the deployment
-                for p in c.partitions:
-                    # get the index of the component and the index of the
-                    # partition
-                    i = S.dic_map_part_idx[c.name][p.name][0]
-                    h = S.dic_map_part_idx[c.name][p.name][1]
-                    # compute the utilization
-                    if Y_hat[i][h,j] > 0:
-                        utilization += S.demand_matrix[i][h,j] * \
-                                         p.part_Lambda / Y_hat[i][h,j]
+            # loop over all partitions in the component
+            for p in c.partitions:
+                # get the corresponding indices
+                i = S.dic_map_part_idx[c.name][p.name][0]
+                h = S.dic_map_part_idx[c.name][p.name][1]
+                # compute the utilization
+                if Y_hat[i][h,j] > 0:
+                    utilization += S.demand_matrix[i][h,j] * \
+                                    p.part_Lambda / Y_hat[i][h,j]
                                         
         return utilization
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a 
-    # Resources.VirtualMachine
+    # Graph.Component.Partition object executed onto a Resources.VirtualMachine
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.VirtualMachine
     #   @param Y_hat Matix denoting the amount of Resources assigned to each 
     #                Graph.Component object
@@ -95,15 +91,15 @@ class ServerFarmPE(PerformanceEvaluator):
 
 ## FunctionPE
 #
-# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition 
+# Class designed to evaluate the performance of a Graph.Component.Partition 
 # object executed on a Resources.FaaS configuration
 class FunctionPE(PerformanceEvaluator):
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a Resources.FaaS object
+    # Graph.Component.Partition object executed onto a Resources.FaaS object
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.FaaS object
     #   @param S A System.System object
     #   @return Response time
@@ -113,7 +109,7 @@ class FunctionPE(PerformanceEvaluator):
 
 ## EdgePE
 #
-# Class designed to evaluate the performance of a Graph.Component.Deployment.Partition  
+# Class designed to evaluate the performance of a Graph.Component.Partition  
 # object executed on a Resources.EdgeNode 
 class EdgePE(PerformanceEvaluator):
     
@@ -128,26 +124,21 @@ class EdgePE(PerformanceEvaluator):
         utilization = 0
         # loop over all components
         for c in S.components:
-            # loop over all candidate deployments
-            # for s in c.deployments:
-                # loop over all partitions in the candidate deployment
-                for p in c.partitions:
-                    # get the index of the component and the index of the
-                    # partition
-                    i = S.dic_map_part_idx[c.name][p.name][0]
-                    h = S.dic_map_part_idx[c.name][p.name][1]
-                    # compute the utilization
-                    utilization += S.demand_matrix[i][h,j] * \
-                                    Y[i][h,j] * \
-                                        p.part_Lambda
+            # loop over all partitions in the component
+            for p in c.partitions:
+                # get the corresponding indices
+                i = S.dic_map_part_idx[c.name][p.name][0]
+                h = S.dic_map_part_idx[c.name][p.name][1]
+                # compute the utilization
+                utilization += S.demand_matrix[i][h,j] * \
+                                Y[i][h,j] * p.part_Lambda
         return utilization
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a 
-    # Resources.EdgeNode
+    # Graph.Component.Partition object executed onto a Resources.EdgeNode
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.EdgeNode
     #   @param Y Assignment matrix
     #   @param S A System.System object
@@ -213,8 +204,8 @@ class SystemPerformanceEvaluator:
                                                             S)
             self.logger.log("{} --> {}".format(h, p), 7)
             perf_evaluation += p
-            if perf_evaluation<0:
-              
+            # check that the response time is not negative
+            if perf_evaluation < 0:
                 return float("inf")
         self.logger.level -= 1
         self.logger.log("time --> {}".format(perf_evaluation), 6)
@@ -226,20 +217,8 @@ class SystemPerformanceEvaluator:
             network_delay = 0
             # loop over all partitions
             for h in range(len(j[0]) - 1):
-                # determine the name of the partition
-                #for comp in S.dic_map_part_idx:
-                #    for part in S.dic_map_part_idx[comp]:
-                #        cp_indices = S.dic_map_part_idx[comp][part]
-                #        if cp_indices == (component_idx, j[0][h]):
-                #            part_name = copy.deepcopy(part)
                 # get the data transferred from the partition
-                #for dep in S.components[component_idx].deployments:
-                #    for partition in dep.partitions:
-                #        if partition.name == part_name:
-                #            data_size = partition.data_size
-                
-                # get the data transferred from the partition
-                data_size=S.components[component_idx].partitions[j[0][h]].data_size
+                data_size = S.components[component_idx].partitions[j[0][h]].data_size
                 # compute the network transfer time
                 nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
                 self.logger.log("{} --> {}".format(h, nd), 7)
@@ -311,5 +290,4 @@ class SystemPerformanceEvaluator:
                    network_delay = new_network_delay 
         
         return network_delay
-    
-    
+
