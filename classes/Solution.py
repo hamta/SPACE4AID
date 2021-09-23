@@ -10,7 +10,7 @@ class Configuration:
     
     ## @var Y_hat
     # List of 2D numpy arrays storing the number of Resources.Resource 
-    # assigned to each Graph.Component.Deployment.Partition
+    # assigned to each Graph.Component.Partition
     
     ## @var local_slack_value
     # Slack values related to Constraints.LocalConstraints
@@ -26,7 +26,7 @@ class Configuration:
     #   @param self The object pointer
     #   @param Y_hat List of 2D numpy arrays storing the number of 
     #                Resources.Resource assigned to each 
-    #                Graph.Component.Deployment.Partition
+    #                Graph.Component.Partition
     #   @param log Object of Logger type
     def __init__(self, Y_hat, log=Logger()):
         self.Y_hat = Y_hat
@@ -130,38 +130,37 @@ class Configuration:
         return feasible
     
     
-    ## Method to check that, if a Graph.Component.Deployment.Partition 
-    # object is executed on a Resources.VirtualMachine or a Resources.FaaS, 
-    # all its successors are not executed on Resources.EdgeNode objects 
-    # (assignments cannot move back from cloud to edge)
+    ## Method to check that, if a Graph.Component.Partition object is executed
+    # on a Resources.VirtualMachine or a Resources.FaaS, all its successors
+    # are not executed on Resources.EdgeNode objects (assignments cannot move
+    # back from cloud to edge)
     #   @param self The object pointer
     #   @param S A System.System object
     #   @return True if the constraint is satisfied
     def move_backward_check(self, S):
         
         feasible = True
-        last_part_res=-1
+        last_part_res = -1
+
+        # loop over all components
         for node in S.graph.G:
-          
-                
-            # get the component index and find the resource index assigned to it
-            i=S.dic_map_com_idx[node]
+            # get the component index
+            i = S.dic_map_com_idx[node]
+            # get the indices of resources where the component partitions are 
+            # executed
             for y in self.Y_hat[i]:
-                h=np.nonzero(y)
-                if np.size(h)>0:
-                  
-                    if last_part_res>= S.cloud_start_index:
-                                if h[0][0]<S.cloud_start_index:
-                                    feasible= False
-                    last_part_res=h[0][0]
-                    
-           
+                h = np.nonzero(y)
+                if np.size(h) > 0:
+                    # if the last partition was executed on cloud, check 
+                    # that the current is not executed on edge
+                    if last_part_res >= S.cloud_start_index:
+                        if h[0][0] < S.cloud_start_index:
+                            feasible = False
+                    last_part_res = h[0][0]
+        
         return feasible     
 
 
-
-     
-    
     ## Method to check the feasibility of the current configuration
     #   @param self The object pointer
     #   @param S A System.System object
@@ -372,4 +371,4 @@ class Configuration:
                 f.write(jj)
         else:
             print(jj)
-                
+
