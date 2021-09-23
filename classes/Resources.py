@@ -114,11 +114,10 @@ class VirtualMachine(Resource):
         self.number = number
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a 
-    # Resources.VirtualMachine
+    # Graph.Component.Partition object executed onto a Resources.VirtualMachine
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.VirtualMachine
     #   @param Y_hat Matix denoting the amount of Resources assigned to each 
     #                Graph.Component object
@@ -156,11 +155,10 @@ class EdgeNode(Resource):
         self.number = number
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a 
-    # Resources.EdgeNode
+    # Graph.Component.Partition object executed onto a Resources.EdgeNode
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.EdgeNode
     #   @param Y Assignment matrix
     #   @param S A System.System object
@@ -218,11 +216,10 @@ class FaaS(Resource):
         return perf[0]['avg_resp_time']
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Deployment.Partition object executed onto a 
-    # Resources.FaaS object
+    # Graph.Component.Partition object executed onto a Resources.FaaS object
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Deployment.Partition
+    #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.FaaS object
     #   @param S A System.System object
     #   @return Response time
@@ -238,3 +235,4 @@ class FaaS(Resource):
              format(self.idle_time_before_kill)
         s3 = '"transition_cost":{}'.format(self.transition_cost)
         return s1 + s2 + s3
+
