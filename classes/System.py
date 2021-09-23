@@ -23,12 +23,12 @@ class System:
     
     ## @var compatibility_dict
     # Dictionary representing the compatibility of each 
-    # Graph.Component.Deployment.Partition object in a given Graph.Component 
+    # Graph.Component.Partition object in a given Graph.Component 
     # with the available Resources.Resource objects
     
     ## @var compatibility_matrix 
     # List of 2D numpy arrays representing the compatibility between all 
-    # Graph.Component.Deployment.Partition objects in each Graph.Component 
+    # Graph.Component.Partition objects in each Graph.Component 
     # and the available Resources.Resource
     
     ## @var components 
@@ -36,13 +36,13 @@ class System:
             
     ## @var demand_dict 
     # Dictionary representing the demand matrix of the available 
-    # Graph.Component.Deployment.Partition objects in a given 
+    # Graph.Component.Partition objects in a given 
     # Graph.Component when they are deployed on different  
     # Resources.Resource objects
     
     ## @var demand_matrix 
     # List of 2D numpy arrays representing the demand to run all 
-    # Graph.Component.Deployment.Partition objects in each Graph.Component 
+    # Graph.Component.Partition objects in each Graph.Component 
     # on the available Resources.Resource
     
     ## @var description
@@ -55,10 +55,10 @@ class System:
     
     ## @var dic_map_part_idx
     # Nested dictionary associating to the name of each Graph.Component and 
-    # each Graph.Component.Deployment.Partition in the Graph.Component a 
+    # each Graph.Component.Partition in the Graph.Component a 
     # tuple whose first element is the index of the Graph.Component object 
     # in System.components and whose second element is the index of 
-    # the Graph.Component.Deployment.Partition
+    # the Graph.Component.Partition
     
     ## @var dic_map_res_idx
     # Dictionary associating to the name of each Resources.Resource object 
@@ -295,20 +295,19 @@ class System:
                         # loop over all candidate deployments
                         for s in C[c]:
                             part_Lambda = -1
-                            part_idx_list=[]
+                            part_idx_list = []
                             if len(C[c][s]) > 0:
-                               
                                 # loop over all partitions
                                 for h in C[c][s]:
                                     if part_Lambda > -1:
                                         prob = float(C[c][s][h]["early_exit_probability"])
                                         part_Lambda *= (1 - prob)
                                     else:
-                                        part_Lambda=copy.deepcopy(Sum)
+                                        part_Lambda = copy.deepcopy(Sum)
                                     temp[h] = (comp_idx, part_idx)
                                     partitions.append(Component.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
-                                                                                     float(C[c][s][h]["early_exit_probability"]),
-                                                                                     C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
+                                                                          float(C[c][s][h]["early_exit_probability"]),
+                                                                          C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
                                     part_idx_list.append(part_idx)
                                     part_idx += 1
                             deployments.append(Component.Deployment(s, part_idx_list))    
@@ -333,8 +332,8 @@ class System:
                                     part_Lambda = copy.deepcopy(self.Lambda)
                                 temp[h] = (comp_idx, part_idx)
                                 partitions.append(Component.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
-                                                                                 float(C[c][s][h]["early_exit_probability"]),
-                                                                                 C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
+                                                                      float(C[c][s][h]["early_exit_probability"]),
+                                                                      C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
                                 part_idx_list.append(part_idx)
                                 part_idx += 1
                         deployments.append(Component.Deployment(s, part_idx_list))    
@@ -403,10 +402,9 @@ class System:
                 self.CLs.append(cl)    
         #
         # cloud resources
+        self.cloud_start_index = resource_idx
         if "CloudResources" in data.keys():
             self.logger.log("Cloud resources", 3)
-            # initialize the index corresponding to the first cloud resource
-            self.cloud_start_index = resource_idx
             CR = data["CloudResources"]
             # loop over computational layers
             for CL in CR:
@@ -438,10 +436,9 @@ class System:
                 self.CLs.append(cl)
         #
         # faas resources
+        self.FaaS_start_index = resource_idx
         if "FaaSResources" in data.keys():
             self.logger.log("FaaS resources", 3)
-            # initialize the index corresponding to the first FaaS resource
-            self.FaaS_start_index = resource_idx
             FR = data["FaaSResources"]
             # initialize transition cost
             if "transition_cost" in FR.keys():
@@ -479,8 +476,7 @@ class System:
                             self.description[func] = "No description"
                     # add the new computational layer
                     self.CLs.append(cl)
-        else:
-                self.FaaS_start_index=float("inf")
+
         # restore indentation level for logging
         self.logger.level -= 1
     
@@ -506,7 +502,7 @@ class System:
     
     
     ## Method to convert the compatibility and demand dictionaries into 
-    # lists of 2D numpy arrays such that M[i][h][j] represents either the 
+    # lists of 2D numpy arrays such that M[i][h,j] represents either the 
     # compatibility of partition h in component i with resource j or the 
     # demand to run such partition on the given resource
     #    @param self The object pointer
@@ -516,11 +512,8 @@ class System:
         comp_idx = 0
         # loop over components
         for comp in self.components:
-            # loop over candidate deployments and count the total number of 
-            # partitions
-            p = 0
-            for dep in comp.deployments:
-                p += len(dep.partitions)
+            # count the total number of partitions
+            p = len(comp.partitions)
             # define and initialize the matrices to zero
             self.compatibility_matrix.append(np.full((p, len(self.resources)), 
                                                      0, dtype = int))
@@ -590,8 +583,16 @@ class System:
         system_string += (', \n"Lambda": ' + str(self.Lambda))
         
         # local constraints
+        system_string += ', \n"LocalConstraints": {'
+        for LC in self.local_constraints:
+            system_string += (LC.__str__(self.components) + ',')
+        system_string = system_string[:-1] + '}'
         
         # global constraints
+        system_string += ', \n"GlobalConstraints": {'
+        for GC in self.global_constraints:
+            system_string += (GC.__str__(self.components) + ',')
+        system_string = system_string[:-1] + '}'
         
         # network technology
         system_string += ', \n"NetworkTechnology": {'
@@ -640,5 +641,4 @@ class System:
     #   @param plot_file File where to plot the graph (optional)
     def plot_graph(self, plot_file = ""):
         self.graph.plot_DAG(plot_file)
-
 
