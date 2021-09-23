@@ -1,8 +1,7 @@
 ## NetworkDomain
 #
 # Class used to represent a network domain used for data transfer operations 
-# among different Graph.Component or Graph.Component.Deployment.Partition 
-# objects
+# among different Graph.Component or Graph.Component.Partition objects
 class NetworkDomain:
 
     ## @var ND_name
@@ -56,3 +55,4 @@ class NetworkDomain:
                    self.access_delay, 
                    self.bandwidth)
         return s
+
