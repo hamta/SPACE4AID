@@ -47,6 +47,15 @@ class Configuration:
         return x
     
     
+    ## Method to get the list of 2D binary numpy arrays storing information 
+    # about the resources used to run each Graph.Component.Partition
+    def get_y(self):
+        Y = []
+        for i in range(len(self.Y_hatY)):
+            Y.append(np.array(self.Y_hat[i] > 0, dtype = int))
+        return Y
+    
+    
     ## Method to get the maximum number of used resources of each type
     #   @param self The object pointer
     #    @return 1D numpy array whose j-th element denotes the maximum number 
