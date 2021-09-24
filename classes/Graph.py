@@ -90,8 +90,10 @@ class DAG:
             # get the list of successors
             if "next" in graph_dict[c]:
                 comps = list(graph_dict[c]["next"])
-                if len(comps)>0:
-                #sizes = list(graph_dict[c]["data_size"])
+                # if the list of successors is not empty, get the transition 
+                # probabilities and add the component to the graph
+                if len(comps) > 0:
+                    # sizes = list(graph_dict[c]["data_size"])
                     probabilities = list(graph_dict[c]["transition_probability"])
                     if len(probabilities) == len(comps):
                         # add component to the graph
@@ -99,16 +101,19 @@ class DAG:
                             self.G.add_node(c)
                         # add edges and corresponding weights
                         for (next_c, probability) in zip(comps, probabilities):
-                            self.G.add_edge(c, next_c, transition_probability=probability, data_size=0)
+                            self.G.add_edge(c, next_c, 
+                                            transition_probability=probability, 
+                                            data_size=0)
                     else:
                          self.error.log("ERROR: no match between components list and probabilities list", 1)
                          sys.exit(1)
+                # otherwise, check if the graph is made by a unique component
                 else:
-                        if len( graph_dict)>0:
-                            self.G.add_node(c)
-                        else:
-                             print("ERROR: there is not any component in DAG")
-                             sys.exit(1)
+                    if len(graph_dict) > 0:
+                        self.G.add_node(c)
+                    else:
+                        self.error.log("ERROR: there is not any component in DAG", 1)
+                        sys.exit(1)
     
     
     ## Method to write the graph object onto a gml file
@@ -209,6 +214,9 @@ class Component():
     
     ## @var deployments
     # List of all the candidate Graph.Component.Deployment objects
+
+    ## @var partitions
+    # List of all the candidate Graph.Component.Partition objects
     
     ## @var comp_Lambda
     # Load factor
@@ -217,11 +225,12 @@ class Component():
     #   @param self The object pointer
     #   @param name Component name
     #   @param deployments List of Graph.Component.Deployment objects
+    #   @param partitions List of Graph.Component.Partition objects
     #   @param comp_Lambda Load factor
-    def __init__(self, name, deployments,partitions, comp_Lambda):
+    def __init__(self, name, deployments, partitions, comp_Lambda):
         self.name = name
         self.deployments = deployments
-        self.partitions=partitions
+        self.partitions = partitions
         self.comp_Lambda = comp_Lambda
         
     ## Operator used to check if two Graph.Component objects are equal, 
@@ -236,7 +245,7 @@ class Component():
     def __str__(self):
         s = '"' + self.name + '": {'
         for deployment in self.deployments:
-            s += (str(deployment) + ',')
+            s += (deployment.__str__(self.partitions) + ',')
         s = s[:-1] + '}'
         return s
     
@@ -250,33 +259,34 @@ class Component():
         ## @var name
         # Deployment name (used to uniquely identify it)
         
-        ## @var partitions
-        # List of Graph.Component.Deployment.Partition objects characterizing 
-        # the Deployment
+        ## @var partitions_indices
+        # List of indices of the Graph.Component.Partition objects 
+        # characterizing the Deployment
        
         ## Deployment class constructor
         #   @param self The object pointer
         #   @param name Name of the Deployment
-        #   @param partitions List of Graph.Component.Deployment.Partition 
-        #                     objects
-        def __init__(self, name, partitions):
-             self.name = name
-             self.partitions = partitions
+        #   @param partitions_indices List of indices of 
+        #                             Graph.Component.Partition objects
+        def __init__(self, name, partitions_indices):
+            self.name = name
+            self.partitions_indices = partitions_indices
              
         ## Operator to convert a Graph.Component.Deployment object into a 
         # string
         #   @param self The object pointer
-        def __str__(self):
+        #   @param partitions List of Graph.Component.Partition objects
+        def __str__(self, partitions):
             s = '"' + self.name + '": {'
-            for partition in self.partitions:
-                s += (str(partition) + ',')
+            for partition_idx in self.partitions_indices:
+                s += (str(partitions[partition_idx]) + ',')
             s = s[:-1] + '}'
             return s
              
        
-        ## Partition
-        #
-        # Class to represent a partition in a candidate deployment
+    ## Partition
+    #
+    # Class to represent a partition in a candidate deployment
     class Partition():
             
             ## @var name
@@ -288,7 +298,7 @@ class Component():
             ## @var part_Lambda
             # Load factor
             
-            ## @var early_stopping_probability
+            ## @var early_exit_probability
             # Probability of early stopping
             
             ## @var Next
@@ -301,12 +311,12 @@ class Component():
             #   @param name Partition name (used to uniquely identify it)
             #   @param memory Memory requirement of the partitions
             #   @param part_Lambda Load factor
-            #   @param early_stopping_probability Probability of early stopping
+            #   @param early_exit_probability Probability of early stopping
             #   @param Next Name of subsequent partition
             #   @param data_size Amount of data transferred to the subsequent 
             #                    partition
-            def __init__(self, name, memory, part_Lambda, early_exit_probability, 
-                         Next, data_size):
+            def __init__(self, name, memory, part_Lambda, 
+                         early_exit_probability, Next, data_size):
                 self.name = name
                 self.memory = memory
                 self.part_Lambda = part_Lambda
@@ -314,12 +324,12 @@ class Component():
                 self.Next = Next
                 self.data_size = data_size
                  
-            ## Operator to convert a Graph.Component.Deployment.Partition 
+            ## Operator to convert a Graph.Component.Partition 
             # object into a string
             #   @param self The object pointer
             def __str__(self):
-                s = '"{}": {{"memory":{}, "next":{}, "early_stopping_probability":{}, "data_size":{}}}'.\
+                s = '"{}": {{"memory":{}, "next":{}, "early_exit_probability":{}, "data_size":{}}}'.\
                     format(self.name, self.memory, '"'+self.Next+'"', 
-                           self.early_stopping_probability, self.data_size)
+                           self.early_exit_probability, self.data_size)
                 return s
-                
+
