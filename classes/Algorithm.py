@@ -1,5 +1,5 @@
 from classes.Logger import Logger
-from classes.Solution import Configuration
+from classes.Solution import Configuration, Result, EliteResults
 import numpy as np
 import copy
 import sys
@@ -182,12 +182,15 @@ class Algorithm:
     #   @param solution The current feasible solution
     #   @return The indices of the alternative resources
     def alternative_resources(self, comp_idx, part_idx, solution):
+        
         # get the assignment matrix
         Y = solution.get_y()
+        
         # get the list of compatible, unused resources
         l = np.greater(self.system.compatibility_matrix[comp_idx][part_idx,:], 
                        Y[comp_idx][part_idx,:])
         resource_idxs = np.where(l)[0]
+        
         return resource_idxs
    
   
@@ -195,9 +198,12 @@ class Algorithm:
     # cluster 
     #   @param self The object pointer
     #   @param resource_idx The index of the Resources.VirtualMachine object
-    #   @param solution The current feasible solution 
-    #   @return The updated solution
-    def reduce_cluster_size(self, resource_idx, solution):
+    #   @param result The current Solution.Result object
+    #   @return The updated Solution.Result object
+    def reduce_cluster_size(self, resource_idx, result):
+        
+        # initialize the new result
+        new_result = copy.deepcopy(result)
         
         # check if the resource index corresponds to an edge/cloud resource
         if resource_idx < self.system.FaaS_start_index:
@@ -206,19 +212,19 @@ class Algorithm:
             if self.system.resources[resource_idx].number > 1:
                 
                 # get the max number of used resources
-                y_bar = solution.get_y_bar()
+                y_bar = new_result.solution.get_y_bar()
                 
                 # update the current solution, always checking its feasibility
                 feasible = True
                 while feasible and y_bar[resource_idx].max() > 1:
                     
                     # create a copy of the current Y_hat matrix
-                    temp = copy.deepcopy(solution.Y_hat)
+                    temp = copy.deepcopy(new_result.solution.Y_hat)
                 
                     # loop over all components
-                    for i in range(len(solution.Y_hat)):
+                    for i in range(len(new_result.solution.Y_hat)):
                         # loop over all component partitions
-                        for h in range(len(solution.Y_hat[i])):
+                        for h in range(len(new_result.solution.Y_hat[i])):
                             # decrease the number of resources (if > 1)
                             if temp[i][h,resource_idx] > 1:
                                 temp[i][h,resource_idx] -= 1
@@ -227,13 +233,16 @@ class Algorithm:
                     new_solution = Configuration(temp)
                     
                     # check if the new solution is feasible
-                    feasible, paths_performance, components_performance = new_solution.check_feasibility(self.system)
-                    if feasible:
+                    new_performance = new_solution.check_feasibility(self.system)
+                    
+                    # if so, update the result
+                    if new_performance[0]:
                         # update the current solution
-                        solution = copy.deepcopy(new_solution)
-                        y_bar = solution.get_y_bar()
+                        new_result.solution = new_solution
+                        new_result.performance = new_performance
+                        y_bar = new_result.solution.get_y_bar()
         
-        return solution
+        return new_result
 
 
 
@@ -264,48 +273,41 @@ class RandomGreedy(Algorithm):
         self.logger.level += 1
         self.logger.log("Randomized Greedy step", 3)
         
-        # initialize solution, cost and performance results
-        solution = None
-        cost = np.infty
-        performance = (False, None, None)
-        new_solution = None
-        new_cost = np.infty
-        new_performance = (False, None, None)
+        # initialize results
+        result = Result()
+        new_result = Result()
         
         # generate random solution and check its feasibility
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
-        solution = Configuration(y_hat, self.logger)
+        result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
-        performance = solution.check_feasibility(self.system)
+        feasible = result.check_feasibility(self.system)
         
         # if the solution is feasible, compute the corresponding cost 
         # before and after updating the clusters size
-        if performance[0]:
+        if feasible:
             # compute cost
             self.logger.log("Compute cost", 3)
-            cost = solution.objective_function(self.system)
+            result.objective_function(self.system)
             # update the cluster size of cloud resources
             self.logger.log("Update cluster size", 3)
-            new_solution = copy.deepcopy(solution)
             for j in range(self.system.FaaS_start_index):
-                new_solution = self.reduce_cluster_size(j, new_solution)
+                new_result = self.reduce_cluster_size(j, result)
             # compute the updated cost
             self.logger.log("Compute new cost", 3)
-            new_cost = new_solution.objective_function(self.system)
+            new_result.objective_function(self.system)
             # update the list of VM numbers according to the new solution
-            y_bar = new_solution.get_y_bar()
+            y_bar = new_result.solution.get_y_bar()
             for j in range(self.system.FaaS_start_index):
                 if y_bar[j] > 0:
-                    # TODO: why min?
                     VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
         else:
-            new_solution = copy.deepcopy(solution)
-            new_cost = copy.deepcopy(cost)
+            new_result = copy.deepcopy(result)
         self.logger.level -= 2
         
-        return (solution, cost, performance), (new_solution, new_cost, new_performance), (res_parts_random, VM_numbers_random, CL_res_random)
+        return result, new_result, (res_parts_random, VM_numbers_random, CL_res_random)
             
     
     ## Method to generate a random gready solution 
@@ -313,57 +315,46 @@ class RandomGreedy(Algorithm):
     #   @param seed Seed for random number generation
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
-    #   @param save_all Boolean which is True if all computed solutions should 
-    #                   be saved and returned (default: False)
-    #   @return (1) List with the best solution, its cost and the result of 
-    #           evaluating the feasibility
-    #           (2) List with the best solution after cluster update, its cost 
-    #           and the result of evaluating the feasibility
-    #           (3) List of all computed solutions (empty if save_all is False)
+    #   @param K Number of elite results to be saved (default: 1)
+    #   @return (1) Best Solution.Result before cluster update
+    #           (2) Solution.EliteResults object storing the given number of 
+    #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, seed, MaxIt = 1, save_all = False):
+    def random_greedy(self, seed, MaxIt = 1, K = 1):
               
         # set seed for random number generation
         np.random.seed(seed)
         
-        best_result = [None, np.infty, (False, None, None)]
-        new_best_result = [None, np.infty, (False, None, None)]
-        solutions = []
-        self.logger.log("Starting Randomized Greedy procedure", 1)
-        self.logger.level += 1
+        # initialize the elite set, the best result without cluster update 
+        # and the lists of random parameters
+        elite = EliteResults(K, Logger(self.logger.stream, 
+                                       self.logger.verbose,
+                                       self.logger.level+1))
+        best_result_no_update = Result()
         res_parts_random_list = []
         VM_numbers_random_list = []
         CL_res_random_list = []
+
+        # perform randomized greedy iterations
+        self.logger.log("Starting Randomized Greedy procedure", 1)
+        self.logger.level += 1
         for iteration in range(MaxIt):
-            self.logger.log("#iter {}".format(iteration), 2)
-            self.logger.level += 1
+            self.logger.log("#iter {}".format(iteration), 3)
             # perform a step
             result, new_result, random_param = self.step()
-            if save_all:
-                solutions.append(new_result[0])
+            # update the results and the lists of random parameters
+            elite.add(new_result)
+            if result < best_result_no_update:
+                best_result_no_update = copy.deepcopy(result)
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
-            # check if the new solution improves the current minimum cost  
-            if result[1] < best_result[1]:
-                best_result[0] = result[0]
-                best_result[1] = result[1]
-                best_result[2] = result[2]
-                self.logger.log("Result improved: {} --> {}".\
-                                format(best_result[1], result[1]), 2)
-            # check if the new updated solution improves the current updated 
-            # minimum cost  
-            if new_result[1] < new_best_result[1]:
-                new_best_result[0] = new_result[0]
-                new_best_result[1] = new_result[1]
-                new_best_result[2] = new_result[2]
-                self.logger.log("New result improved: {} --> {}".\
-                                format(new_best_result[1], new_result[1]), 2)
-            self.logger.level -= 1
         
         self.logger.level -= 1
-        random_params = [res_parts_random_list, VM_numbers_random_list, CL_res_random_list]    
-        return best_result, new_best_result, solutions, random_params
+        random_params = [res_parts_random_list, VM_numbers_random_list, 
+                         CL_res_random_list]    
+        
+        return best_result_no_update, elite, random_params
 
 
 ## HyperOpt

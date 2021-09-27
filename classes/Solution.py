@@ -3,6 +3,10 @@ from classes.Performance import SystemPerformanceEvaluator
 import numpy as np
 import itertools
 import json
+from datetime import datetime
+from uuid import uuid4
+from sortedcontainers import SortedList
+import sys
 
 
 ## Configuration
@@ -247,9 +251,9 @@ class Configuration:
                 for part_idx in part_indexes:
                     costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.components[i].comp_Lambda * S.T )
         
-        total_cost = sum(costs)
+        self.cost = sum(costs)
         
-        return total_cost
+        return self.cost
     
     
     ## Method to convert the solution description into a json object
@@ -343,10 +347,9 @@ class Configuration:
         # write total cost
         solution_string = solution_string[:-1] + '},  "total_cost": '
         if cost:
-            solution_string += str(cost)
+            solution_string += (str(cost) + '}')
         else:
-            solution_string += str(self.objective_function(S))
-        solution_string += '}'
+            solution_string += (str(self.objective_function(S)) + '}')
         
         # load string as json
         solution_string = solution_string.replace('0.,', '0.0,')
@@ -380,4 +383,143 @@ class Configuration:
                 f.write(jj)
         else:
             print(jj)
+
+
+
+## Result
+class Result:
+    
+    ## @var ID
+    # Unique id characterizing the Solution.Result (used for comparisons)
+    
+    ## @var solution
+    # Candidate Solution.Configuration
+    
+    ## @var cost
+    # Cost of the candidate Solution.Configuration
+    
+    ## @var performance
+    # List whose first element is True if the Solution.Configuration is 
+    # feasible, while the second and the third element store the paths and 
+    # the components performance, respectively
+    
+    def __init__(self):
+        self.ID = datetime.now().strftime("%Y%m%d-%H%M%S_") + str(uuid4())
+        self.solution = None
+        self.cost = np.infty
+        self.performance = [False, None, None]
+    
+    # Method to create a (cost, ID) pair to be used for comparison
+    #   @param self The object pointer
+    def _cmp_key(self):
+        return (self.cost, self.ID)
+    
+    # Method to create a (-cost, ID) pair to be used for comparison
+    #   @param self The object pointer
+    def _neg_cmp_key(self):
+        return ( - self.cost, self.ID)
+    
+    # Equality operator
+    #   @param self The object pointer
+    #   @param other The rhs of the comparison
+    #   @raturn True if the two Configuration objects are equal
+    def __eq__(self, other):
+        return self._cmp_key() == other._cmp_key()
+  
+    # Operator<
+    #   @param self The object pointer
+    #   @param other The rhs of the comparison
+    #   @raturn True if lhs < rhs
+    def __lt__(self, other):
+        return self._cmp_key() < other._cmp_key()
+    
+    ## Method to check the feasibility of the current Configuration
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @return True if the solution is feasible
+    def check_feasibility(self, S):
+        self.performance = self.solution.check_feasibility(S)
+        return self.performance[0]
+    
+    ## Method to compute the cost of the current Configuration
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @return total cost
+    def objective_function(self, S):
+        self.cost = self.solution.objective_function(S)
+        return self.cost
+    
+    ## Method to print the result in json format, either on screen or on 
+    # the file whose name is passed as parameter
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @param solution_file Name of the file where the solution should be 
+    #                        printed (default: "")
+    def print_result(self, S, solution_file = ""):
+        if self.performance[0]:
+            self.solution.print_solution(S, path_response_times=self.performance[1],
+                                         cost=self.cost,
+                                         solution_file=solution_file)
+        else:
+            sfile = open(solution_file, "w") if solution_file else sys.stdout
+            print("Unfeasible solution", file=sfile)
+
+
+
+## EliteResults
+# Class to store a fixed-size list of elite Solution.Result objects, sorted 
+# by minimum cost
+class EliteResults:
+    
+    ## @var elite_results
+    # List of Solution.Result objects sorted by minimum cost
+    
+    ## @var K
+    # Maximum length of the elite results list
+    
+    ## EliteSolutions class constructor
+    #   @param self The object pointer
+    #   @param K Maximum length of the elite results list
+    #   @param log Object of Logger type
+    def __init__(self, K, log=Logger()):
+        self.K = K
+        self.elite_results = SortedList()
+        self.logger = log
+        
+    
+    ## Method to add a Solution.Result object to the elite results list, 
+    # keeping its length under control
+    #   @param self The object pointer
+    #   @param result Solution.Result object to be added to the list
+    def add(self, result):
+        
+        # check if the new result improves any elite result
+        if len(self.elite_results) == 0 or result.cost < self.elite_results[-1].cost:
+            
+            # add the new result to the list
+            self.elite_results.add(result)
+            
+            # check if the total length exceeds than the maximum; if so, 
+            # remove the last element
+            if len(self.elite_results) > self.K:
+                self.elite_results.pop()
+            
+            self.logger.log("Result improved - range: [{},{}]".\
+                            format(self.elite_results[0].cost, 
+                                   self.elite_results[-1].cost), 2)
+    
+    
+    ## Method to merge two lists of elite results (inplace)
+    #   @param self The object pointer
+    #   @param other The EliteResults object to be merged (it remains 
+    #                unchanged)
+    def merge(self, other):
+        
+        # add all elements from the other list
+        self.elite_results.update(other.elite_results)
+        
+        # remove elements to keep the correct number of solutions
+        while len(self.elite_results) > self.K:
+            self.elite_results.pop()
+
 
