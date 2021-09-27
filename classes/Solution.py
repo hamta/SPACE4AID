@@ -251,9 +251,7 @@ class Configuration:
                 for part_idx in part_indexes:
                     costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.components[i].comp_Lambda * S.T )
         
-        self.cost = sum(costs)
-        
-        return self.cost
+        return sum(costs)
     
     
     ## Method to convert the solution description into a json object
@@ -403,33 +401,37 @@ class Result:
     # feasible, while the second and the third element store the paths and 
     # the components performance, respectively
     
+    ## Result class constructor
+    #   @param self The object pointer
     def __init__(self):
         self.ID = datetime.now().strftime("%Y%m%d-%H%M%S_") + str(uuid4())
         self.solution = None
         self.cost = np.infty
         self.performance = [False, None, None]
     
-    # Method to create a (cost, ID) pair to be used for comparison
+    ## Method to create a (cost, ID) pair to be used for comparison
     #   @param self The object pointer
+    #   @return The (cost, ID) pair
     def _cmp_key(self):
         return (self.cost, self.ID)
     
     # Method to create a (-cost, ID) pair to be used for comparison
     #   @param self The object pointer
+    #   @return The (-cost, ID) pair
     def _neg_cmp_key(self):
         return ( - self.cost, self.ID)
     
-    # Equality operator
+    ## Equality operator
     #   @param self The object pointer
     #   @param other The rhs of the comparison
-    #   @raturn True if the two Configuration objects are equal
+    #   @return True if the two Configuration objects are equal
     def __eq__(self, other):
         return self._cmp_key() == other._cmp_key()
   
-    # Operator<
+    ## Operator<
     #   @param self The object pointer
     #   @param other The rhs of the comparison
-    #   @raturn True if lhs < rhs
+    #   @return True if lhs < rhs
     def __lt__(self, other):
         return self._cmp_key() < other._cmp_key()
     
@@ -476,6 +478,9 @@ class EliteResults:
     
     ## @var K
     # Maximum length of the elite results list
+    
+    ## @var logger
+    # Object of Logger type, used to print general messages
     
     ## EliteSolutions class constructor
     #   @param self The object pointer
