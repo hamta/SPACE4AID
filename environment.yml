@@ -17,7 +17,6 @@ dependencies:
   - pyyaml
   - pydot
   - doxygen
-  - hyperopt
   - spyder
   - pip
   - pip:
