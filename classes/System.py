@@ -27,7 +27,7 @@ class System:
     # with the available Resources.Resource objects
     
     ## @var compatibility_matrix 
-    # List of 2D numpy arrays representing the compatibility between all 
+    # List of 2D numpy arrays representing the compatibility between all resource
     # Graph.Component.Partition objects in each Graph.Component 
     # and the available Resources.Resource
     
@@ -274,6 +274,7 @@ class System:
         self.local_constraints = []
         comp_idx = 0
         # loop over components
+       
         for c in C :
             # check if the component is in the graph
             if self.graph.G.has_node(c):
@@ -318,11 +319,12 @@ class System:
                     # if the node c does not have any input edge, it is the 
                     # first node of a path and its Lambda is equal to input 
                     # lambda
+                    partitions = []
                     for s in C[c]:
                         part_Lambda = -1
                         part_idx_list=[]
                         if len(C[c][s]) > 0:
-                            partitions = []
+                            
                             # loop over all partitions
                             for h in C[c][s]:
                                 if part_Lambda > -1:
@@ -527,7 +529,9 @@ class System:
                 for res in self.compatibility_dict[c][part]:
                     comp_idx = self.dic_map_part_idx[c][part][0]
                     part_idx = self.dic_map_part_idx[c][part][1]
+                   
                     self.compatibility_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]] = 1
+                   
                     # for Edge and Cloud resources, the demand is taken 
                     # directly from the dictionary
                     if self.dic_map_res_idx[res] < self.FaaS_start_index:
