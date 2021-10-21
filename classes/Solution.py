@@ -39,6 +39,15 @@ class Configuration:
         self.global_slack_value = None
         self.logger = log
     
+    ## Method to define equality of two solution
+    #   @param self The object pointer
+    #   @param solution The other solution to compare with current object
+    def __eq__(self,solution):
+        equality=[]
+        # compare the equality of assignment for each component
+        for i, j in zip(self.Y_hat, solution.Y_hat):
+            equality.append(np.array_equal(i, j))
+        return all(equality)
     
     ## Method to get information about the used resources
     #   @param self The object pointer
@@ -55,7 +64,7 @@ class Configuration:
     # about the resources used to run each Graph.Component.Partition
     def get_y(self):
         Y = []
-        for i in range(len(self.Y_hatY)):
+        for i in range(len(self.Y_hat)):
             Y.append(np.array(self.Y_hat[i] > 0, dtype = int))
         return Y
     
