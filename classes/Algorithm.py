@@ -594,21 +594,26 @@ class Algorithm:
     def union_neighbors(self, solution):
        
         neighborhood=[]
+        # get the neighbors by changing FaaS configuration
         neighborhood1=self.change_FaaS(solution)
+        # get the neighbors by changing resource type
         neighborhood2=self.change_resource_type(solution)
+        # get the neigbors by change component placement
         neighborhood3=self.change_component_placement(solution)
+        # mixe all neigbors
         if neighborhood1 is not None:
             neighborhood.extend(neighborhood1)
         if neighborhood2 is not None:
             neighborhood.extend(neighborhood2)
         if neighborhood3 is not None:
             neighborhood.extend(neighborhood3)
-       
+        # sort the neighbors list by cost 
         sorted_neighborhood=sorted(neighborhood, key=lambda x: x.cost)
+        # if two solution have the same cost, check if the solutions are the same and drop one of them
         for neighbor_idx in range(len(sorted_neighborhood)-1):
             if sorted_neighborhood[neighbor_idx].cost==sorted_neighborhood[neighbor_idx+1].cost:
                 if sorted_neighborhood[neighbor_idx].solution==sorted_neighborhood[neighbor_idx+1].solution:
-                    pdb.set_trace()
+                    
                     sorted_neighborhood.remove(sorted_neighborhood[neighbor_idx])
 
         return sorted_neighborhood
