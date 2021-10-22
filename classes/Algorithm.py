@@ -610,13 +610,14 @@ class Algorithm:
         # sort the neighbors list by cost 
         sorted_neighborhood=sorted(neighborhood, key=lambda x: x.cost)
         # if two solution have the same cost, check if the solutions are the same and drop one of them
+        new_sorted_neighborhood=copy.deepcopy(sorted_neighborhood)
         for neighbor_idx in range(len(sorted_neighborhood)-1):
             if sorted_neighborhood[neighbor_idx].cost==sorted_neighborhood[neighbor_idx+1].cost:
                 if sorted_neighborhood[neighbor_idx].solution==sorted_neighborhood[neighbor_idx+1].solution:
                     
-                    sorted_neighborhood.remove(sorted_neighborhood[neighbor_idx])
+                    new_sorted_neighborhood.remove(new_sorted_neighborhood[neighbor_idx])
 
-        return sorted_neighborhood
+        return new_sorted_neighborhood
             
     ## Method to create the initial solution with largest configuration function (for only FaaS scenario)
     #   @param self The object pointer
