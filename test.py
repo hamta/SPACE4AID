@@ -224,8 +224,8 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     proc = mpp.current_process()
                     pid = proc.pid
                     seed=seed*pid
-                    iteration_number_RG=50
-                    max_iterations=10
+                    iteration_number_RG=10
+                    max_iterations=100
                     GA=RandomGreedy(S)
                     random_greedy_result=GA.random_greedy(seed, MaxIt=iteration_number_RG)
                     initial_solution=random_greedy_result[1].elite_results[0].solution
