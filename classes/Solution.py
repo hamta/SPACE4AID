@@ -1,5 +1,5 @@
 from classes.Logger import Logger
-from classes.Performance import SystemPerformanceEvaluator
+from classes.Performance import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
 import numpy as np
 import itertools
 import json
@@ -187,7 +187,7 @@ class Configuration:
     #   @param self The object pointer
     #   @param S A System.System object
     def check_feasibility(self, S):
-        
+       
         # increase indentation level for logging
         self.logger.level += 1
         
@@ -195,30 +195,48 @@ class Configuration:
         I = len(S.components)
         components_performance = [[True, np.infty]] * I
         paths_performance = []
-        
-        # check if the memory constraints are satisfied
-        self.logger.log("Memory constraints check", 4)
-        feasible = self.memory_constraints_check(S)
-        
+       
+        # check the utilization of all resources in edge and cloud
+        edge=EdgePE()
+        cloud=ServerFarmPE()
+        feasible=True
+        self.logger.log("Utilization of edge check", 4)
+        for j in range(S.cloud_start_index):
+            utilization=edge.compute_utilization(j, self.Y_hat, S)
+            if utilization>=1:
+                feasible=False
+               
         if feasible:
-            # check if the cloud placement constraint is satisfied
-            self.logger.log("Cloud placement constraint check", 4)
-            feasible = self.move_backward_check(S)
-            
+            self.logger.log("Utilization of cloud check", 4)    
+            for j in range(S.cloud_start_index,S.FaaS_start_index):
+                utilization=cloud.compute_utilization(j, self.Y_hat, S)
+                if utilization>=1:
+                    feasible=False
+                   
             if feasible:
-                # check if all local constraints are satisfied
-                self.logger.log("Local constraints check", 4)
-                for LC in S.local_constraints:
-                    i = LC.component_idx
-                    components_performance[i] = LC.check_feasibility(S, self)
-                    feasible = feasible and components_performance[i][0]
+                # check if the memory constraints are satisfied
+                self.logger.log("Memory constraints check", 4)
+                feasible = self.memory_constraints_check(S)
                 
                 if feasible:
-                    self.logger.log("Global constraints check", 4)
-                    # check global constraints
-                    for GC in S.global_constraints:
-                        paths_performance.append(GC.check_feasibility(S, self))
-                        feasible = feasible and paths_performance[-1][0]
+                    # check if the cloud placement constraint is satisfied
+                    self.logger.log("Cloud placement constraint check", 4)
+                    feasible = self.move_backward_check(S)
+                    
+                    if feasible:
+                        # check if all local constraints are satisfied
+                        self.logger.log("Local constraints check", 4)
+                        for LC in S.local_constraints:
+                            i = LC.component_idx
+                            components_performance[i] = LC.check_feasibility(S, self)
+                            feasible = feasible and components_performance[i][0]
+                        
+                        if feasible:
+                            self.logger.log("Global constraints check", 4)
+                            # check global constraints
+                            for GC in S.global_constraints:
+                                paths_performance.append(GC.check_feasibility(S, self))
+                                feasible = feasible and paths_performance[-1][0]
 
         if not feasible:
             self.logger.level += 1
