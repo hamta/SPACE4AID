@@ -333,49 +333,6 @@ class Algorithm:
         # return the list of neibors
         return new_sorted_results
     
-    # ## Method to get the resources (nodes) with maximum utilization
-    # #   @param self The object pointer
-    # #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
-    # #   @return The index of resource with maximum utilization
-    # def get_node_with_max_utilization(self, Y_hat):
-        
-    #     max_utilization=0
-    #     idx_max_U_node=None
-    #     # loop over the resources except FaaS
-    #     for j in range(self.system.FaaS_start_index):
-    #         # compute the utilization of current node
-    #         utilization=self.system.resources[j].performance_evaluator.compute_utilization(j, Y_hat,self.system)
-    #         # set the resource with maximum utilization
-    #         if utilization>max_utilization:
-    #             max_utilization=utilization
-    #             idx_max_U_node=j
-        
-    #     return idx_max_U_node
-    
-    # ## Method to get the resources (nodes) with minimum utilization among alternative resources
-    # #   @param self The object pointer
-    # #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
-    # #   @param alternative_res_idxs The list of alternative resource indeces
-    # #   @return The index of resource with minimum utilization and  cost
-    # def get_node_with_min_U_among_compatible_nodes(self, Y_hat,alternative_res_idxs):
-        
-    #     #min_utilization=np.inf
-    #     idx_min_U_node=[]
-    #     # loop over all alternative resources
-    #     for j in alternative_res_idxs:
-    #         # check if the alternative resource is not FaaS
-    #         if j <self.system.FaaS_start_index:
-    #             # compute the utilization of current node
-    #             utilization=self.system.resources[j].performance_evaluator.compute_utilization(j, Y_hat,self.system)
-    #             # add the information of node to the list includes node index, utilization and cost
-    #             idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
-                
-    #     # sort the list based on utilization and cost        
-    #     min_U_cost= sorted(idx_min_U_node, key=lambda element: (element[1], element[2]))
-    #     # return the index of best alternative
-    #     return min_U_cost[0][0]       
-    
-    
     
     ## Method to get active resources and computationallayers
     #   @param self The object pointer
@@ -404,13 +361,16 @@ class Algorithm:
         active_camputationallayers=list(set(act_camputationallayers))
         return active_res_idxs, active_camputationallayers
             
-    ## Method to sort all nodes increasingly except FaaS by utilization and cost respectively
+    ## Method to sort all nodes increasingly except FaaS by utilization and cost 
     #   @param self The object pointer
     #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
-    #   @return The sorted list of resources. 
-    #       Each item of list includes the index, utilization and cost of the resource.
-    #       The list is sorted by utilization, for the nodes with same utilization, it is sorted by cost
-    def sort_nodes_by_U_cost(self, Y_hat):
+    #   @return 1) The sorted list of resources by utilization and cost, respectively. 
+    #           Each item of list includes the index, utilization and cost of the resource.
+    #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+    #           2) The sorted list of resources by cost and utilization, respectively.  
+    #           Each item of list includes the index, utilization and cost of the resource.
+    #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+    def sort_nodes(self, Y_hat):
   
         #min_utilization=np.inf
         idx_min_U_node=[]
@@ -421,93 +381,107 @@ class Algorithm:
             # add the information of node to the list includes node index, utilization and cost
             idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
                 
-        # sort the list based on utilization and cost        
-        sorted_node_list= sorted(idx_min_U_node, key=lambda element: (element[1], element[2]))
+        # sort the list based on utilization and cost respectively     
+        sorted_node_by_U_cost= sorted(idx_min_U_node, key=lambda element: (element[1], element[2]))
+        # sort the list based on cost and utilization respectively
+        sorted_node_by_cost_U= sorted(idx_min_U_node, key=lambda element: (element[2], element[1]))
         # return the index of best alternative
-        return sorted_node_list  
+        return sorted_node_by_U_cost, sorted_node_by_cost_U
         
     ## Method to change the current solution by changing component placement
     #   @param self The object pointer
     #   @param solution Current solution 
+    #   @param sorting_method indicate the sorting order of nodes. 
+    #           If sorting_method=0, the list of nodes are sorted by utilization and cost respectively
+    #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
-    def change_component_placement(self, solution):
+    def change_component_placement(self, solution, sorting_method=0):
         
         neighbors=[]
+        new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        nodes_sorted_list= self.sort_nodes_by_U_cost(solution.Y_hat)
-        # get resource with maximum utilization as source node
-        #idx_max_U_node=self.get_node_with_max_utilization(solution.Y_hat)
-        idx_max_U_node=nodes_sorted_list[-1][0]
-        # get all partitions located in higest utilization node
-        partitions=self.get_partitions_with_j(solution.Y_hat,idx_max_U_node)
-        # get the list of nodes and computational layers in used 
-        active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
-        # loop over partitions
-        for part in partitions:
-            # get all alternative resources of the partitions
-            alternative_res_idxs=self.alternative_resources(part[0],part[1],solution)
-            # set a boolean variable to break, if best destination is founded
-            find=False
-            i=0
-           
-             # search to find the best campatible resource with lowest utilization for current partition
-            while not find and i<len(nodes_sorted_list)-1:
-                
-                des_node_idx=nodes_sorted_list[i][0]
-                # Check some conditions to avoid violating the limitation of our problem that says:
-                # Only one node can be in used in each computational layer 
-                # So, the destination node can be used only if it is one of running node, 
-                # or its computational layer is not an active computational layer
-                # or if the source and destination node are located in the same computational layer 
-                # and the current partition is the only partition running in the computational layer 
-                if des_node_idx in active_res_idxs or \
-                        self.system.resources[des_node_idx].CLname not in active_camputationallayers or \
-                        (len(partitions)==1 and self.system.resources[des_node_idx].CLname==self.system.resources[idx_max_U_node].CLname):
-                    if des_node_idx in alternative_res_idxs:
-                       
-                        # get a copy of current solution as a new temprary assignment matrix (Y_hat)
-                        new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
-                        # get all partitions running on the destination node
-                        partitions_min_U=self.get_partitions_with_j(solution.Y_hat,des_node_idx)
-                        # assign the current partition to the new alternative node in new Y_hat with maximume number of its instances
-                        new_temp_Y_hat[part[0]][part[1]][idx_max_U_node]=0
-                        new_temp_Y_hat[part[0]][part[1]][des_node_idx]=self.system.resources[des_node_idx].number
-                       
-                        if len(partitions_min_U)>0:
-                            # assign the maximume instance number of destination node to the partitions that are running on destination node
-                            for part_min in partitions_min_U:
-                                new_temp_Y_hat[part_min[0]][part_min[1]][des_node_idx]=self.system.resources[des_node_idx].number
-                        # creat a solution by new assignment (Y_hat)
-                        new_temp_solution=Configuration(new_temp_Y_hat)
-                        # check if new solution is feasible
-                        performance=new_temp_solution.check_feasibility(self.system)
-                        if performance[0]:
-                            # creat new result
-                            result=Result()
-                            result.solution = new_temp_solution
-                            # reduce cluster size of source and destination nodes
-                            new_result_1 = self.reduce_cluster_size(des_node_idx, result)
-                            new_result = self.reduce_cluster_size(idx_max_U_node, new_result_1)
-                            # compute the cost
-                            new_result.cost = new_result.objective_function(self.system)
-                            new_result.performance = performance
-                            # add new result in neigbor list
-                            neighbors.append(new_result)
-                            find=True
-               
-                i+=1
-               
-                    
-            if not find:
-                 print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
-        # if some neighbors are founded, sort them by cost and return the list    
-        if len(neighbors)>0:        
-            new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
-            #new_sorted_solutions=[x.solution for x in new_sorted_results]
-            
+        if sorting_method==0:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
         else:
-            print("No neighbor could be find by changing component placement of this solution ")
-            new_sorted_results=None
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+        # get resource with maximum utilization as source node
+        selected_node=len(nodes_sorted_list)
+        j=1
+        while len(neighbors)<1 and j<=len(nodes_sorted_list):
+            # get resource with maximum utilization as source node
+            selected_node=len(nodes_sorted_list)-j
+            idx_source_node=nodes_sorted_list[selected_node][0]
+            # get all partitions located in higest utilization node
+            partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
+            # get the list of nodes and computational layers in used 
+            active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
+            # loop over partitions
+            for part in partitions:
+                # get all alternative resources of the partitions
+                alternative_res_idxs=self.alternative_resources(part[0],part[1],solution)
+                # set a boolean variable to break, if best destination is founded
+                find=False
+                i=0
+               
+                 # search to find the best campatible resource with lowest utilization for current partition
+                while not find and i<len(nodes_sorted_list)-1 and i<j:
+                    
+                    des_node_idx=nodes_sorted_list[i][0]
+                    # Check some conditions to avoid violating the limitation of our problem that says:
+                    # Only one node can be in used in each computational layer 
+                    # So, the destination node can be used only if it is one of running (active) node, 
+                    # or its computational layer is not an active computational layer
+                    
+                    if des_node_idx in active_res_idxs or \
+                            self.system.resources[des_node_idx].CLname not in active_camputationallayers:
+                        if des_node_idx in alternative_res_idxs:
+                           
+                            # get a copy of current solution as a new temprary assignment matrix (Y_hat)
+                            new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
+                            # get all partitions running on the destination node
+                            partitions_min_U=self.get_partitions_with_j(solution.Y_hat,des_node_idx)
+                            # assign the current partition to the new alternative node in new Y_hat with maximume number of its instances
+                            new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
+                            new_temp_Y_hat[part[0]][part[1]][des_node_idx]=self.system.resources[des_node_idx].number
+                           
+                            if len(partitions_min_U)>0:
+                                # assign the maximume instance number of destination node to the partitions that are running on destination node
+                                for part_min in partitions_min_U:
+                                    new_temp_Y_hat[part_min[0]][part_min[1]][des_node_idx]=self.system.resources[des_node_idx].number
+                            # creat a solution by new assignment (Y_hat)
+                            new_temp_solution=Configuration(new_temp_Y_hat)
+                            # check if new solution is feasible
+                            performance=new_temp_solution.check_feasibility(self.system)
+                            if performance[0]:
+                                # creat new result
+                                result=Result()
+                                result.solution = new_temp_solution
+                                # reduce cluster size of source and destination nodes
+                                new_result_1 = self.reduce_cluster_size(des_node_idx, result)
+                                new_result = self.reduce_cluster_size(idx_source_node, new_result_1)
+                                # compute the cost
+                                new_result.cost = new_result.objective_function(self.system)
+                                new_result.performance = performance
+                                # add new result in neigbor list
+                                neighbors.append(new_result)
+                                find=True
+                   
+                    i+=1
+                   
+                        
+                if not find:
+                     print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
+            # if some neighbors are founded, sort them by cost and return the list    
+            if len(neighbors)>0:        
+                new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
+                #new_sorted_solutions=[x.solution for x in new_sorted_results]
+                
+            else:
+                print("No neighbor could be find by changing component placement of this solution ")
+                new_sorted_results=None
+            j+=1    
+        if  new_sorted_results==None:
+            print("There is not any neighbors for the current solution")       
         return new_sorted_results    
             
             
@@ -515,76 +489,89 @@ class Algorithm:
     ## Method to change the current solution by changing resource type
     #   @param self The object pointer
     #   @param solution Current solution 
+    #   @param sorting_method indicate the sorting order of nodes. 
+    #           If sorting_method=0, the list of nodes are sorted by utilization and cost respectively
+    #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost   
-    def change_resource_type(self, solution):
+    def change_resource_type(self, solution, sorting_method=0):
        
         
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        nodes_sorted_list= self.sort_nodes_by_U_cost(solution.Y_hat)
-        # get resource with maximum utilization as source node
-        #idx_max_U_node=self.get_node_with_max_utilization(solution.Y_hat)
-        idx_max_U_node=nodes_sorted_list[-1][0]
-        # get all partitions located in higest utilization node
-        partitions=self.get_partitions_with_j(solution.Y_hat,idx_max_U_node)
-        alternative_res_idxs_parts=[]
-        # get a list of set of alternative nodes for partitions runing on source node
-        for part in partitions:
-            alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
-        # get the intersection of the alternative nodes of all partitions runing on source node
-        candidate_nodes=alternative_res_idxs_parts[0].intersection(*alternative_res_idxs_parts)
-        
-        if len(candidate_nodes)>0:
-            # get the list of nodes and computational layers in used 
-            active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
-            # for each candidate nodes, move all partitions on it and create new solution
-            for des in candidate_nodes:
-                # Check some conditions to avoid violating the limitation of our problem that says:
-                # Only one node can be in used in each computational layer 
-                # So, the destination node can be used only if it is one of running node, 
-                # or its computational layer is not an active computational layer
-                # or if the source and destination node are located in the same computational layer 
-                if des in active_res_idxs or \
-                        self.system.resources[des].CLname not in active_camputationallayers or \
-                        self.system.resources[des].CLname==self.system.resources[idx_max_U_node].CLname:
-                            new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
-                            # get all partitions running on the destination node
-                            partitions_on_candidate=self.get_partitions_with_j(solution.Y_hat,des)
-                            # assign the maximume instance number of destination node to the partitions that are running on source node
-                            for part in partitions:
-                                new_temp_Y_hat[part[0]][part[1]][idx_max_U_node]=0
-                                new_temp_Y_hat[part[0]][part[1]][des]=self.system.resources[des].number
-                            if len(partitions_on_candidate)>0:
-                                 # assign the maximume instance number of destination node to the partitions that are running on destination node
-                                for part_cand in partitions_on_candidate:
-                                    new_temp_Y_hat[part[0]][part[1]][des]=self.system.resources[des].number
-                           # create new solution by new assignment
-                            new_temp_solution=Configuration(new_temp_Y_hat)
-                            # check feasibility
-                            
-                            performance=new_temp_solution.check_feasibility(self.system)
-                            
-                            if performance[0]:
-                                # create a new result
-                                result=Result()
-                                result.solution = new_temp_solution
-                                # reduce the cluster size of destination node
-                                new_result = self.reduce_cluster_size(des, result)
-                                new_result.cost = new_result.objective_function(self.system)
-                                new_result.performance = performance
-                                # add the new result to the neigbor list
-                                neighbors.append(new_result)
-            
-            if len(neighbors)>0:
-                # sort neighbor list by cost and return the best one
-                new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
-                #new_sorted_solutions=[x.solution for x in new_sorted_results]
-            else:
-                print("No neighbor could be find by changing resource type because no feasible solution exists given the shared compatiblie nodes ")
-                
+        if sorting_method==0:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
         else:
-            print("No neighbor could be find by changing resource type because no shared compatiblie node exists")
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+        selected_node=len(nodes_sorted_list)
+        i=1
+        while len(neighbors)<1 and i<=len(nodes_sorted_list):
+            # get resource with maximum utilization as source node
+            selected_node=len(nodes_sorted_list)-i
+            idx_source_node=nodes_sorted_list[selected_node][0]
+            
+            # get all partitions located in higest utilization node
+            partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
+            alternative_res_idxs_parts=[]
+            # get a list of set of alternative nodes for partitions runing on source node
+            for part in partitions:
+                alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
+            # get the intersection of the alternative nodes of all partitions runing on source node
+            candidate_nodes=alternative_res_idxs_parts[0].intersection(*alternative_res_idxs_parts)
+            
+            if len(candidate_nodes)>0:
+                # get the list of nodes and computational layers in used 
+                active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
+                # for each candidate nodes, move all partitions on it and create new solution
+                for des in candidate_nodes:
+                    # Check some conditions to avoid violating the limitation of our problem that says:
+                    # Only one node can be in used in each computational layer 
+                    # So, the destination node can be used only if it is one of running node, 
+                    # or its computational layer is not an active computational layer
+                    # or if the source and destination node are located in the same computational layer 
+                    if des in active_res_idxs or \
+                            self.system.resources[des].CLname not in active_camputationallayers or \
+                            self.system.resources[des].CLname==self.system.resources[idx_source_node].CLname:
+                                new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
+                                # get all partitions running on the destination node
+                                partitions_on_candidate=self.get_partitions_with_j(solution.Y_hat,des)
+                                # assign the maximume instance number of destination node to the partitions that are running on source node
+                                for part in partitions:
+                                    new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
+                                    new_temp_Y_hat[part[0]][part[1]][des]=self.system.resources[des].number
+                                if len(partitions_on_candidate)>0:
+                                     # assign the maximume instance number of destination node to the partitions that are running on destination node
+                                    for part_cand in partitions_on_candidate:
+                                        new_temp_Y_hat[part[0]][part[1]][des]=self.system.resources[des].number
+                               # create new solution by new assignment
+                                new_temp_solution=Configuration(new_temp_Y_hat)
+                                # check feasibility
+                                
+                                performance=new_temp_solution.check_feasibility(self.system)
+                                
+                                if performance[0]:
+                                    # create a new result
+                                    result=Result()
+                                    result.solution = new_temp_solution
+                                    # reduce the cluster size of destination node
+                                    new_result = self.reduce_cluster_size(des, result)
+                                    new_result.cost = new_result.objective_function(self.system)
+                                    new_result.performance = performance
+                                    # add the new result to the neigbor list
+                                    neighbors.append(new_result)
+                
+                if len(neighbors)>0:
+                    # sort neighbor list by cost and return the best one
+                    new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
+                    #new_sorted_solutions=[x.solution for x in new_sorted_results]
+                else:
+                    print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no feasible solution exists given the shared compatiblie nodes ")
+                    
+            else:
+                print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
+            i+=1
+        if  new_sorted_results==None:
+            print("There is not any neighbors for the current solution")
         return new_sorted_results 
     
      ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
