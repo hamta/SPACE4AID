@@ -276,7 +276,7 @@ class Configuration:
             for i in range(len(self.Y_hat)):
                 part_indexes = np.nonzero(S.compatibility_matrix[i][:,j])[0]
                 for part_idx in part_indexes:
-                    costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.components[i].comp_Lambda * S.T )
+                    costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.demand_matrix[i][part_idx][j]* S.components[i].comp_Lambda * S.T )
         
         return sum(costs)
     
