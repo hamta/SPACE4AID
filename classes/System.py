@@ -249,7 +249,9 @@ class System:
         # compatibility matrix, convert both these dictionaries to arrays
         if is_compatible:
             self.convert_dic_to_matrix()
-         
+        
+        # sort FaaS to have a list of sorted FaaS that is needed by Algorithm
+        self.sort_FaaS_nodes()
         # initialize time
         self.logger.log("Initializing time", 2)
         if "Time" in data.keys():
@@ -545,6 +547,41 @@ class System:
                             arrival_rate, 
                             warm_service_time, 
                             cold_service_time)
+    
+    
+    ## Method to sort all input FaaS nodes increasingly by memory 
+    #   @param self The object pointer
+    #   @return 1) The sorted list of resources by memory and cost, respectively. 
+    #           Each item of list includes the index, memory and cost of the resource.
+    #           The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
+    #           2) The sorted list of resources by cost and memory, respectively.  
+    #           Each item of list includes the index, utilization and cost of the resource.
+    #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+    def sort_FaaS_nodes(self):
+       
+        idx_min_memory_node=[]
+        for c in self.compatibility_dict:
+            # loop over partitions
+            for part in self.compatibility_dict[c]: 
+                # loop over all FaaS
+                for res in self.compatibility_dict[c][part]:
+                    if self.dic_map_res_idx[res] >= self.FaaS_start_index:
+                        j=self.dic_map_res_idx[res]
+                       
+                    # add the information of node to the list includes node index, memory and cost
+                    # The cost that we consider is the product of time unit cost and  warm service time(d_hot)
+                        idx_min_memory_node.append((j, self.resources[j].memory, self.resources[j].cost*self.demand_dict[c][part][res][0]))
+                
+        # Sort the list based on memory and cost respectively    
+        # Each item of list includes the index, memory and cost of the resource.
+        # The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
+        self.sorted_FaaS_by_memory_cost= sorted(idx_min_memory_node, key=lambda element: (element[1], element[2]))
+        # Sort the list based on cost and memory respectively
+        # Each item of list includes the index, utilization and cost of the resource.
+        # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+        self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
+       
+    
     
     
     ## Method to convert the system description into a json object
