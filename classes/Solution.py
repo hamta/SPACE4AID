@@ -275,7 +275,8 @@ class Configuration:
         if S.FaaS_start_index<J:
             key_list_comp = list(S.dic_map_com_idx.keys())
             val_list_comp = list(S.dic_map_com_idx.values())
-           
+            key_list_res = list(S.dic_map_res_idx.keys())
+            val_list_res = list(S.dic_map_res_idx.values())
             for j in range(S.FaaS_start_index, J):
                 for i in range(len(self.Y_hat)):
                     part_indexes = np.nonzero(S.compatibility_matrix[i][:,j])[0]
@@ -287,8 +288,6 @@ class Configuration:
                         val_list_part = list(S.dic_map_part_idx[comp].values())
                         part=key_list_part[val_list_part.index((i,part_idx))]
                         # get the name of resource by its index
-                        key_list_res = list(S.dic_map_res_idx.keys())
-                        val_list_res = list(S.dic_map_res_idx.values())
                         res=key_list_res[val_list_res.index(j)]
                         # compute the cost of the FaaS
                         costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.demand_dict[comp][part][res][0]* S.components[i].comp_Lambda * S.T )
