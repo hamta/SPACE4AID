@@ -327,6 +327,6 @@ class SequenceDataProcessing:
             self._logger.info("<--Performed self check")
 
         # Create success flag file
-        os.mknod(self._done_file_flag)
+        open(self._done_file_flag, mode='wb', buffering=0).close()
 
         return regressor
