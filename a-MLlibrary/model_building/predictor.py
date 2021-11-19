@@ -124,7 +124,7 @@ class Predictor(sequence_data_processing.SequenceDataProcessing):
         self._logger.info("<--Performed prediction")
 
 
-    def predict_from_df(self, xx):
+    def predict_from_df(self, xx, disable_logging = False):
         """
         Performs prediction on a dataframe
 
@@ -138,8 +138,10 @@ class Predictor(sequence_data_processing.SequenceDataProcessing):
         yy_pred
             The predicted values for the dependent variable
         """
-        self._logger.info("-->Performing prediction on dataframe")
+        if not disable_logging:
+          self._logger.info("-->Performing prediction on dataframe")
         yy_pred = self._regressor.predict(xx)
-        self._logger.info("Predicted values are: %s", str(yy_pred))
-        self._logger.info("<--Performed prediction")
+        if not disable_logging:
+          self._logger.info("Predicted values are: %s", str(yy_pred))
+          self._logger.info("<--Performed prediction")
         return yy_pred
