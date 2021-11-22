@@ -39,10 +39,10 @@ class PerformanceFactory:
 
 
 ## Factory initialization
-PMfactory = PerformanceFactory()
-PMfactory.register("PACSLTK", FaaSPredictorPacsltk)
-PMfactory.register("MLLIBfaas", FaaSPredictorMLlib)
-PMfactory.register("QTcloud", ServerFarmPE)
-PMfactory.register("QTedge", EdgePE)
-PMfactory.register("NETWORK", NetworkPerformanceEvaluator)
+Pfactory = PerformanceFactory()
+Pfactory.register("PACSLTK", FaaSPredictorPacsltk)
+Pfactory.register("MLLIBfaas", FaaSPredictorMLlib)
+Pfactory.register("QTcloud", ServerFarmPE)
+Pfactory.register("QTedge", EdgePE)
+Pfactory.register("NETWORK", NetworkPerformanceEvaluator)
 
