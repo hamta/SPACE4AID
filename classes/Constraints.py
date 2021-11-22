@@ -1,4 +1,4 @@
-from classes.Performance import SystemPerformanceEvaluator
+from classes.PerformanceEvaluators import SystemPerformanceEvaluator
 from abc import ABC, abstractmethod
 import numpy as np
 
