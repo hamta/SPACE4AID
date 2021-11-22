@@ -1,32 +1,17 @@
 from classes.Logger import Logger
 from abc import ABC, abstractmethod
 import numpy as np
-import copy
 import sys
 
 
-## PerformanceEvaluator
-#
-# Abstract class used to represent a performance evaluator, namely an object 
-# that evaluates the performance of a Graph.Component.Partition executed on 
-# different types of resources
-class PerformanceEvaluator(ABC):
 
-    ## Method to evaluate the performance of a 
-    # Graph.Component.Partition object
-    #   @param self The object pointer
-    @abstractmethod
-    def evaluate(self):
-        pass
-
-
-## NetworkPE
+## NetworkPerformanceEvaluator
 #
 # Class designed to evaluate the performance of a NetworkTechnology object, 
 # namely the time required to transfer data between two consecutive 
 # Graph.Component or Graph.Component.Partition objects executed on 
 # different devices in the same network domain
-class NetworkPE(PerformanceEvaluator):
+class NetworkPerformanceEvaluator:
 
     ## Method to evaluate the performance of a NetworkTechnology object
     #   @param self The object pointer
@@ -36,6 +21,29 @@ class NetworkPE(PerformanceEvaluator):
     #   @return Network transfer time
     def evaluate(self, access_delay, bandwidth, data):
         return access_delay + (data / bandwidth)
+
+
+
+## QTPerformanceEvaluator
+#
+# Abstract class used to represent a performance evaluator, namely an object 
+# that evaluates the performance of a Graph.Component.Partition executed on 
+# different types of resources, exploiting the M/G/1 queue model
+class QTPerformanceEvaluator(ABC):
+
+    ## Method to evaluate the performance of a specific 
+    # Graph.Component.Partition object executed onto a specific 
+    # Resources.Resource
+    #   @param self The object pointer
+    #   @param i Index of the Graph.Component
+    #   @param h Index of the Graph.Component.Partition
+    #   @param j Index of the Resources.Resource
+    #   @param Y_hat Assignment matrix
+    #   @param S A System.System object
+    #   @return Response time
+    @abstractmethod
+    def evaluate(self, i, h, j, Y, S):
+        pass
     
 
 ## ServerFarmPE
@@ -43,14 +51,14 @@ class NetworkPE(PerformanceEvaluator):
 # Class designed to evaluate the performance of a Graph.Component.Partition 
 # object executed in a server farm (i.e., a group of Resources.VirtualMachine 
 # objects)
-class ServerFarmPE(PerformanceEvaluator):
+class ServerFarmPE(QTPerformanceEvaluator):
     
     ## Method to compute the utilization of a specific 
     # Resources.VirtualMachine object
     #   @param self The object pointer
     #   @param j Index of the Resources.VirtualMachine object
-    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
-    #                Graph.Component object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param S A System.System object
     #   @return Utilization of the given Resources.VirtualMachine object
     def compute_utilization(self, j, Y_hat, S):
@@ -75,8 +83,8 @@ class ServerFarmPE(PerformanceEvaluator):
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.VirtualMachine
-    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
-    #                Graph.Component object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param S A System.System object
     #   @return Response time
     def evaluate(self, i, h, j, Y_hat, S):
@@ -87,31 +95,13 @@ class ServerFarmPE(PerformanceEvaluator):
         if Y_hat[i][h,j] > 0:
             r = S.demand_matrix[i][h,j] / (1 - utilization) 
         return r
-                
-
-## FunctionPE
-#
-# Class designed to evaluate the performance of a Graph.Component.Partition 
-# object executed on a Resources.FaaS configuration
-class FunctionPE(PerformanceEvaluator):
-    
-    ## Method to evaluate the performance of a specific 
-    # Graph.Component.Partition object executed onto a Resources.FaaS object
-    #   @param self The object pointer
-    #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Partition
-    #   @param j Index of the Resources.FaaS object
-    #   @param S A System.System object
-    #   @return Response time
-    def evaluate(self, i, h, j, S):
-        return S.demand_matrix[i][h,j]
 
 
 ## EdgePE
 #
 # Class designed to evaluate the performance of a Graph.Component.Partition  
 # object executed on a Resources.EdgeNode 
-class EdgePE(PerformanceEvaluator):
+class EdgePE(QTPerformanceEvaluator):
     
     ## Method to compute the utilization of a specific 
     # Resources.EdgeNode object
@@ -150,6 +140,7 @@ class EdgePE(PerformanceEvaluator):
         return S.demand_matrix[i][h,j] * Y[i][h,j] / (1 - utilization)
 
 
+
 ## SystemPerformanceEvaluator
 #
 # Class used to evaluate the performance of a Graph.Component object given 
@@ -171,8 +162,8 @@ class SystemPerformanceEvaluator:
     # identified by the given index
     #   @param self The object pointer
     #   @param S A System.System object
-    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
-    #                Graph.Component object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param component_idx The index of the current component
     #   @return Response time
     def get_perf_evaluation(self, S, Y_hat, component_idx):
@@ -237,8 +228,8 @@ class SystemPerformanceEvaluator:
     ## Method to evaluate the response time of the all Graph.Component objects
     #   @param self The object pointer
     #   @param S A System.System object
-    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
-    #                Graph.Component object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @return 1D numpy array with the response times of all components
     def compute_performance(self, S, Y_hat):
         I = len(Y_hat)
