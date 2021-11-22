@@ -1,4 +1,3 @@
-from pacsltk import perfmodel
 import json
 
 
@@ -58,23 +57,17 @@ class Resource:
     ## @var memory
     # Amount of available memory on the resource
     
-    ## @var performance_evaluator
-    # Object of class Performance.PerformanceEvaluator
-    
     ## Resource class constructor
     #   @param self The object pointer
     #   @param CLname the corresponding computational layer of the resource 
     #   @param name Name of the resource
     #   @param cost Cost of the resource
     #   @param memory Amount of available memory on the resource
-    #   @param performance_evaluator Object of class 
-    #                                Performance.PerformanceEvaluator
-    def __init__(self, CLname, name, cost, memory, performance_evaluator):
+    def __init__(self, CLname, name, cost, memory):
         self.CLname = CLname
         self.name = name
         self.cost = cost
         self.memory = memory
-        self.performance_evaluator = performance_evaluator
     
     ## Operator used to check if two Resource objects are equal, comparing 
     # the corresponding names
@@ -105,26 +98,11 @@ class VirtualMachine(Resource):
     #   @param name Name of the VirtualMachine
     #   @param cost Cost of the VirtualMachine
     #   @param memory Amount of available memory on the VirtualMachine
-    #   @param performance_evaluator Object of class Performance.ServerFarmPE
     #   @param number Number of available VirtualMachine objects of the 
     #                 current type
-    def __init__(self, CLname, name, cost, memory, performance_evaluator, 
-                 number):
-        super().__init__(CLname, name, cost, memory, performance_evaluator)
+    def __init__(self, CLname, name, cost, memory, number):
+        super().__init__(CLname, name, cost, memory)
         self.number = number
-    
-    ## Method to evaluate the performance of a specific 
-    # Graph.Component.Partition object executed onto a Resources.VirtualMachine
-    #   @param self The object pointer
-    #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Partition
-    #   @param j Index of the Resources.VirtualMachine
-    #   @param Y_hat Matix denoting the amount of Resources assigned to each 
-    #                Graph.Component object
-    #   @param S A System.System object
-    #   @return Response time
-    def evaluate_partition(self, i, h, j, Y_hat, S):
-        return self.performance_evaluator.evaluate(i,h,j,Y_hat,S)
     
     ## Operator to convert an VirtualMachine object into a string
     #   @param self The object pointer
@@ -148,23 +126,10 @@ class EdgeNode(Resource):
     #   @param name Name of the EdgeNode
     #   @param cost Cost of the EdgeNode
     #   @param memory Amount of available memory on the EdgeNode
-    #   @param performance_evaluator Object of class Performance.EdgePE
     #   @param number Number of available EdgeNode objects of the current type
-    def __init__(self, CLname, name, cost, memory, performance_evaluator, number):
-        super().__init__(CLname, name, cost, memory, performance_evaluator)
+    def __init__(self, CLname, name, cost, memory, number):
+        super().__init__(CLname, name, cost, memory)
         self.number = number
-    
-    ## Method to evaluate the performance of a specific 
-    # Graph.Component.Partition object executed onto a Resources.EdgeNode
-    #   @param self The object pointer
-    #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Partition
-    #   @param j Index of the Resources.EdgeNode
-    #   @param Y Assignment matrix
-    #   @param S A System.System object
-    #   @return Response time
-    def evaluate_partition(self, i, h, j, Y, S):
-        return self.performance_evaluator.evaluate(i,h,j,Y,S)
     
     ## Operator to convert an EdgeNode object into a string
     #   @param self The object pointer
@@ -191,40 +156,14 @@ class FaaS(Resource):
     #   @param name Name of the FaaS instance
     #   @param cost Cost of the FaaS instance
     #   @param memory Amount of available memory on the FaaS instance
-    #   @param performance_evaluator Object of class Performance.FunctionPE
     #   @param transition_cost Transition cost
     #   @param idle_time_before_kill How long does the platform keep the 
     #                                servers up after being idle
-    def __init__(self, CLname, name, cost, memory, performance_evaluator, 
-                 transition_cost, idle_time_before_kill):
-        super().__init__(CLname, name, cost, memory, performance_evaluator)
+    def __init__(self, CLname, name, cost, memory, transition_cost, 
+                 idle_time_before_kill):
+        super().__init__(CLname, name, cost, memory)
         self.transition_cost = transition_cost
         self.idle_time_before_kill = idle_time_before_kill
-    
-    ## Method to compute the average response time given the arrival rate of
-    # requests
-    #   @param self The object pointer
-    #   @param arrival_rate Arrival rate of requests
-    #   @param warm_service_time Response time for warm start requests
-    #   @param cold_service_time Response time for cold start requests
-    def get_avg_res_time(self, arrival_rate, warm_service_time, 
-                         cold_service_time):
-        perf = perfmodel.get_sls_warm_count_dist(arrival_rate,
-                                                 warm_service_time, 
-                                                 cold_service_time, 
-                                                 self.idle_time_before_kill)
-        return perf[0]['avg_resp_time']
-    
-    ## Method to evaluate the performance of a specific 
-    # Graph.Component.Partition object executed onto a Resources.FaaS object
-    #   @param self The object pointer
-    #   @param i Index of the Graph.Component
-    #   @param h Index of the Graph.Component.Partition
-    #   @param j Index of the Resources.FaaS object
-    #   @param S A System.System object
-    #   @return Response time
-    def evaluate_partition(self, i, h, j, S):
-        return self.performance_evaluator.evaluate(i,h,j,S)
     
     ## Operator to convert a FaaS object into a string
     #   @param self The object pointer
