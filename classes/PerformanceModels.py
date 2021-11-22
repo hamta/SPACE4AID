@@ -5,11 +5,12 @@ import importlib
 ## FaaSPredictor
 #
 # Abstract class used to represent a performance model for predicting the 
-# response time of a Resource.FaaS instance
+# response time of a Resources.FaaS instance
 class FaaSPredictor(ABC):
     
     ## @var predictor_module
-    # Module that implements the method used to predict the FaaS performance
+    # Module that implements the method used to predict the 
+    # Resources.FaaS performance
     
     ## @var predictor
     # Object that performs the prediction
@@ -26,19 +27,23 @@ class FaaSPredictor(ABC):
     #   @param arrival_rate Arrival rate of requests
     #   @param warm_service_time Response time for warm start requests
     #   @param cold_service_time Response time for cold start requests
-    #   @param time_out Time spent by an idle FaaS instance before being killed
+    #   @param time_out Time spent by an idle Resources.FaaS instance 
+    #                   before being killed
     @abstractmethod
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out, **_ignored):
+                time_out):
         pass
 
 
 
 ## FaaSPredictorPacsltk
 #
-# Specialization of FaaSPredictor class to predict a FaaS instance response 
-# time relying on the method implemented in pacsltk module
+# Specialization of FaaSPredictor class to predict a Resources.FaaS instance 
+# response time relying on the method implemented in pacsltk module
 class FaaSPredictorPacsltk(FaaSPredictor):
+    
+    ## @var predictor
+    # Object that performs the prediction
     
     ## FaaSPredictorPacsltk class constructor
     #   @param self The object pointer
@@ -51,11 +56,11 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     #   @param arrival_rate Arrival rate of requests
     #   @param warm_service_time Response time for warm start requests
     #   @param cold_service_time Response time for cold start requests
-    #   @param time_out Time spent by an idle FaaS instance before being 
-    #                   killed
+    #   @param time_out Time spent by an idle Resources.FaaS instance 
+    #                   before being killed
     #   @return Predicted response time
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out, **_ignored):
+                time_out):
         perf = self.predictor.get_sls_warm_count_dist(arrival_rate,
                                                       warm_service_time, 
                                                       cold_service_time, 
@@ -66,10 +71,13 @@ class FaaSPredictorPacsltk(FaaSPredictor):
 
 ## FaaSPredictorMLlib
 #
-# Specialization of FaaSPredictor class to predict a FaaS instance response 
-# time according to a given model and relying on the method implemented in 
-# a-MLlibrary
+# Specialization of FaaSPredictor class to predict a Resources.FaaS instance 
+# response time according to a given model and relying on the method 
+# implemented in a-MLlibrary
 class FaaSPredictorMLlib(FaaSPredictor):
+    
+    ## @var predictor
+    # Object that performs the prediction
     
     ## @var regressor_file
     # Path to the Pickle binary file that stores the model to be used 
@@ -90,11 +98,11 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #   @param arrival_rate Arrival rate of requests
     #   @param warm_service_time Response time for warm start requests
     #   @param cold_service_time Response time for cold start requests
-    #   @param time_out Time spent by an idle FaaS instance before being 
-    #                   killed
+    #   @param time_out Time spent by an idle Resources.FaaS instance 
+    #                   before being killed
     #   @return Predicted response time
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out, **_ignored):
+                time_out):
         pd = importlib.import_module("pandas")
         columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
         data = pd.DataFrame(data=[[arrival_rate, 
