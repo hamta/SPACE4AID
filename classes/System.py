@@ -105,7 +105,7 @@ class System:
     #   @param log Object of Logger.Logger type
     def __init__(self, system_file = "", system_json = None, log = Logger()):
         self.logger = log
-        self.error = Logger(stream=sys.stderr, verbose=1)
+        self.error = Logger(stream=sys.stderr, verbose=1, error=True)
         if system_file != "":
             self.logger.log("Loading system from configuration file", 1)
             self.read_configuration_file(system_file)
@@ -113,7 +113,7 @@ class System:
             self.logger.log("Loading system from json object", 1)
             self.load_json(system_json)
         else:
-            self.error.log("ERROR: no configuration file or json specified",1)
+            self.error.log("No configuration file or json specified",1)
             sys.exit(1)
     
     
@@ -149,7 +149,7 @@ class System:
                                         verbose=self.logger.verbose,
                                         level=self.logger.level+1))
         else:
-            self.error.log("ERROR: no DAG available in configuration file", 1)
+            self.error.log("No DAG available in configuration file", 1)
             sys.exit(1)
         
         # initialize lambda
@@ -157,7 +157,7 @@ class System:
             self.logger.log("Initializing Lambda", 2)
             self.Lambda = float(data["Lambda"])
         else:
-            self.error.log("ERROR: no Lambda available in configuration file", 1)
+            self.error.log("No Lambda available in configuration file", 1)
             sys.exit(1)
                
         # initialize components and local constraints
@@ -175,7 +175,7 @@ class System:
             # perform initialization
             self.initialize_components(C, LC)
         else:
-            self.error.log("ERROR: no components available in configuration file", 1)
+            self.error.log("No components available in configuration file", 1)
             sys.exit(1)
         
         # get global constraints to initialize the maximun response time of 
@@ -210,11 +210,11 @@ class System:
                                           NetworkPE())
                     self.network_technologies.append(network_domain)
                 else:
-                    self.error.log("ERROR: missing field in {} description".\
+                    self.error.log("Missing field in {} description".\
                                    format(ND), 1)
                     sys.exit(1)
         else:
-            self.error.log("ERROR: no NetworkTechnology available in configuration file", 1)
+            self.error.log("No NetworkTechnology available in configuration file", 1)
             sys.exit(1)
        
         # load dictionary of component-to-node compatibility 
@@ -222,7 +222,7 @@ class System:
         if "CompatibilityMatrix" in data.keys():
             self.compatibility_dict = data["CompatibilityMatrix"]
         else:
-            self.error.log("ERROR: no CompatibilityMatrix available in configuration file", 1)
+            self.error.log("No CompatibilityMatrix available in configuration file", 1)
             sys.exit(1)
         
         # variable to check, for each component, if all resources mentioned 
@@ -238,11 +238,11 @@ class System:
                 for r in self.demand_dict[c].keys():
                     if not r in self.compatibility_dict[c]:
                         is_compatible = False
-                        self.error.log("ERROR: demand and compatibility matrix are not consistent", 1)
+                        self.error.log("Demand and compatibility matrix are not consistent", 1)
                         sys.exit(1)    
         else:
             is_compatible = False
-            self.error.log("ERROR: no DemandMatrix available in configuration file", 1)
+            self.error.log("No DemandMatrix available in configuration file", 1)
             sys.exit(1)
        
         # if demand matrix is available and it is consistent with 
@@ -344,7 +344,7 @@ class System:
                     self.dic_map_part_idx[c] = temp
                     self.components.append(Component(c, deployments,partitions, self.Lambda))
             else:
-                self.error.log("ERROR: no match between components in DAG and system input file", 1)
+                self.error.log("No match between components in DAG and system input file", 1)
                 sys.exit(1)
             self.dic_map_com_idx[c] = comp_idx
     
@@ -393,7 +393,7 @@ class System:
                         cl.add_resource(resource_idx)
                         resource_idx += 1
                     else:
-                        self.error.log("ERROR: missing field in {} description".\
+                        self.error.log("Missing field in {} description".\
                                        format(node), 1)
                         sys.exit(1)
                     # add the resource description to the corresponding 
@@ -427,7 +427,7 @@ class System:
                         cl.add_resource(resource_idx)
                         resource_idx += 1
                     else:
-                        self.error.log("ERROR: missing field in {} description".\
+                        self.error.log("Missing field in {} description".\
                                        format(VM), 1)
                         sys.exit(1)
                     # add the resource description to the corresponding 
@@ -448,7 +448,7 @@ class System:
             if "transition_cost" in FR.keys():
                 transition_cost = float(FR["transition_cost"])
             else:
-                self.error.log("ERROR: missing transition cost in FaaSResources", 1)
+                self.error.log("Missing transition cost in FaaSResources", 1)
                 sys.exit(1)
             # loop over computational layers
             for CL in FR:
@@ -469,7 +469,7 @@ class System:
                             cl.add_resource(resource_idx)
                             resource_idx += 1
                         else:
-                            self.logger.log("ERROR: missing field in {} description".\
+                            self.logger.log("Missing field in {} description".\
                                             format(func), 1)
                             sys.exit(1)
                         # add the resource description to the corresponding 
@@ -498,7 +498,7 @@ class System:
                 if c in self.dic_map_com_idx.keys():
                     C_list.append(list(self.dic_map_com_idx.keys()).index(c))
                 else:
-                    self.error.log("ERROR: no match between components and path in global constraints", 1)
+                    self.error.log("No match between components and path in global constraints", 1)
                     sys.exit(1)
             self.global_constraints.append(GlobalConstraint(C_list, 
                                                             GC[p]["global_res_time"],
