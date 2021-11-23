@@ -272,7 +272,7 @@ class Configuration:
             costs.append(S.resources[j].cost * y_bar[j])
         #
         # compute the cost of FaaS and transition cost if not using SCAR
-        if S.FaaS_start_index<J:
+        if S.FaaS_start_index < J:
             key_list_comp = list(S.dic_map_com_idx.keys())
             val_list_comp = list(S.dic_map_com_idx.values())
             key_list_res = list(S.dic_map_res_idx.keys())
@@ -290,7 +290,11 @@ class Configuration:
                         # get the name of resource by its index
                         res=key_list_res[val_list_res.index(j)]
                         # compute the cost of the FaaS
-                        costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.demand_dict[comp][part][res][0]* S.components[i].comp_Lambda * S.T )
+                        costs.append(S.resources[j].cost * \
+                                     self.Y_hat[i][part_idx][j] * \
+                                     S.faas_service_times[comp][part][res][0] * \
+                                     S.components[i].comp_Lambda * \
+                                     S.T)
         
         return sum(costs)
     
