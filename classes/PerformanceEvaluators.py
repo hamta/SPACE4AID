@@ -164,19 +164,19 @@ class SystemPerformanceEvaluator:
     #   @param S A System.System object
     #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
     #                Graph.Component.Partition object
-    #   @param component_idx The index of the current component
+    #   @param c_idx The index of the current component
     #   @return Response time
-    def get_perf_evaluation(self, S, Y_hat, component_idx):
+    def get_perf_evaluation(self, S, Y_hat, c_idx):
         
         # check if the memory constraints are satisfied
-        self.logger.log("Evaluating component {}".format(component_idx), 5)
+        self.logger.log("Evaluating component {}".format(c_idx), 5)
         
         # initialize response time
         perf_evaluation = 0
         
         # get the indices of the resource where the partitions of the current 
         # component are executed
-        j = np.nonzero(Y_hat[component_idx])
+        j = np.nonzero(Y_hat[c_idx])
         
         # loop over all partitions
         self.logger.level += 1
@@ -185,14 +185,16 @@ class SystemPerformanceEvaluator:
         for h in range(len(j[0])):
             # evaluate the response time (note: Y_hat and the assignment 
             # matrix Y coincide for Resources.EdgeNode objects)
-            if j[1][h] < S.FaaS_start_index:
-                p = S.resources[j[1][h]].evaluate_partition(component_idx,
-                                                            j[0][h],j[1][h],
-                                                            Y_hat, S)
+            p_idx = j[0][h]
+            r_idx = j[1][h]
+            if r_idx < S.FaaS_start_index:
+                p = S.performance_models[c_idx][p_idx][r_idx].evaluate(c_idx,
+                                                                       p_idx,
+                                                                       r_idx,
+                                                                       Y_hat, 
+                                                                       S)
             else:
-                p = S.resources[j[1][h]].evaluate_partition(component_idx,
-                                                            j[0][h],j[1][h],
-                                                            S)
+                p = S.demand_matrix[c_idx][p_idx,r_idx]
             self.logger.log("{} --> {}".format(h, p), 7)
             perf_evaluation += p
             # check that the response time is not negative
@@ -209,7 +211,7 @@ class SystemPerformanceEvaluator:
             # loop over all partitions
             for h in range(len(j[0]) - 1):
                 # get the data transferred from the partition
-                data_size = S.components[component_idx].partitions[j[0][h]].data_size
+                data_size = S.components[c_idx].partitions[j[0][h]].data_size
                 # compute the network transfer time
                 nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
                 self.logger.log("{} --> {}".format(h, nd), 7)
