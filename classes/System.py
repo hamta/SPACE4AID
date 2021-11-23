@@ -2,8 +2,8 @@ from classes.Logger import Logger
 from classes.Graph import DAG, Component
 from classes.Resources import ComputationalLayer, VirtualMachine, EdgeNode, FaaS
 from classes.NetworkTechnology import NetworkDomain
-from classes.PerformanceEvaluators import NetworkPerformanceEvaluator
 from classes.PerformanceFactory import Pfactory
+from classes.PerformanceEvaluators import NetworkPerformanceEvaluator
 from classes.Constraints import LocalConstraint, GlobalConstraint
 import json
 import sys
@@ -659,8 +659,30 @@ class System:
                           str(self.compatibility_dict).replace("\'", "\""))
         
         # demand matrix
-        #system_string += (', \n"DemandMatrix": ' + \
-        #                  str(self.demand_dict).replace("\'", "\""))
+        system_string += ', \n"Performance": {'
+        for i in range(len(self.components)):
+            c = self.components[i]
+            component_string = '"' + c.name + '": {'
+            for h in range(len(c.partitions)):
+                p = c.partitions[h]
+                component_string += ('"' + p.name + '": {')
+                for res in self.compatibility_dict[c.name][p.name]:
+                    component_string += ('"' + res + '": {')
+                    j = self.dic_map_res_idx[res]
+                    component_string += str(self.performance_models[i][h][j])
+                    if not np.isnan(self.demand_matrix[i][h,j]):
+                        component_string += (', "demand": ' + \
+                                             str(self.demand_matrix[i][h,j]))
+                    if j >= self.FaaS_start_index:
+                        dw = self.faas_service_times[c.name][p.name][res][0]
+                        dc = self.faas_service_times[c.name][p.name][res][1]
+                        component_string += (', "demandWarm": ' + \
+                                             str(dw) + ', "demandCold": ' +\
+                                             str(dc))
+                    component_string += '},'
+                component_string = component_string[:-1] + '},'
+            system_string += (component_string[:-1] + '},')
+        system_string = system_string[:-1] + '}'
         
         # lambda
         system_string += (', \n"Lambda": ' + str(self.Lambda))
