@@ -18,7 +18,7 @@ class FaaSPredictor(ABC):
     ## FaaSPredictor class constructor
     #   @param self The object pointer
     #   @param module_name Name of the module to be loaded
-    def __init__(self, module_name):
+    def __init__(self, module_name, **kwargs):
         self.module_name = module_name
         self.predictor = None
 
@@ -47,7 +47,7 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     
     ## FaaSPredictorPacsltk class constructor
     #   @param self The object pointer
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__("pacsltk.perfmodel")
         predictor_module = importlib.import_module(self.module_name)
         self.predictor = predictor_module.get_sls_warm_count_dist
@@ -86,7 +86,7 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #   @param self The object pointer
     #   @param regressor_file Path to the Pickle binary file that stores the 
     #                         model to be used for prediction
-    def __init__(self, regressor_file):
+    def __init__(self, regressor_file, **kwargs):
         super().__init__("a-MLlibrary.model_building.predictor")
         self.regressor_file = regressor_file
         predictor_module = importlib.import_module(self.module_name)
