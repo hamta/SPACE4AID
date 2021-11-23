@@ -78,31 +78,35 @@ def generate_output_json(Lambda, result, S, onFile = True):
 ## Function to create an instance of Algorithm class and run the random greedy 
 # method
 #   @param S An instance of System.System class including system description
-#   @param seed Seed for random number generation
-#   @param MaxIt Maximum number of RandomGreedy iterations
+#   @param MaxIt_and_seed List whose n-th element stores a tuple with the 
+#                         number of iterations to be performed by the n-th 
+#                         cpu core and the seed it should use for random 
+#                         numbers generation
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(MaxIt, S, seed):
+def fun_greedy(MaxIt_and_seed, S):
     GA = RandomGreedy(S, log=Logger(verbose=2))
-    proc = mpp.current_process()
-    pid = proc.pid
-    return GA.random_greedy(seed*pid, MaxIt, 2)
+    return GA.random_greedy(MaxIt_and_seed[1], MaxIt_and_seed[0], 2)
 
 
-## Function to get a list whose n-th element stores the number of iterations
-# to be performed by the n-th cpu core
+## Function to get a list whose n-th element stores a tuple with the number 
+# of iterations to be performed by the n-th cpu core and the seed it should 
+# use for random numbers generation
 #   @param iteration Total number of iterations to be performed
+#   @param seed Seed for random number generation
 #   @param cpuCore Total number of cpu cores
-#   @return The list of iterations to be performed by each core
-def get_n_iterations(iteration, cpuCore):
-    iterations = []
+#   @return The list of iterations to be performed by each core and the 
+#           corresponding seed
+def get_iterations_and_seed(iteration, seed, cpuCore):
+    iterations_and_seeds = []
     local = int(iteration / cpuCore)
     remainder = iteration % cpuCore
     for r in range(cpuCore):
+        r_seed = r * r * cpuCore * cpuCore * seed
         if r < remainder:
-            iterations.append(local + 1)
+            iterations_and_seeds.append((local + 1, r_seed))
         else:
-            iterations.append(local)
-    return iterations
+            iterations_and_seeds.append((local, r_seed))
+    return iterations_and_seeds
 
 
 ## Main function
@@ -130,7 +134,7 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
         
         ################## Multiprocessing ###################
         cpuCore = int(mpp.cpu_count())
-        iterations = get_n_iterations(iteration, cpuCore)
+        iterations_and_seeds = get_iterations_and_seed(iteration, seed, cpuCore)
         
         if __name__ == '__main__':
             
@@ -138,9 +142,9 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
             
             with Pool(processes=cpuCore) as pool:
                 
-                partial_gp = functools.partial(fun_greedy, S=S, seed=seed)
+                partial_gp = functools.partial(fun_greedy, S=S)
                 
-                full_result = pool.map(partial_gp, iterations)
+                full_result = pool.map(partial_gp, iterations_and_seeds)
             
             end = time.time()
             
@@ -169,10 +173,11 @@ if __name__ == '__main__':
     
     # system_file = "ConfigFiles/Random_Greedy.json"
     # iteration = 1000
-    # start_lambda = 0.15
+    # start_lambda = 0.14
     # end_lambda = 0.15
     # step = 0.01
     # seed = 2
+    # Lambda = start_lambda
    
     main(system_file, iteration, seed, start_lambda, end_lambda, step)
     
