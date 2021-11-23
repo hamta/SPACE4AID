@@ -30,6 +30,15 @@ class NetworkPerformanceEvaluator:
 # that evaluates the performance of a Graph.Component.Partition executed on 
 # different types of resources, exploiting the M/G/1 queue model
 class QTPerformanceEvaluator(ABC):
+    
+    ## @var keyword
+    # Keyword identifying the evaluator
+    
+    ## QTPerformanceEvaluator class constructor
+    #   @param self The object pointer
+    #   @param keyword Keyword identifying the evaluator
+    def __init__(self, keyword):
+        self.keyword = keyword
 
     ## Method to evaluate the performance of a specific 
     # Graph.Component.Partition object executed onto a specific 
@@ -45,6 +54,13 @@ class QTPerformanceEvaluator(ABC):
     def evaluate(self, i, h, j, Y, S):
         pass
     
+    ## Operator to convert a QTPerformanceEvaluator object into a string
+    #   @param self The object pointer
+    def __str__(self):
+        s = '"model":"{}"'.\
+            format(self.keyword)
+        return s
+    
 
 ## ServerFarmPE
 #
@@ -52,6 +68,11 @@ class QTPerformanceEvaluator(ABC):
 # object executed in a server farm (i.e., a group of Resources.VirtualMachine 
 # objects)
 class ServerFarmPE(QTPerformanceEvaluator):
+    
+    ## ServerFarmPE class constructor
+    #   @param self The object pointer
+    def __init__(self):
+        super(ServerFarmPE, self).__init__("QTcloud")
     
     ## Method to compute the utilization of a specific 
     # Resources.VirtualMachine object
@@ -102,6 +123,11 @@ class ServerFarmPE(QTPerformanceEvaluator):
 # Class designed to evaluate the performance of a Graph.Component.Partition  
 # object executed on a Resources.EdgeNode 
 class EdgePE(QTPerformanceEvaluator):
+    
+    ## EdgePE class constructor
+    #   @param self The object pointer
+    def __init__(self):
+        super(EdgePE, self).__init__("QTedge")
     
     ## Method to compute the utilization of a specific 
     # Resources.EdgeNode object

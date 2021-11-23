@@ -15,11 +15,16 @@ class FaaSPredictor(ABC):
     ## @var predictor
     # Object that performs the prediction
     
+    ## @var keyword
+    # Keyword identifying the model
+    
     ## FaaSPredictor class constructor
     #   @param self The object pointer
+    #   @param keyword Keyword identifying the model
     #   @param module_name Name of the module to be loaded
     #   @param **kwargs Additional (unused) keyword arguments
-    def __init__(self, module_name, **kwargs):
+    def __init__(self, keyword, module_name, **kwargs):
+        self.keyword = keyword
         self.module_name = module_name
         self.predictor = None
 
@@ -34,6 +39,13 @@ class FaaSPredictor(ABC):
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
                 time_out):
         pass
+    
+    ## Operator to convert a FaaSPredictor object into a string
+    #   @param self The object pointer
+    def __str__(self):
+        s = '"model":"{}"'.\
+            format(self.keyword)
+        return s
 
 
 
@@ -50,7 +62,7 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     #   @param self The object pointer
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, **kwargs):
-        super().__init__("pacsltk.perfmodel")
+        super().__init__("PACSLTK", "pacsltk.perfmodel")
         predictor_module = importlib.import_module(self.module_name)
         self.predictor = predictor_module.get_sls_warm_count_dist
 
@@ -90,7 +102,7 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #                         model to be used for prediction
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, regressor_file, **kwargs):
-        super().__init__("a-MLlibrary.model_building.predictor")
+        super().__init__("MLLIBfaas", "a-MLlibrary.model_building.predictor")
         self.regressor_file = regressor_file
         predictor_module = importlib.import_module(self.module_name)
         self.predictor = predictor_module.Predictor(regressor_file,
@@ -114,5 +126,11 @@ class FaaSPredictorMLlib(FaaSPredictor):
                                    time_out]],
                             columns=columns)
         return self.predictor.predict_from_df(data, True)
-
+    
+    ## Operator to convert a FaaSPredictorMLlib object into a string
+    #   @param self The object pointer
+    def __str__(self):
+        s = '"model":"{}", "regressor_file":"{}"'.\
+            format(self.keyword, self.regressor_file)
+        return s
 
