@@ -38,7 +38,7 @@ class QTPerformanceEvaluator(ABC):
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.Resource
-    #   @param Y_hat Assignment matrix
+    #   @param Y Assignment matrix
     #   @param S A System.System object
     #   @return Response time
     @abstractmethod

@@ -23,6 +23,9 @@ class Logger:
     ## @var level
     # Indentation level for logging (default: 0 - no indent)
     
+    ## @var error
+    # True if used to print error messages (default: False)
+    
     ## Logger class constructor
     #   @param self The object pointer
     #   @param stream Stream for logging (default: sys.stdout)

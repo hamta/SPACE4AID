@@ -92,13 +92,19 @@ class System:
     # List of NetworkTechnology objects, characterized by a given access 
     # delay and bandwidth
     
-    ## @var performance_evaluators
+    ## @var performance_models
     # List of 2D lists storing the performance model/evaluator initialized 
     # from the PerformanceFactory for each pair of Graph.Component.Partition 
     # and Resources.Resource object
     
     ## @var resources 
     # List of all the available Resources.Resource objects
+    
+    ## @var sorted_FaaS_by_memory_cost
+    # List of Resources.FaaS objects sorted by memory (and then cost)
+    
+    ## @var sorted_FaaS_by_cost_memory
+    # List of Resources.FaaS objects sorted by cost (and then memory)
     
     ## @var T
     # Time
@@ -514,11 +520,14 @@ class System:
                                                             p))
     
     
-    ## Method to convert the compatibility and demand dictionaries into 
-    # lists of 2D numpy arrays such that M[i][h,j] represents either the 
+    ## Method to convert the compatibility and performance dictionaries into 
+    # two lists of 2D numpy arrays such that M[i][h,j] represents either the 
     # compatibility of partition h in component i with resource j or the 
-    # demand to run such partition on the given resource
+    # demand to run such partition on the given resource, a list of 2D 
+    # lists storing the performance models, and a dictionary storing warm 
+    # and cold service times for all partitions executed on FaaS resources
     #    @param self The object pointer
+    #    @param performance_dict Dictionary of performance-related information
     def convert_dic_to_matrix(self, performance_dict):
         self.compatibility_matrix = []
         self.demand_matrix = []
@@ -608,11 +617,11 @@ class System:
         # Sort the list based on memory and cost respectively    
         # Each item of list includes the index, memory and cost of the resource.
         # The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
-        self.sorted_FaaS_by_memory_cost= sorted(idx_min_memory_node, key=lambda element: (element[1], element[2]))
+        self.sorted_FaaS_by_memory_cost = sorted(idx_min_memory_node, key=lambda element: (element[1], element[2]))
         # Sort the list based on cost and memory respectively
         # Each item of list includes the index, utilization and cost of the resource.
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
-        self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
+        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
        
     
     

@@ -8,8 +8,8 @@ import importlib
 # response time of a Resources.FaaS instance
 class FaaSPredictor(ABC):
     
-    ## @var predictor_module
-    # Module that implements the method used to predict the 
+    ## @var module_name
+    # Name of the module that implements the method used to predict the 
     # Resources.FaaS performance
     
     ## @var predictor
@@ -18,6 +18,7 @@ class FaaSPredictor(ABC):
     ## FaaSPredictor class constructor
     #   @param self The object pointer
     #   @param module_name Name of the module to be loaded
+    #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, module_name, **kwargs):
         self.module_name = module_name
         self.predictor = None
@@ -47,6 +48,7 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     
     ## FaaSPredictorPacsltk class constructor
     #   @param self The object pointer
+    #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, **kwargs):
         super().__init__("pacsltk.perfmodel")
         predictor_module = importlib.import_module(self.module_name)
@@ -86,6 +88,7 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #   @param self The object pointer
     #   @param regressor_file Path to the Pickle binary file that stores the 
     #                         model to be used for prediction
+    #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, regressor_file, **kwargs):
         super().__init__("a-MLlibrary.model_building.predictor")
         self.regressor_file = regressor_file
