@@ -19,7 +19,7 @@ class FaaSPredictor(ABC):
     #   @param self The object pointer
     #   @param module_name Name of the module to be loaded
     def __init__(self, module_name):
-        self.predictor_module = importlib.import_module(module_name)
+        self.module_name = module_name
         self.predictor = None
 
     ## Method to evaluate the object performance through the class predictor
@@ -49,7 +49,8 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     #   @param self The object pointer
     def __init__(self):
         super().__init__("pacsltk.perfmodel")
-        self.predictor = self.predictor_module
+        predictor_module = importlib.import_module(self.module_name)
+        self.predictor = predictor_module.get_sls_warm_count_dist
 
     ## Method to evaluate the object performance through the class predictor
     #   @param self The object pointer
@@ -61,10 +62,8 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     #   @return Predicted response time
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
                 time_out):
-        perf = self.predictor.get_sls_warm_count_dist(arrival_rate,
-                                                      warm_service_time, 
-                                                      cold_service_time, 
-                                                      time_out)
+        perf = self.predictor(arrival_rate, warm_service_time, 
+                              cold_service_time, time_out)
         return perf[0]["avg_resp_time"]
 
 
@@ -90,8 +89,9 @@ class FaaSPredictorMLlib(FaaSPredictor):
     def __init__(self, regressor_file):
         super().__init__("a-MLlibrary.model_building.predictor")
         self.regressor_file = regressor_file
-        self.predictor = self.predictor_module.Predictor(regressor_file,
-                                                         "/tmp", False)
+        predictor_module = importlib.import_module(self.module_name)
+        self.predictor = predictor_module.Predictor(regressor_file,
+                                                    "/tmp", False)
     
     ## Method to evaluate the object performance through the class predictor
     #   @param self The object pointer
