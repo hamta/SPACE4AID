@@ -550,7 +550,7 @@ class System:
                         model_data = {}
                         for key in perf_data.keys():
                             if key != "model" and not key.startswith("demand"):
-                                model_data[key] = perf_data["key"]
+                                model_data[key] = perf_data[key]
                         m = Pfactory.create(perf_data["model"], **model_data)
                         self.performance_models[comp_idx][part_idx][res_idx] = m
                     else:
