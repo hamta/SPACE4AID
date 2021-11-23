@@ -1,5 +1,5 @@
 from classes.Logger import Logger
-from classes.Performance import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
+from classes.PerformanceEvaluators import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
 import numpy as np
 import itertools
 import json
