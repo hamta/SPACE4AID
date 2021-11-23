@@ -85,12 +85,9 @@ class ServerFarmPE(QTPerformanceEvaluator):
     def compute_utilization(self, j, Y_hat, S):
         utilization = 0
         # loop over all components
-        for c in S.components:
+        for i, c in enumerate(S.components):
             # loop over all partitions in the component
-            for p in c.partitions:
-                # get the corresponding indices
-                i = S.dic_map_part_idx[c.name][p.name][0]
-                h = S.dic_map_part_idx[c.name][p.name][1]
+            for h, p in enumerate(c.partitions):
                 # compute the utilization
                 if Y_hat[i][h,j] > 0:
                     utilization += S.demand_matrix[i][h,j] * \
@@ -139,12 +136,9 @@ class EdgePE(QTPerformanceEvaluator):
     def compute_utilization(self, j, Y, S):
         utilization = 0
         # loop over all components
-        for c in S.components:
+        for i, c in enumerate(S.components):
             # loop over all partitions in the component
-            for p in c.partitions:
-                # get the corresponding indices
-                i = S.dic_map_part_idx[c.name][p.name][0]
-                h = S.dic_map_part_idx[c.name][p.name][1]
+            for h, p in enumerate(c.partitions):
                 # compute the utilization
                 utilization += S.demand_matrix[i][h,j] * \
                                 Y[i][h,j] * p.part_Lambda

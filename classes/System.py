@@ -536,8 +536,7 @@ class System:
         # count the total number of resources
         r = len(self.resources)
         # loop over components
-        for comp_idx in range(len(self.components)):
-            comp = self.components[comp_idx]
+        for comp_idx, comp in enumerate(self.components):
             # count the total number of partitions
             p = len(comp.partitions)
             # define and initialize the matrices to zero
@@ -546,8 +545,7 @@ class System:
             # define and initialize the performance models to None
             self.performance_models.append([[None] * r] * p)
             # loop over partitions
-            for part_idx in range(p):
-                part = comp.partitions[part_idx]
+            for part_idx, part in enumerate(comp.partitions):
                 # loop over resources
                 for res in self.compatibility_dict[comp.name][part.name]:
                     res_idx = self.dic_map_res_idx[res]
@@ -601,11 +599,9 @@ class System:
     #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
     def sort_FaaS_nodes(self):
         idx_min_memory_node=[]
-        for i in range(len(self.components)):
-            c = self.components[i]
+        for i, c in enumerate(self.components):
             # loop over partitions
-            for h in range(len(c.partitions)):
-                part = c.partitions[h]
+            for h, part in enumerate(c.partitions):
                 # loop over all FaaS
                 for res in self.compatibility_dict[c.name][part.name]:
                     j = self.dic_map_res_idx[res]
@@ -621,8 +617,7 @@ class System:
         # Sort the list based on cost and memory respectively
         # Each item of list includes the index, utilization and cost of the resource.
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
-        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
-       
+        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))  
     
     
     
@@ -660,11 +655,10 @@ class System:
         
         # demand matrix
         system_string += ', \n"Performance": {'
-        for i in range(len(self.components)):
+        for i, c in enumerate(self.components):
             c = self.components[i]
             component_string = '"' + c.name + '": {'
-            for h in range(len(c.partitions)):
-                p = c.partitions[h]
+            for h, p in enumerate(c.partitions):
                 component_string += ('"' + p.name + '": {')
                 for res in self.compatibility_dict[c.name][p.name]:
                     component_string += ('"' + res + '": {')
