@@ -50,7 +50,7 @@ class QTPerformanceEvaluator(ABC):
     #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
     #                Graph.Component.Partition object
     #   @param **kwargs Additional (unused) keyword arguments
-    #   return The dictionary of the required features
+    #   @return The dictionary of the required features
     def get_features(self, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
         features = {"i": c_idx,
                     "h": p_idx,

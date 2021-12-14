@@ -35,10 +35,10 @@ class FaaSPredictor(ABC):
     #   @param r_idx Index of the Resources.Resource object
     #   @param S A System.System object
     #   @param **kwargs Additional (unused) keyword arguments
-    #   return The dictionary of the required features
+    #   @return The dictionary of the required features
     def get_features(self, c_idx, p_idx, r_idx, S, **kwargs):
         c = S.components[c_idx].name
-        p = c.partitions[p_idx].name
+        p = S.components[c_idx].partitions[p_idx].name
         r = S.resources[r_idx].name
         features = {"arrival_rate": S.components[c_idx].comp_Lambda,
                     "warm_service_time": S.faas_service_times[c][p][r][0],
