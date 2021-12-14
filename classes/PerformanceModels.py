@@ -27,6 +27,24 @@ class FaaSPredictor(ABC):
         self.keyword = keyword
         self.module_name = module_name
         self.predictor = None
+    
+    ## Method to get a dictionary with the features required by the predict 
+    # method
+    #   @param c_idx Index of the Graph.Component object
+    #   @param p_idx Index of the Graph.Component.Partition object
+    #   @param r_idx Index of the Resources.Resource object
+    #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   return The dictionary of the required features
+    def get_features(self, c_idx, p_idx, r_idx, S, **kwargs):
+        c = S.components[c_idx].name
+        p = c.partitions[p_idx].name
+        r = S.resources[r_idx].name
+        features = {"arrival_rate": S.components[c_idx].comp_Lambda,
+                    "warm_service_time": S.faas_service_times[c][p][r][0],
+                    "cold_service_time": S.faas_service_times[c][p][r][1],
+                    "time_out": S.resources[r_idx].idle_time_before_kill}
+        return features
 
     ## Method to evaluate the object performance through the class predictor
     #   @param self The object pointer
@@ -35,9 +53,11 @@ class FaaSPredictor(ABC):
     #   @param cold_service_time Response time for cold start requests
     #   @param time_out Time spent by an idle Resources.FaaS instance 
     #                   before being killed
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return Predicted response time
     @abstractmethod
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out):
+                time_out, **kwargs):
         pass
     
     ## Operator to convert a FaaSPredictor object into a string
@@ -73,9 +93,10 @@ class FaaSPredictorPacsltk(FaaSPredictor):
     #   @param cold_service_time Response time for cold start requests
     #   @param time_out Time spent by an idle Resources.FaaS instance 
     #                   before being killed
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Predicted response time
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out):
+                time_out, **kwargs):
         perf = self.predictor(arrival_rate, warm_service_time, 
                               cold_service_time, time_out)
         return perf[0]["avg_resp_time"]
@@ -115,9 +136,10 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #   @param cold_service_time Response time for cold start requests
     #   @param time_out Time spent by an idle Resources.FaaS instance 
     #                   before being killed
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Predicted response time
     def predict(self, arrival_rate, warm_service_time, cold_service_time,
-                time_out):
+                time_out, **kwargs):
         pd = importlib.import_module("pandas")
         columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
         data = pd.DataFrame(data=[[arrival_rate, 

@@ -18,8 +18,9 @@ class NetworkPerformanceEvaluator:
     #   @param access_delay Access delay characterizing the network domain
     #   @param bandwidth Bandwidth characterizing the network domain
     #   @param data Amount of data transferred
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Network transfer time
-    def evaluate(self, access_delay, bandwidth, data):
+    def predict(self, access_delay, bandwidth, data, **kwargs):
         return access_delay + (data / bandwidth)
 
 
@@ -39,6 +40,38 @@ class QTPerformanceEvaluator(ABC):
     #   @param keyword Keyword identifying the evaluator
     def __init__(self, keyword):
         self.keyword = keyword
+    
+    ## Method to get a dictionary with the features required by the predict 
+    # method
+    #   @param c_idx Index of the Graph.Component object
+    #   @param p_idx Index of the Graph.Component.Partition object
+    #   @param r_idx Index of the Resources.Resource object
+    #   @param S A System.System object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   return The dictionary of the required features
+    def get_features(self, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
+        features = {"i": c_idx,
+                    "h": p_idx,
+                    "j": r_idx,
+                    "Y_hat": Y_hat,
+                    "S": S}
+        return features
+    
+    ## Method to compute the utilization of a specific 
+    # Resources.Resource object given the Graph.Component.Partition objects 
+    # executed on it
+    #   @param self The object pointer
+    #   @param j Index of the Resources.Resource object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
+    #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return Utilization of the given Resources.Resource object
+    @abstractmethod
+    def compute_utilization(self, j, Y_hat, S, **kwargs):
+        pass
 
     ## Method to evaluate the performance of a specific 
     # Graph.Component.Partition object executed onto a specific 
@@ -47,11 +80,13 @@ class QTPerformanceEvaluator(ABC):
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.Resource
-    #   @param Y Assignment matrix
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
     @abstractmethod
-    def evaluate(self, i, h, j, Y, S):
+    def predict(self, i, h, j, Y_hat, S, **kwargs):
         pass
     
     ## Operator to convert a QTPerformanceEvaluator object into a string
@@ -81,8 +116,9 @@ class ServerFarmPE(QTPerformanceEvaluator):
     #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
     #                Graph.Component.Partition object
     #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Utilization of the given Resources.VirtualMachine object
-    def compute_utilization(self, j, Y_hat, S):
+    def compute_utilization(self, j, Y_hat, S, **kwargs):
         utilization = 0
         # loop over all components
         for i, c in enumerate(S.components):
@@ -104,8 +140,9 @@ class ServerFarmPE(QTPerformanceEvaluator):
     #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
     #                Graph.Component.Partition object
     #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
-    def evaluate(self, i, h, j, Y_hat, S):
+    def predict(self, i, h, j, Y_hat, S, **kwargs):
         # compute the utilization
         utilization = self.compute_utilization(j, Y_hat, S)
         # compute the response time
@@ -130,10 +167,12 @@ class EdgePE(QTPerformanceEvaluator):
     # Resources.EdgeNode object
     #   @param self The object pointer
     #   @param j Index of the Resources.EdgeNode object
-    #   @param Y Assignment matrix
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Utilization of the given Resources.EdgeNode object
-    def compute_utilization(self, j, Y, S):
+    def compute_utilization(self, j, Y_hat, S, **kwargs):
         utilization = 0
         # loop over all components
         for i, c in enumerate(S.components):
@@ -141,7 +180,7 @@ class EdgePE(QTPerformanceEvaluator):
             for h, p in enumerate(c.partitions):
                 # compute the utilization
                 utilization += S.demand_matrix[i][h,j] * \
-                                Y[i][h,j] * p.part_Lambda
+                                Y_hat[i][h,j] * p.part_Lambda
         return utilization
     
     ## Method to evaluate the performance of a specific 
@@ -150,14 +189,16 @@ class EdgePE(QTPerformanceEvaluator):
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.EdgeNode
-    #   @param Y Assignment matrix
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
     #   @param S A System.System object
+    #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
-    def evaluate(self, i, h, j, Y, S):
+    def predict(self, i, h, j, Y_hat, S, **kwargs):
         # compute utilization
-        utilization = self.compute_utilization(j, Y, S)
+        utilization = self.compute_utilization(j, Y_hat, S)
         # compute response time
-        return S.demand_matrix[i][h,j] * Y[i][h,j] / (1 - utilization)
+        return S.demand_matrix[i][h,j] * Y_hat[i][h,j] / (1 - utilization)
 
 
 
@@ -203,16 +244,14 @@ class SystemPerformanceEvaluator:
         self.logger.log("Evaluating partition response times", 6)
         self.logger.level += 1
         for h in range(len(j[0])):
-            # evaluate the response time (note: Y_hat and the assignment 
-            # matrix Y coincide for Resources.EdgeNode objects)
+            # evaluate the response time
             p_idx = j[0][h]
             r_idx = j[1][h]
             if r_idx < S.FaaS_start_index:
-                p = S.performance_models[c_idx][p_idx][r_idx].evaluate(c_idx,
-                                                                       p_idx,
-                                                                       r_idx,
-                                                                       Y_hat, 
-                                                                       S)
+                PM = S.performance_models[c_idx][p_idx][r_idx]
+                features = PM.get_features(c_idx=c_idx, p_idx=p_idx,
+                                           r_idx=r_idx, S=S, Y_hat=Y_hat)
+                p = PM.predict(**features)
             else:
                 p = S.demand_matrix[c_idx][p_idx,r_idx]
             self.logger.log("{} --> {}".format(h, p), 7)

@@ -572,20 +572,19 @@ class System:
                         d = performance_dict[comp.name][part.name][res]["demand"]
                     else:
                         # for FaaS resources, it should be computed accordingly
-                        arrival_rate = comp.comp_Lambda
                         if "demandWarm" in perf_data.keys() and \
                             "demandCold" in perf_data.keys():
                             warm_service_time = perf_data["demandWarm"]
                             cold_service_time = perf_data["demandCold"]
-                            idle_time_before_kill = self.resources[res_idx].idle_time_before_kill
-                            d = self.performance_models[comp_idx][part_idx][res_idx].predict(arrival_rate, 
-                                                                                             warm_service_time, 
-                                                                                             cold_service_time,
-                                                                                             idle_time_before_kill)
                             # add the warm and cold service time to the 
                             # corresponding dictionary
                             self.faas_service_times[comp.name][part.name][res] = [warm_service_time,
                                                                                  cold_service_time]
+                            # compute the demand
+                            pm = self.performance_models[comp_idx][part_idx][res_idx]
+                            features = pm.get_features(comp_idx, part_idx, res_idx, self)
+                            d = pm.predict(**features)
+                    # write the demand into the matrix
                     self.demand_matrix[comp_idx][part_idx, res_idx] = d
     
     
