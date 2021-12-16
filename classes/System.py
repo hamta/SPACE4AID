@@ -400,10 +400,12 @@ class System:
                 for node in ER[CL]:
                     temp = ER[CL][node]
                     if "number" in temp.keys() and "cost" in temp.keys() \
-                        and "memory" in temp.keys():
+                        and "memory" in temp.keys() \
+                            and "n_cores" in temp.keys():
                         new_node = EdgeNode(CL, node, float(temp["cost"]),
                                             float(temp["memory"]),
-                                            int(temp["number"]))
+                                            int(temp["number"]),
+                                            int(temp["n_cores"]))
                         self.resources.append(new_node)
                         self.dic_map_res_idx[node] = resource_idx
                         cl.add_resource(resource_idx)
@@ -433,10 +435,12 @@ class System:
                 for VM in CR[CL]:
                     temp = CR[CL][VM]
                     if "number" in temp.keys() and "cost" in temp.keys() \
-                        and "memory" in temp.keys():
+                        and "memory" in temp.keys() \
+                            and "n_cores" in temp.keys():
                         new_vm = VirtualMachine(CL, VM, float(temp["cost"]), 
                                                 float(temp["memory"]), 
-                                                int(temp["number"]))
+                                                int(temp["number"]),
+                                                int(temp["n_cores"]))
                         self.resources.append(new_vm)
                         self.dic_map_res_idx[VM] = resource_idx
                         cl.add_resource(resource_idx)
@@ -459,40 +463,42 @@ class System:
         if "FaaSResources" in data.keys():
             self.logger.log("FaaS resources", 3)
             FR = data["FaaSResources"]
-            # initialize transition cost
-            if "transition_cost" in FR.keys():
-                transition_cost = float(FR["transition_cost"])
-            else:
-                self.error.log("Missing transition cost in FaaSResources", 1)
-                sys.exit(1)
             # loop over computational layers
             for CL in FR:
                 if CL.startswith("computationallayer"):
                     cl = ComputationalLayer(CL)
+                    # initialize transition cost
+                    if "transition_cost" in FR[CL].keys():
+                        transition_cost = float(FR[CL]["transition_cost"])
+                    else:
+                        self.error.log("Missing transition cost in {}".\
+                                       format(CL), 1)
+                        sys.exit(1)
                     # loop over functions and add them to the corresponding 
                     # layer
                     for func in FR[CL]:
-                        temp = FR[CL][func]
-                        if "cost" in temp.keys() and "memory" in temp.keys() \
-                            and "idle_time_before_kill" in temp.keys():
-                            new_f = FaaS(CL, func, float(temp["cost"]), 
-                                         float(temp["memory"]), 
-                                         transition_cost, 
-                                         float(temp["idle_time_before_kill"]))
-                            self.resources.append(new_f)
-                            self.dic_map_res_idx[func]=resource_idx
-                            cl.add_resource(resource_idx)
-                            resource_idx += 1
-                        else:
-                            self.logger.log("Missing field in {} description".\
-                                            format(func), 1)
-                            sys.exit(1)
-                        # add the resource description to the corresponding 
-                        # dictionary
-                        if "description" in temp.keys():
-                            self.description[func] = temp["description"]
-                        else:
-                            self.description[func] = "No description"
+                        if func != "transition_cost":
+                            temp = FR[CL][func]
+                            if "cost" in temp.keys() and "memory" in temp.keys() \
+                                and "idle_time_before_kill" in temp.keys():
+                                new_f = FaaS(CL, func, float(temp["cost"]), 
+                                             float(temp["memory"]), 
+                                             transition_cost, 
+                                             float(temp["idle_time_before_kill"]))
+                                self.resources.append(new_f)
+                                self.dic_map_res_idx[func]=resource_idx
+                                cl.add_resource(resource_idx)
+                                resource_idx += 1
+                            else:
+                                self.logger.log("Missing field in {} description".\
+                                                format(func), 1)
+                                sys.exit(1)
+                            # add the resource description to the corresponding 
+                            # dictionary
+                            if "description" in temp.keys():
+                                self.description[func] = temp["description"]
+                            else:
+                                self.description[func] = "No description"
                     # add the new computational layer
                     self.CLs.append(cl)
 

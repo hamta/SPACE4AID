@@ -91,6 +91,9 @@ class VirtualMachine(Resource):
 
     ## @var number
     # Number of machines
+    
+    ## @var n_cores
+    # Number of cores per machine
 
     ## VirtualMachine class constructor
     #   @param self The object pointer
@@ -100,15 +103,18 @@ class VirtualMachine(Resource):
     #   @param memory Amount of available memory on the VirtualMachine
     #   @param number Number of available VirtualMachine objects of the 
     #                 current type
-    def __init__(self, CLname, name, cost, memory, number):
+    #   @param n_cores Number of cores per VirtualMachine
+    def __init__(self, CLname, name, cost, memory, number, n_cores):
         super().__init__(CLname, name, cost, memory)
         self.number = number
+        self.n_cores = n_cores
     
     ## Operator to convert an VirtualMachine object into a string
     #   @param self The object pointer
     def __str__(self):
-        s = '"{}": {{"cost":{}, "memory":{}, "number":{}}}'.\
-            format(self.name, self.cost, self.memory, self.number)
+        s = '"{}": {{"cost":{}, "memory":{}, "number":{}, "n_cores":{}}}'.\
+            format(self.name, self.cost, self.memory, self.number,
+                   self.n_cores)
         return s
     
 
@@ -119,6 +125,9 @@ class EdgeNode(Resource):
     
     ## @var number
     # Number of nodes
+    
+    ## @var n_cores
+    # Number of cores per machine
 
     ## EdgeNode class constructor
     #   @param self The object pointer
@@ -127,15 +136,18 @@ class EdgeNode(Resource):
     #   @param cost Cost of the EdgeNode
     #   @param memory Amount of available memory on the EdgeNode
     #   @param number Number of available EdgeNode objects of the current type
-    def __init__(self, CLname, name, cost, memory, number):
+    #   @param n_cores Number of cores per EdgeNode
+    def __init__(self, CLname, name, cost, memory, number, n_cores):
         super().__init__(CLname, name, cost, memory)
         self.number = number
+        self.n_cores = n_cores
     
     ## Operator to convert an EdgeNode object into a string
     #   @param self The object pointer
     def __str__(self):
-        s = '"{}": {{"cost":{}, "memory":{}, "number":{}}}'.\
-            format(self.name, self.cost, self.memory, self.number)
+        s = '"{}": {{"cost":{}, "memory":{}, "number":{}, "n_cores":{}}}'.\
+            format(self.name, self.cost, self.memory, self.number,
+                   self.n_cores)
         return s
 
 
