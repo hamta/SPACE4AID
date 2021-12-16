@@ -1,22 +1,24 @@
 from abc import ABC, abstractmethod
 import importlib
+from math import log10
 
 
 ## FaaSPredictor
 #
 # Abstract class used to represent a performance model for predicting the 
-# response time of a Resources.FaaS instance
+# response time of a Graph.Component.Partition object deployed onto a 
+# Resources.FaaS instance
 class FaaSPredictor(ABC):
-    
-    ## @var module_name
-    # Name of the module that implements the method used to predict the 
-    # Resources.FaaS performance
-    
-    ## @var predictor
-    # Object that performs the prediction
     
     ## @var keyword
     # Keyword identifying the model
+    
+    ## @var module_name
+    # Name of the module that implements the method used to predict the 
+    # response time
+    
+    ## @var predictor
+    # Object that performs the prediction
     
     ## FaaSPredictor class constructor
     #   @param self The object pointer
@@ -71,8 +73,9 @@ class FaaSPredictor(ABC):
 
 ## FaaSPredictorPacsltk
 #
-# Specialization of FaaSPredictor class to predict a Resources.FaaS instance 
-# response time relying on the method implemented in pacsltk module
+# Specialization of FaaSPredictor class to predict the response time of a 
+# Graph.Component.Partition object deployed onto a Resources.FaaS instance 
+# relying on the method implemented in pacsltk module
 class FaaSPredictorPacsltk(FaaSPredictor):
     
     ## @var predictor
@@ -105,9 +108,9 @@ class FaaSPredictorPacsltk(FaaSPredictor):
 
 ## FaaSPredictorMLlib
 #
-# Specialization of FaaSPredictor class to predict a Resources.FaaS instance 
-# response time according to a given model and relying on the method 
-# implemented in a-MLlibrary
+# Specialization of FaaSPredictor class to predict the response time of a 
+# Graph.Component.Partition object deployed onto a Resources.FaaS instance 
+# relying on the method implemented in a-MLlibrary
 class FaaSPredictorMLlib(FaaSPredictor):
     
     ## @var predictor
@@ -147,6 +150,79 @@ class FaaSPredictorMLlib(FaaSPredictor):
                                    cold_service_time,
                                    time_out]],
                             columns=columns)
+        return self.predictor.predict_from_df(data, True)
+    
+    ## Operator to convert a FaaSPredictorMLlib object into a string
+    #   @param self The object pointer
+    def __str__(self):
+        s = '"model":"{}", "regressor_file":"{}"'.\
+            format(self.keyword, self.regressor_file)
+        return s
+
+
+
+## CoreBasedPredictor
+#
+# Specialization of FaaSPredictor class to predict the response time of 
+# Graph.Component.Partition objects executed on Resources.Resource instances 
+# depending on the number of used cores
+class CoreBasedPredictor:
+    
+    ## @var keyword
+    # Keyword identifying the model
+    
+    ## @var module_name
+    # Name of the module that implements the method used to predict the 
+    # Graph.Component.Partition object performance
+    
+    ## @var predictor
+    # Object that performs the prediction
+    
+    ## @var regressor_file
+    # Path to the Pickle binary file that stores the model to be used 
+    # for prediction
+    
+    ## CoreBasedPredictor class constructor
+    #   @param self The object pointer
+    #   @param regressor_file Path to the Pickle binary file that stores the 
+    #                         model to be used for prediction
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, regressor_file, **kwargs):
+        self.keyword = "CoreBasedPredictor"
+        self.module_name = "a-MLlibrary.model_building.predictor"
+        self.regressor_file = regressor_file
+        predictor_module = importlib.import_module(self.module_name)
+        self.predictor = predictor_module.Predictor(regressor_file,
+                                                    "/tmp", False)
+    
+    ## Method to get a dictionary with the features required by the predict 
+    # method
+    #   @param c_idx Index of the Graph.Component object
+    #   @param p_idx Index of the Graph.Component.Partition object
+    #   @param r_idx Index of the Resources.Resource object
+    #   @param S A System.System object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return The dictionary of the required features
+    def get_features(self, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
+        n_res = Y_hat[c_idx][p_idx, r_idx]
+        cores_per_res = S.resources[r_idx].n_cores
+        cores = n_res * cores_per_res
+        features = {"cores": cores,
+                    "log_cores": log10(cores)}
+        return features
+
+    ## Method to evaluate the object performance through the class predictor
+    #   @param self The object pointer
+    #   @param cores Number of cores assigned to the object
+    #   @param log_cores Logarithm of the number of cores
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return Predicted response time
+    def predict(self, cores, log_cores, **kwargs):
+        pd = importlib.import_module("pandas")
+        columns = "cores,log(cores)".split(",")
+        data = pd.DataFrame(data=[[cores, log_cores]], columns=columns)
         return self.predictor.predict_from_df(data, True)
     
     ## Operator to convert a FaaSPredictorMLlib object into a string
