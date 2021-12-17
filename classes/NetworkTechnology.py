@@ -18,7 +18,7 @@ class NetworkDomain:
     # Bandwidth characterizing the network domain
     
     ## @var performance_evaluator
-    # Object of class Performance.NetworkPE
+    # Object of class PerformanceEvaluators.NetworkPerformanceEvaluator
     
     ## NetworkTechnology class constructor
     #   @param self The object pointer
@@ -28,7 +28,8 @@ class NetworkDomain:
     #                              located in the network domain
     #   @param access_delay Access delay characterizing the network domain
     #   @param bandwidth Bandwidth characterizing the network domain
-    #   @param performance_evaluator Object of class Performance.NetworkPE
+    #   @param performance_evaluator Object of class 
+    #          PerformanceEvaluators.NetworkPerformanceEvaluator
     def __init__(self, ND_name, computationallayers, access_delay, 
                  bandwidth, performance_evaluator):
         self.ND_name = ND_name
