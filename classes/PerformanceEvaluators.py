@@ -1,8 +1,8 @@
 from classes.Logger import Logger
-from abc import ABC, abstractmethod
+from classes.PerformanceModels import BasePerformanceModel
+from abc import abstractmethod
 import numpy as np
 import sys
-
 
 
 ## NetworkPerformanceEvaluator
@@ -11,7 +11,13 @@ import sys
 # namely the time required to transfer data between two consecutive 
 # Graph.Component or Graph.Component.Partition objects executed on 
 # different devices in the same network domain
-class NetworkPerformanceEvaluator:
+class NetworkPerformanceEvaluator(BasePerformanceModel):
+    
+    ## FaaSPredictor class constructor
+    #   @param self The object pointer
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, **kwargs):
+        super().__init__("NETWORK")
 
     ## Method to evaluate the performance of a NetworkTechnology object
     #   @param self The object pointer
@@ -24,22 +30,24 @@ class NetworkPerformanceEvaluator:
         return access_delay + (data / bandwidth)
 
 
-
 ## QTPerformanceEvaluator
 #
 # Abstract class used to represent a performance evaluator, namely an object 
 # that evaluates the performance of a Graph.Component.Partition executed on 
 # different types of resources, exploiting the M/G/1 queue model
-class QTPerformanceEvaluator(ABC):
+class QTPerformanceEvaluator(BasePerformanceModel):
     
-    ## @var keyword
-    # Keyword identifying the evaluator
+    ## @var allows_colocation
+    # True if Graph.Component.Partition objects relying on this model 
+    # can be co-located on a device
     
     ## QTPerformanceEvaluator class constructor
     #   @param self The object pointer
     #   @param keyword Keyword identifying the evaluator
-    def __init__(self, keyword):
-        self.keyword = keyword
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, keyword, **kwargs):
+        super(QTPerformanceEvaluator, self).__init__(keyword)
+        self.allows_colocation = True
     
     ## Method to get a dictionary with the features required by the predict 
     # method
@@ -89,13 +97,6 @@ class QTPerformanceEvaluator(ABC):
     def predict(self, i, h, j, Y_hat, S, **kwargs):
         pass
     
-    ## Operator to convert a QTPerformanceEvaluator object into a string
-    #   @param self The object pointer
-    def __str__(self):
-        s = '"model":"{}"'.\
-            format(self.keyword)
-        return s
-    
 
 ## ServerFarmPE
 #
@@ -106,7 +107,8 @@ class ServerFarmPE(QTPerformanceEvaluator):
     
     ## ServerFarmPE class constructor
     #   @param self The object pointer
-    def __init__(self):
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, **kwargs):
         super(ServerFarmPE, self).__init__("QTcloud")
     
     ## Method to compute the utilization of a specific 
@@ -132,7 +134,8 @@ class ServerFarmPE(QTPerformanceEvaluator):
         return utilization
     
     ## Method to evaluate the performance of a specific 
-    # Graph.Component.Partition object executed onto a Resources.VirtualMachine
+    # Graph.Component.Partition object executed onto a 
+    # Resources.VirtualMachine
     #   @param self The object pointer
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
@@ -160,7 +163,8 @@ class EdgePE(QTPerformanceEvaluator):
     
     ## EdgePE class constructor
     #   @param self The object pointer
-    def __init__(self):
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, **kwargs):
         super(EdgePE, self).__init__("QTedge")
     
     ## Method to compute the utilization of a specific 
