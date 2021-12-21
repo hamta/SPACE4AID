@@ -43,7 +43,7 @@ class Configuration:
     #   @param self The object pointer
     #   @param solution The other solution to compare with current object
     def __eq__(self,solution):
-        equality=[]
+        equality = []
         # compare the equality of assignment for each component
         for i, j in zip(self.Y_hat, solution.Y_hat):
             equality.append(np.array_equal(i, j))
@@ -130,16 +130,13 @@ class Configuration:
     def memory_constraints_check(self, S):
         
         # create y from y_hat
-        I = len(S.components)
-        J = len(S.resources)
-        y = []
-        for i in range(I):
-            y.append(np.array(self.Y_hat[i] > 0, dtype = int))
+        y = self.get_y()
        
         # for each resource, check if the sum of the memory requirements of 
         # all component partitions assigned to it is greater than the maximum 
         # capacity of the resource
         feasible = True
+        J = len(S.resources)
         j = 0
         while j < J and feasible:
             memory = 0
@@ -180,7 +177,54 @@ class Configuration:
                             feasible = False
                     last_part_res = h[0][0]
         
-        return feasible     
+        return feasible
+    
+    
+    ## Method to check that only a single Graph.Component.Partition object 
+    # is assigned to a Resources.Resource whenever the corresponding 
+    # PerformanceModels.BasePerformanceModel does not support co-location
+    #   @param self The object pointer
+    #   @param performance_models List of 2D lists with the performance models
+    #   @return True if the assignment is feasible
+    def performance_assignment_check(self, performance_models):
+        
+        feasible = True
+        
+        # loop over all components
+        I = len(self.Y_hat)
+        i = 0
+        while i < I and feasible:
+            
+            # get the deployed partitions and resources
+            hs, js = np.nonzero(self.Y_hat[i])
+            
+            # loop over all partitions
+            idx = 0
+            while idx < len(hs) and feasible:
+                
+                # get the index of the partition and the index of the resource
+                h = hs[idx]
+                j = js[idx]
+                
+                # check if the performance model allows colocation
+                if not performance_models[i][h][j].allows_colocation:
+                    
+                    # if not, loop over all the other components and check
+                    # that no other partitions are deployed on the same 
+                    # resource
+                    k = 0
+                    while k < I and feasible:
+                        if k != i:
+                            xis, rs = np.nonzero(self.Y_hat[k])
+                            if j in rs:
+                                feasible = False
+                        k += 1
+                
+                idx += 1
+            
+            i += 1
+        
+        return feasible
 
 
     ## Method to check the feasibility of the current configuration
@@ -195,48 +239,57 @@ class Configuration:
         I = len(S.components)
         components_performance = [[True, np.infty]] * I
         paths_performance = []
+        
+        # check if the assignments are compatible with the performance models 
+        # in terms of partitions co-location
+        self.logger.log("Co-location constraints check", 4)
+        feasible = self.performance_assignment_check(S.performance_models)
        
-        # check the utilization of all resources in edge and cloud
-        edge=EdgePE()
-        cloud=ServerFarmPE()
-        feasible=True
-        self.logger.log("Utilization of edge check", 4)
-        for j in range(S.cloud_start_index):
-            utilization=edge.compute_utilization(j, self.Y_hat, S)
-            if utilization>=1:
-                feasible=False
-               
         if feasible:
-            self.logger.log("Utilization of cloud check", 4)    
-            for j in range(S.cloud_start_index,S.FaaS_start_index):
-                utilization=cloud.compute_utilization(j, self.Y_hat, S)
-                if utilization>=1:
-                    feasible=False
+            # check the utilization of all resources in edge and cloud
+            edge = EdgePE()
+            cloud = ServerFarmPE()
+            self.logger.log("Utilization of edge check", 4)
+            j = 0
+            while j < S.cloud_start_index and feasible:
+                utilization = edge.compute_utilization(j, self.Y_hat, S)
+                if utilization >= 1:
+                    feasible = False
+                j += 1
                    
             if feasible:
-                # check if the memory constraints are satisfied
-                self.logger.log("Memory constraints check", 4)
-                feasible = self.memory_constraints_check(S)
-                
+                self.logger.log("Utilization of cloud check", 4)
+                j = S.cloud_start_index
+                while j < S.FaaS_start_index and feasible:
+                    utilization = cloud.compute_utilization(j, self.Y_hat, S)
+                    if utilization >= 1:
+                        feasible = False
+                    j += 1
+                       
                 if feasible:
-                    # check if the cloud placement constraint is satisfied
-                    self.logger.log("Cloud placement constraint check", 4)
-                    feasible = self.move_backward_check(S)
+                    # check if the memory constraints are satisfied
+                    self.logger.log("Memory constraints check", 4)
+                    feasible = self.memory_constraints_check(S)
                     
                     if feasible:
-                        # check if all local constraints are satisfied
-                        self.logger.log("Local constraints check", 4)
-                        for LC in S.local_constraints:
-                            i = LC.component_idx
-                            components_performance[i] = LC.check_feasibility(S, self)
-                            feasible = feasible and components_performance[i][0]
+                        # check if the cloud placement constraint is satisfied
+                        self.logger.log("Cloud placement constraint check", 4)
+                        feasible = self.move_backward_check(S)
                         
                         if feasible:
-                            self.logger.log("Global constraints check", 4)
-                            # check global constraints
-                            for GC in S.global_constraints:
-                                paths_performance.append(GC.check_feasibility(S, self))
-                                feasible = feasible and paths_performance[-1][0]
+                            # check if all local constraints are satisfied
+                            self.logger.log("Local constraints check", 4)
+                            for LC in S.local_constraints:
+                                i = LC.component_idx
+                                components_performance[i] = LC.check_feasibility(S, self)
+                                feasible = feasible and components_performance[i][0]
+                            
+                            if feasible:
+                                self.logger.log("Global constraints check", 4)
+                                # check global constraints
+                                for GC in S.global_constraints:
+                                    paths_performance.append(GC.check_feasibility(S, self))
+                                    feasible = feasible and paths_performance[-1][0]
 
         if not feasible:
             self.logger.level += 1
