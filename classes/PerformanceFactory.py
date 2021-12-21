@@ -1,5 +1,6 @@
-from classes.PerformanceModels import FaaSPredictorPacsltk, FaaSPredictorMLlib
-from classes.PerformanceModels import CoreBasedPredictor
+from classes.PerformancePredictors import FaaSPredictorPacsltk
+from classes.PerformancePredictors import FaaSPredictorMLlib
+from classes.PerformancePredictors import CoreBasedPredictor
 from classes.PerformanceEvaluators import NetworkPerformanceEvaluator
 from classes.PerformanceEvaluators import ServerFarmPE, EdgePE
 
