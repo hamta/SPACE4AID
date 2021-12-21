@@ -192,40 +192,6 @@ class Configuration:
         
         feasible = True
         
-        # # loop over all components
-        # I = len(self.Y_hat)
-        # i = 0
-        # while i < I and feasible:
-            
-        #     # get the deployed partitions and resources
-        #     hs, js = np.nonzero(self.Y_hat[i])
-            
-        #     # loop over all partitions
-        #     idx = 0
-        #     while idx < len(hs) and feasible:
-                
-        #         # get the index of the partition and the index of the resource
-        #         h = hs[idx]
-        #         j = js[idx]
-                
-        #         # check if the performance model allows colocation
-        #         if not performance_models[i][h][j].allows_colocation:
-                    
-        #             # if not, loop over all the other components and check
-        #             # that no other partitions are deployed on the same 
-        #             # resource
-        #             k = 0
-        #             while k < I and feasible:
-        #                 if k != i:
-        #                     xis, rs = np.nonzero(self.Y_hat[k])
-        #                     if j in rs:
-        #                         feasible = False
-        #                 k += 1
-                
-        #         idx += 1
-            
-        #     i += 1
-        
         # matrix size
         I = len(self.Y_hat)
         
