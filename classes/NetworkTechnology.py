@@ -43,9 +43,9 @@ class NetworkDomain:
     #   @param data_size Amount of transferred data
     #   @return Network transfer time    
     def evaluate_performance(self, data_size):
-        return self.performance_evaluator.predict(self.access_delay,
-                                                  self.bandwidth,
-                                                  data_size)
+        return self.performance_evaluator.predict(access_delay=self.access_delay,
+                                                  bandwidth=self.bandwidth,
+                                                  data=data_size)
         
     ## Operator to convert a NetworkTechnology object into a string
     #   @param self The object pointer
