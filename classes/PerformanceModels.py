@@ -25,16 +25,11 @@ class BasePerformanceModel(ABC):
     
     ## Method to get a dictionary with the features required by the predict 
     # method
-    #   @param c_idx Index of the Graph.Component object
-    #   @param p_idx Index of the Graph.Component.Partition object
-    #   @param r_idx Index of the Resources.Resource object
-    #   @param S A System.System object
-    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
-    #                Graph.Component.Partition object
-    #   @param **kwargs Additional (unused) keyword arguments
+    #   @param self The object pointer
+    #   @param **attributes Attributes that are used to retrieve the features
     #   @return The dictionary of the required features
     @abstractmethod
-    def get_features(self, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
+    def get_features(self, **attributes):
         pass
         
     ## Method to evaluate the object performance through the class predictor

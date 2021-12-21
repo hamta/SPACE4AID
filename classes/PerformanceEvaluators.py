@@ -18,9 +18,26 @@ class NetworkPerformanceEvaluator(BasePerformanceModel):
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, **kwargs):
         super().__init__("NETWORK")
+        
+    ## Method to get a dictionary with the features required by the predict 
+    # method
+    #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
+    #   @param c_idx Index of the Graph.Component object
+    #   @param p_idx Index of the Graph.Component.Partition object
+    #   @param S A System.System object
+    #   @param ND A NetworkTechnology.NetworkDomain object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return The dictionary of the required features
+    def get_features(self, *, c_idx, p_idx, S, ND, **kwargs):
+        features = {"access_delay": ND.access_delay,
+                    "bandwidth": ND.bandwidth,
+                    "data": S.components[c_idx].partitions[p_idx].data_size}
+        return features
 
     ## Method to evaluate the performance of a NetworkTechnology object
     #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
     #   @param access_delay Access delay characterizing the network domain
     #   @param bandwidth Bandwidth characterizing the network domain
     #   @param data Amount of data transferred
@@ -51,6 +68,8 @@ class QTPerformanceEvaluator(BasePerformanceModel):
     
     ## Method to get a dictionary with the features required by the predict 
     # method
+    #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
     #   @param c_idx Index of the Graph.Component object
     #   @param p_idx Index of the Graph.Component.Partition object
     #   @param r_idx Index of the Resources.Resource object
@@ -59,7 +78,7 @@ class QTPerformanceEvaluator(BasePerformanceModel):
     #                Graph.Component.Partition object
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return The dictionary of the required features
-    def get_features(self, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
+    def get_features(self, *, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
         features = {"i": c_idx,
                     "h": p_idx,
                     "j": r_idx,
@@ -85,6 +104,7 @@ class QTPerformanceEvaluator(BasePerformanceModel):
     # Graph.Component.Partition object executed onto a specific 
     # Resources.Resource
     #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.Resource
@@ -94,7 +114,7 @@ class QTPerformanceEvaluator(BasePerformanceModel):
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
     @abstractmethod
-    def predict(self, i, h, j, Y_hat, S, **kwargs):
+    def predict(self, *, i, h, j, Y_hat, S, **kwargs):
         pass
     
 
@@ -137,6 +157,7 @@ class ServerFarmPE(QTPerformanceEvaluator):
     # Graph.Component.Partition object executed onto a 
     # Resources.VirtualMachine
     #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.VirtualMachine
@@ -145,7 +166,7 @@ class ServerFarmPE(QTPerformanceEvaluator):
     #   @param S A System.System object
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
-    def predict(self, i, h, j, Y_hat, S, **kwargs):
+    def predict(self, *, i, h, j, Y_hat, S, **kwargs):
         # compute the utilization
         utilization = self.compute_utilization(j, Y_hat, S)
         # compute the response time
@@ -190,6 +211,7 @@ class EdgePE(QTPerformanceEvaluator):
     ## Method to evaluate the performance of a specific 
     # Graph.Component.Partition object executed onto a Resources.EdgeNode
     #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
     #   @param i Index of the Graph.Component
     #   @param h Index of the Graph.Component.Partition
     #   @param j Index of the Resources.EdgeNode
@@ -198,7 +220,7 @@ class EdgePE(QTPerformanceEvaluator):
     #   @param S A System.System object
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Response time
-    def predict(self, i, h, j, Y_hat, S, **kwargs):
+    def predict(self, *, i, h, j, Y_hat, S, **kwargs):
         # compute utilization
         utilization = self.compute_utilization(j, Y_hat, S)
         # compute response time
@@ -221,6 +243,7 @@ class SystemPerformanceEvaluator:
     #   @param log Object of Logger type
     def __init__(self, log=Logger()):
         self.logger = log
+        self.error = Logger(stream=sys.stderr, verbose=1, error=True)
     
     
     ## Method to evaluate the response time of the Graph.Component object 
@@ -329,8 +352,8 @@ class SystemPerformanceEvaluator:
         # there must exist a common network domain, otherwise the components
         # cannot communicate with each other
         if len(ND) == 0:
-            print("ERROR: no network domain available between two resources "
-              + str(cpm1_resource) + " and " + str(cpm2_resource)) 
+            self.error.log("ERROR: no network domain available between {} and {}".\
+                           format(cpm1_resource, cpm2_resource))
             sys.exit(1)
         # if only one domain is common to the two layers, evaluate the 
         # network delay on that domain
