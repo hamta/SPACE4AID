@@ -127,7 +127,7 @@ class System:
             self.logger.log("Loading system from json object", 1)
             self.load_json(system_json)
         else:
-            self.error.log("No configuration file or json specified",1)
+            self.error.log("No configuration file or json specified")
             sys.exit(1)
     
     
@@ -163,7 +163,7 @@ class System:
                                         verbose=self.logger.verbose,
                                         level=self.logger.level+1))
         else:
-            self.error.log("No DAG available in configuration file", 1)
+            self.error.log("No DAG available in configuration file")
             sys.exit(1)
         
         # initialize lambda
@@ -171,7 +171,7 @@ class System:
             self.logger.log("Initializing Lambda", 2)
             self.Lambda = float(data["Lambda"])
         else:
-            self.error.log("No Lambda available in configuration file", 1)
+            self.error.log("No Lambda available in configuration file")
             sys.exit(1)
                
         # initialize components and local constraints
@@ -189,7 +189,7 @@ class System:
             # perform initialization
             self.initialize_components(C, LC)
         else:
-            self.error.log("No components available in configuration file", 1)
+            self.error.log("No components available in configuration file")
             sys.exit(1)
         
         # get global constraints to initialize the maximun response time of 
@@ -224,8 +224,7 @@ class System:
                                           NetworkPerformanceEvaluator())
                     self.network_technologies.append(network_domain)
                 else:
-                    self.error.log("Missing field in {} description".\
-                                   format(ND), 1)
+                    self.error.log("Missing field in {} description".format(ND))
                     sys.exit(1)
         else:
             self.error.log("No NetworkTechnology available in configuration file", 1)
@@ -236,7 +235,7 @@ class System:
         if "CompatibilityMatrix" in data.keys():
             self.compatibility_dict = data["CompatibilityMatrix"]
         else:
-            self.error.log("No CompatibilityMatrix available in configuration file", 1)
+            self.error.log("No CompatibilityMatrix available in configuration file")
             sys.exit(1)
         
         # variable to check, for each component, if all resources mentioned 
@@ -253,11 +252,11 @@ class System:
                     for r in performance_dict[c][p].keys():
                         if not r in self.compatibility_dict[c][p]:
                             is_compatible = False
-                            self.error.log("Performance dictionary and compatibility matrix are not consistent", 1)
+                            self.error.log("Performance dictionary and compatibility matrix are not consistent")
                             sys.exit(1)
         else:
             is_compatible = False
-            self.error.log("No Performance dictionary available in configuration file", 1)
+            self.error.log("No Performance dictionary available in configuration file")
             sys.exit(1)
        
         # if performance dictionary is available and it is consistent with 
@@ -360,7 +359,7 @@ class System:
                     self.dic_map_part_idx[c] = temp
                     self.components.append(Component(c, deployments,partitions, self.Lambda))
             else:
-                self.error.log("No match between components in DAG and system input file", 1)
+                self.error.log("No match between components in DAG and system input file")
                 sys.exit(1)
             self.dic_map_com_idx[c] = comp_idx
     
@@ -412,7 +411,7 @@ class System:
                         resource_idx += 1
                     else:
                         self.error.log("Missing field in {} description".\
-                                       format(node), 1)
+                                       format(node))
                         sys.exit(1)
                     # add the resource description to the corresponding 
                     # dictionary
@@ -447,7 +446,7 @@ class System:
                         resource_idx += 1
                     else:
                         self.error.log("Missing field in {} description".\
-                                       format(VM), 1)
+                                       format(VM))
                         sys.exit(1)
                     # add the resource description to the corresponding 
                     # dictionary
@@ -472,7 +471,7 @@ class System:
                         transition_cost = float(FR[CL]["transition_cost"])
                     else:
                         self.error.log("Missing transition cost in {}".\
-                                       format(CL), 1)
+                                       format(CL))
                         sys.exit(1)
                     # loop over functions and add them to the corresponding 
                     # layer
@@ -519,7 +518,7 @@ class System:
                 if c in self.dic_map_com_idx.keys():
                     C_list.append(list(self.dic_map_com_idx.keys()).index(c))
                 else:
-                    self.error.log("No match between components and path in global constraints", 1)
+                    self.error.log("No match between components and path in global constraints")
                     sys.exit(1)
             self.global_constraints.append(GlobalConstraint(C_list, 
                                                             GC[p]["global_res_time"],
@@ -567,7 +566,7 @@ class System:
                         m = Pfactory.create(perf_data["model"], **model_data)
                         self.performance_models[comp_idx][part_idx][res_idx] = m
                     else:
-                        self.error.log("Missing performance model/evaluator", 1)
+                        self.error.log("Missing performance model/evaluator")
                         sys.exit(1)
                     # get the demand (if available)
                     d = np.nan
@@ -588,7 +587,10 @@ class System:
                                                                                  cold_service_time]
                             # compute the demand
                             pm = self.performance_models[comp_idx][part_idx][res_idx]
-                            features = pm.get_features(comp_idx, part_idx, res_idx, self)
+                            features = pm.get_features(c_idx=comp_idx, 
+                                                       p_idx=part_idx, 
+                                                       r_idx=res_idx, 
+                                                       S=self)
                             d = pm.predict(**features)
                     # write the demand into the matrix
                     self.demand_matrix[comp_idx][part_idx, res_idx] = d

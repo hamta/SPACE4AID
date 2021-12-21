@@ -37,7 +37,7 @@ class Logger:
         self.stream = stream
         self.verbose = verbose
         self.level = level
-        self.error = error
+        self.error = error            
     
     ## Method to support pickling/unpickling of Logger objects
     #   @param self The object pointer
@@ -75,7 +75,7 @@ class Logger:
     ## Method to print the given message
     #   @param message The string to be printed
     #   @param v Minimum verbosity level to print the message
-    def log(self, message, v):
+    def log(self, message, v = 0):
         if self.verbose >= v:
             full_message = self.prepare_logging(message)
             print(full_message, file = self.stream)
