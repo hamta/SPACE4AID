@@ -185,45 +185,98 @@ class Configuration:
     # PerformanceModels.BasePerformanceModel does not support co-location
     #   @param self The object pointer
     #   @param performance_models List of 2D lists with the performance models
+    #   @param J Number of resources to be checked (co-location is never 
+    #            applied to Resources.FaaS objects)
     #   @return True if the assignment is feasible
-    def performance_assignment_check(self, performance_models):
+    def performance_assignment_check(self, performance_models, J):
         
         feasible = True
         
-        # loop over all components
-        I = len(self.Y_hat)
-        i = 0
-        while i < I and feasible:
+        # # loop over all components
+        # I = len(self.Y_hat)
+        # i = 0
+        # while i < I and feasible:
             
-            # get the deployed partitions and resources
-            hs, js = np.nonzero(self.Y_hat[i])
+        #     # get the deployed partitions and resources
+        #     hs, js = np.nonzero(self.Y_hat[i])
             
-            # loop over all partitions
-            idx = 0
-            while idx < len(hs) and feasible:
+        #     # loop over all partitions
+        #     idx = 0
+        #     while idx < len(hs) and feasible:
                 
-                # get the index of the partition and the index of the resource
-                h = hs[idx]
-                j = js[idx]
+        #         # get the index of the partition and the index of the resource
+        #         h = hs[idx]
+        #         j = js[idx]
                 
-                # check if the performance model allows colocation
-                if not performance_models[i][h][j].allows_colocation:
+        #         # check if the performance model allows colocation
+        #         if not performance_models[i][h][j].allows_colocation:
                     
-                    # if not, loop over all the other components and check
-                    # that no other partitions are deployed on the same 
-                    # resource
-                    k = 0
-                    while k < I and feasible:
-                        if k != i:
-                            xis, rs = np.nonzero(self.Y_hat[k])
-                            if j in rs:
-                                feasible = False
-                        k += 1
+        #             # if not, loop over all the other components and check
+        #             # that no other partitions are deployed on the same 
+        #             # resource
+        #             k = 0
+        #             while k < I and feasible:
+        #                 if k != i:
+        #                     xis, rs = np.nonzero(self.Y_hat[k])
+        #                     if j in rs:
+        #                         feasible = False
+        #                 k += 1
                 
-                idx += 1
+        #         idx += 1
             
-            i += 1
+        #     i += 1
         
+        # matrix size
+        I = len(self.Y_hat)
+        
+        # loop over all resources
+        j = 0
+        while j < J and feasible:
+            
+            # number of partitions assigned to the current resource
+            count_j = 0
+            colocation_allowed = True
+            
+            # loop over all components
+            i = 0
+            while i < I and feasible:
+                
+                # loop over all partitions
+                h = 0
+                while h < self.Y_hat[i].shape[0] and feasible:
+                    
+                    # check if the partition is deployed on resource j
+                    if self.Y_hat[i][h,j] > 0:
+                        
+                        # increment counter
+                        count_j += 1
+                        
+                        # check if the corresponding performance model allows
+                        # co-location
+                        if not performance_models[i][h][j].allows_colocation:
+                            colocation_allowed = False
+                            
+                            # if co-location is not allowed but more than one 
+                            # partition is deployed on j, the solution is not 
+                            # feasible
+                            if not colocation_allowed and count_j > 1:
+                                feasible = False
+                    h += 1
+                 
+                # if co-location is not allowed but more than one partition 
+                # is deployed on j, the solution is not feasible
+                if not colocation_allowed and count_j > 1:
+                    feasible = False
+                
+                i += 1
+                
+            # if co-location is not allowed but more than one partition 
+            # is deployed on j, the solution is not feasible
+            if not colocation_allowed and count_j > 1:
+                feasible = False
+            
+            j += 1
+                        
         return feasible
 
 
@@ -243,7 +296,8 @@ class Configuration:
         # check if the assignments are compatible with the performance models 
         # in terms of partitions co-location
         self.logger.log("Co-location constraints check", 4)
-        feasible = self.performance_assignment_check(S.performance_models)
+        feasible = self.performance_assignment_check(S.performance_models,
+                                                     S.FaaS_start_index)
        
         if feasible:
             # check the utilization of all resources in edge and cloud
