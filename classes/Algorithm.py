@@ -6,7 +6,7 @@ import sys
 from heurispy.framework import genera_lista_ejecuciones_heuristicas, inicia_exploracion_heuristica
 from heurispy.problema import Problema
 from heurispy.heuristicas.busqueda_tabu import BusquedaTabu
-
+import time
 from random import choice, randint, random
 from string import ascii_lowercase
 from Solid.Solid.TabuSearch import TabuSearch
@@ -404,11 +404,14 @@ class Algorithm:
             nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
         else:
             nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
-        # get resource with maximum utilization as source node
+        # get resource with maximum utilization as source node 
+        # first while loop is used for the case that if we cannot find any neighbors by starting with last node of the sorted list as a source node,
+        # we try to search to find neigbors by starting from second last node in the list and etc. Continue untile finding neigbors
         selected_node=len(nodes_sorted_list)
         j=1
+        # explore nodes_sorted_list until finding at least one neighbor
         while len(neighbors)<1 and j<=len(nodes_sorted_list):
-            # get resource with maximum utilization as source node
+            # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-j
             idx_source_node=nodes_sorted_list[selected_node][0]
             # get all partitions located in higest utilization node
@@ -419,12 +422,13 @@ class Algorithm:
             for part in partitions:
                 # get all alternative resources of the partitions
                 alternative_res_idxs=self.alternative_resources(part[0],part[1],solution)
-                # set a boolean variable to break, if best destination is founded
-                find=False
+                # # set a boolean variable to break, if best destination is founded
+                # find=False
                 i=0
                
                  # search to find the best campatible resource with lowest utilization for current partition
-                while not find and i<len(nodes_sorted_list)-1 and i<j:
+                #while not find and i<len(nodes_sorted_list)-1 and i<j:
+                while  i<len(nodes_sorted_list)-1 and i<j:
                     
                     des_node_idx=nodes_sorted_list[i][0]
                     # Check some conditions to avoid violating the limitation of our problem that says:
@@ -457,31 +461,32 @@ class Algorithm:
                                 result=Result()
                                 result.solution = new_temp_solution
                                 # reduce cluster size of source and destination nodes
-                                new_result_1 = self.reduce_cluster_size(des_node_idx, result)
-                                new_result = self.reduce_cluster_size(idx_source_node, new_result_1)
+                                new_result_1 = self.reduce_cluster_size(idx_source_node, result)
+                                new_result = self.reduce_cluster_size(des_node_idx, new_result_1)
                                 # compute the cost
                                 new_result.cost = new_result.objective_function(self.system)
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
-                                find=True
+                                
                    
                     i+=1
                    
                         
-                if not find:
-                     print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
+                # if not find:
+                #      print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
             # if some neighbors are founded, sort them by cost and return the list    
             if len(neighbors)>0:        
                 new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
                 #new_sorted_solutions=[x.solution for x in new_sorted_results]
                 
             else:
-                print("No neighbor could be find by changing component placement of this solution ")
+               # print("No neighbor could be find by changing component placement of source node " +str(idx_source_node))
                 new_sorted_results=None
-            j+=1    
+            j+=1
+            
         if  new_sorted_results==None:
-            print("There is not any neighbors for the current solution")       
+             print("Any neighbors could not be found by changing component placement for the current solution")  
         return new_sorted_results    
             
             
@@ -506,7 +511,7 @@ class Algorithm:
         selected_node=len(nodes_sorted_list)
         i=1
         while len(neighbors)<1 and i<=len(nodes_sorted_list):
-            # get resource with maximum utilization as source node
+            # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
             idx_source_node=nodes_sorted_list[selected_node][0]
             
@@ -564,17 +569,203 @@ class Algorithm:
                     # sort neighbor list by cost and return the best one
                     new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
                     #new_sorted_solutions=[x.solution for x in new_sorted_results]
-                else:
-                    print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no feasible solution exists given the shared compatiblie nodes ")
+            #     else:
+            #         print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no feasible solution exists given the shared compatiblie nodes ")
                     
-            else:
-                print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
+            # else:
+            #     print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
             i+=1
         if  new_sorted_results==None:
-            print("There is not any neighbors for the current solution")
+            print("Any neighbors could not be found by changing resource type for the current solution")
         return new_sorted_results 
     
-     ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
+    ## Method to change the current solution by moveing partitions from edge or cloud toFaaS
+    #   @param self The object pointer
+    #   @param solution Current solution 
+    #   @param sorting_method indicate the sorting order of nodes. 
+    #           If sorting_method=0, the list of nodes are sorted by utilization and cost respectively
+    #           otherwise the list of nodes are sorted by cost and utilization respectively.
+    #   @return A list neigbors (new solutions) sorted by cost
+    def move_to_FaaS(self, solution, sorting_method=0):
+        #pdb.set_trace()
+        neighbors=[]
+        new_sorted_results=None
+        # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+        if sorting_method==0:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        else:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+        selected_node=len(nodes_sorted_list)
+        
+        # sort FaaS by memory and cost respectively
+        sorted_FaaS=self.system.sorted_FaaS_by_memory_cost
+        # if we need to sort FaaS by cost and memory respectively, we use self.system.sorted_FaaS_by_cost_memory
+        sorted_FaaS_idx=[i[0] for i in sorted_FaaS]
+        i=1
+        while len(neighbors)<1 and i<=len(nodes_sorted_list):
+            # get resource with maximum utilization/cost as source node
+            selected_node=len(nodes_sorted_list)-i
+            idx_source_node=nodes_sorted_list[selected_node][0]
+            
+            # get all partitions located in higest utilization node
+            partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
+            alternative_res_idxs_parts=[]
+            all_FaaS_compatible=True
+            # get a list of alternative FaaS for partitions runing on source node
+            for part in partitions:
+                x=self.alternative_resources(part[0],part[1],solution)
+                FaaS_alternatives=x[x>=self.system.FaaS_start_index]
+                if len(FaaS_alternatives)<1:
+                    all_FaaS_compatible=False
+                alternative_res_idxs_parts.append(FaaS_alternatives)
+                
+           
+          
+            
+            if all_FaaS_compatible:
+                new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
+                for idx, part in enumerate(partitions):
+                    idx_alternative=[sorted_FaaS_idx.index(j) for j in alternative_res_idxs_parts[idx]]
+                    des=sorted_FaaS_idx[max(idx_alternative)]
+                    #alternative_res_idxs_parts[idx] sorted_FaaS
+                    new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
+                        
+                    new_temp_Y_hat[part[0]][part[1]][des]=1
+                # create new solution by new assignment
+                new_temp_solution=Configuration(new_temp_Y_hat)
+                # check feasibility
+                performance=new_temp_solution.check_feasibility(self.system)
+                
+                if performance[0]:
+                    # create a new result
+                    new_result=Result()
+                    new_result.solution = new_temp_solution
+                    new_result.cost = new_result.objective_function(self.system)
+                    new_result.performance = performance
+                    # add the new result to the neigbor list
+                    neighbors.append(new_result)
+            else:
+            
+                for idx, part in enumerate(partitions):
+                    if len(alternative_res_idxs_parts[idx])>0:
+                        new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
+                        
+                       
+                        idx_alternative=[sorted_FaaS_idx.index(j) for j in alternative_res_idxs_parts[idx]]
+                        des=sorted_FaaS_idx[max(idx_alternative)]
+                        #alternative_res_idxs_parts[idx] sorted_FaaS
+                        new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
+                            
+                        new_temp_Y_hat[part[0]][part[1]][des]=1
+                    # create new solution by new assignment
+                        new_temp_solution=Configuration(new_temp_Y_hat)
+                        # check feasibility
+                        performance=new_temp_solution.check_feasibility(self.system)
+                        
+                        if performance[0]:
+                            # create a new result
+                            result=Result()
+                            result.solution = new_temp_solution
+                            # reduce the cluster size of destination node
+                            new_result = self.reduce_cluster_size(idx_source_node, result)
+                            new_result.cost = new_result.objective_function(self.system)
+                            new_result.performance = performance
+                            # add the new result to the neigbor list
+                            neighbors.append(new_result)
+            i+=1
+        
+        if len(neighbors)>0:
+            # sort neighbor list by cost and return the best one
+            new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
+            #new_sorted_solutions=[x.solution for x in new_sorted_results]
+        else:
+            print("Any neighbors could not be found by moveing to FaaS for the current solution")
+            
+        return new_sorted_results
+   
+        
+    ## Method to move the partitions running on FaaS to the edge/cloud
+    #   @param self The object pointer
+    #   @param solution Current solution 
+    #   @param sorting_method indicate the sorting order of nodes. 
+    #           If sorting_method=0, the list of nodes are sorted by utilization and cost respectively
+    #           otherwise the list of nodes are sorted by cost and utilization respectively.
+    #   @return A list neigbors (new solutions) sorted by cost
+    def move_from_FaaS(self, solution, sorting_method=0):
+      
+        neighbors=[]
+        new_sorted_results=None
+        # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+        if sorting_method==0:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        else:
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1] 
+        # call the method to get all partitions located in FaaS 
+        partitions_with_FaaS=self.get_partitions_with_FaaS(solution.Y_hat)
+         # get the list of nodes and computational layers in used 
+        active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
+        # loop over partitions
+        for part in partitions_with_FaaS:
+                # get all alternative resources of the partitions
+                alternative_res_idxs=self.alternative_resources(part[0],part[1],solution)
+                alternative_res_idxs=alternative_res_idxs[alternative_res_idxs<self.system.FaaS_start_index]
+                i=0
+                find=False
+                 # search to find the best campatible resource with lowest utilization for current partition
+                #while not find and i<len(nodes_sorted_list)-1 and i<j:
+                while  i<len(nodes_sorted_list)-1 and not find :
+                    
+                    des_node_idx=nodes_sorted_list[i][0]
+                    # Check some conditions to avoid violating the limitation of our problem that says:
+                    # Only one node can be in used in each computational layer 
+                    # So, the destination node can be used only if it is one of running (active) node, 
+                    # or its computational layer is not an active computational layer
+                    
+                    if des_node_idx in active_res_idxs or \
+                            self.system.resources[des_node_idx].CLname not in active_camputationallayers:
+                        if des_node_idx in alternative_res_idxs:
+                           
+                            # get a copy of current solution as a new temprary assignment matrix (Y_hat)
+                            new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
+                            # get all partitions running on the destination node
+                            partitions_on_des=self.get_partitions_with_j(solution.Y_hat,des_node_idx)
+                            # assign the current partition to the new alternative node in new Y_hat with maximume number of its instances
+                            new_temp_Y_hat[part[0]][part[1]][part[2]]=0
+                            new_temp_Y_hat[part[0]][part[1]][des_node_idx]=self.system.resources[des_node_idx].number
+                           
+                            if len(partitions_on_des)>0:
+                                # assign the maximume instance number of destination node to the partitions that are running on destination node
+                                for part_des in partitions_on_des:
+                                    new_temp_Y_hat[part_des[0]][part_des[1]][des_node_idx]=self.system.resources[des_node_idx].number
+                            # creat a solution by new assignment (Y_hat)
+                            new_temp_solution=Configuration(new_temp_Y_hat)
+                            # check if new solution is feasible
+                            performance=new_temp_solution.check_feasibility(self.system)
+                            if performance[0]:
+                                # creat new result
+                                result=Result()
+                                result.solution = new_temp_solution
+                                # reduce cluster size of the destination node
+                                new_result = self.reduce_cluster_size(des_node_idx, result)
+                                # compute the cost
+                                new_result.cost = new_result.objective_function(self.system)
+                                new_result.performance = performance
+                                # add new result in neigbor list
+                                neighbors.append(new_result)
+                                find=True
+                   
+                    i+=1
+        
+        
+        if len(neighbors)>0:        
+                new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
+           
+            
+        if  new_sorted_results==None:
+             print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")  
+        return new_sorted_results    
+    
+    ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
     #   @param self The object pointer
     #   @param solution Current solution 
     #   @return A list neigbors (new solutions) sorted by cost   
@@ -585,8 +776,13 @@ class Algorithm:
         neighborhood1=self.change_FaaS(solution)
         # get the neighbors by changing resource type
         neighborhood2=self.change_resource_type(solution)
-        # get the neigbors by change component placement
+        # get the neigbors by changing component placement
         neighborhood3=self.change_component_placement(solution)
+        # get the neigbors by moveing to FaaS
+        neighborhood4=self.move_to_FaaS(solution)
+        # get the neigbors by moveing from FaaS to edge/cloud
+        neighborhood5=self.move_from_FaaS(solution)
+        
         # mixe all neigbors
         if neighborhood1 is not None:
             neighborhood.extend(neighborhood1)
@@ -594,6 +790,10 @@ class Algorithm:
             neighborhood.extend(neighborhood2)
         if neighborhood3 is not None:
             neighborhood.extend(neighborhood3)
+        if neighborhood4 is not None:
+            neighborhood.extend(neighborhood4)
+        if neighborhood5 is not None:
+            neighborhood.extend(neighborhood5)
         # sort the neighbors list by cost 
         sorted_neighborhood=sorted(neighborhood, key=lambda x: x.cost)
         # if two solution have the same cost, check if the solutions are the same and drop one of them
@@ -730,6 +930,7 @@ class RandomGreedy(Algorithm):
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
+        print("Start check feasibility: "+str(time.time())+"\n")
         feasible = result.check_feasibility(self.system)
         
         # if the solution is feasible, compute the corresponding cost 
@@ -750,6 +951,8 @@ class RandomGreedy(Algorithm):
             for j in range(self.system.FaaS_start_index):
                 if y_bar[j] > 0:
                     VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
+            print("solution is feasible \n")
+
         else:
             new_result = copy.deepcopy(result)
         self.logger.level -= 2
@@ -786,6 +989,7 @@ class RandomGreedy(Algorithm):
         self.logger.log("Starting Randomized Greedy procedure", 1)
         self.logger.level += 1
         for iteration in range(MaxIt):
+            print("start creat solution: "+str(time.time())+"\n")
             self.logger.log("#iter {}".format(iteration), 3)
             # perform a step
             result, new_result, random_param = self.step()
@@ -796,7 +1000,7 @@ class RandomGreedy(Algorithm):
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
-        
+            print("End of check feasibility: "+str(time.time())+"\n")
         self.logger.level -= 1
         random_params = [res_parts_random_list, VM_numbers_random_list, 
                          CL_res_random_list]    
@@ -929,10 +1133,7 @@ class TabuSearchSolid(TabuSearch,Algorithm):
     #   @param self The object pointer
     #   @return A list of solutions (neighbors)    
     def _neighborhood(self ):
-        #neighborhood=self.change_FaaS(self.current)
-        #neighborhood=self.change_resource_type(self.current)
-        #neighborhood=self.change_component_placement(self.current)
-        #neighborhood=[x.Y_hat for x in neigbors]
+        
         neighborhood=self.union_neighbors(self.current)
         return [x.solution for x in neighborhood]
     
@@ -950,6 +1151,7 @@ class TabuSearchSolid(TabuSearch,Algorithm):
     #   @return A solution
     def creat_initial_solution(self):
         # create a RandomGreedy object and run random gready method
+        self.start_time_RG=time.time()
         GA=RandomGreedy(self.system)
    
         best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
@@ -958,12 +1160,4 @@ class TabuSearchSolid(TabuSearch,Algorithm):
         #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
         return initial_solution
     
-    # ## Method to get the cost of solution
-    # #   @param self The object pointer
-    # #   @param state The current solution
-    # #   @return The cost of current solution
-    # def objective_function(self, solution):
-        
-    #     return solution.objective_function(self.system)*(-1)
-    
-    
+  
