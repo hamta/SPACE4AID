@@ -3,6 +3,7 @@ from copy import deepcopy
 from collections import deque
 from numpy import argmax
 import numpy as np
+import time
 
 
 class TabuSearch:
@@ -127,10 +128,12 @@ class TabuSearch:
         """
         best_sol_cost_list=[]
         current_solution_cost_list=[]
-             
+        time_list=[]
+        
         self._clear()
         best_sol_cost_list.append(-1*self._score(self.best))
         current_solution_cost_list.append(-1*self._score(self.current))
+        time_list.append(time.time())
         for i in range(self.max_steps):
             self.cur_steps += 1
 
@@ -143,10 +146,11 @@ class TabuSearch:
             while True:
                 best_sol_cost_list.append(-1*self._score(self.best))
                 current_solution_cost_list.append(-1*self._score(self.current))
+                time_list.append(time.time())
                 #  if all([x in self.tabu_list for x in neighborhood]):
                 if all([self.check_in_tabu_list(x) for x in neighborhood] ):
                     print("TERMINATING - NO SUITABLE NEIGHBORS")
-                    return self.best, self._score(self.best) , current_solution_cost_list, best_sol_cost_list
+                    return self.best, self._score(self.best) , current_solution_cost_list, best_sol_cost_list, time_list
                
                 if self.check_in_tabu_list(neighborhood_best):
                 # if neighborhood_best in self.tabu_list:
@@ -173,4 +177,5 @@ class TabuSearch:
                 print("TERMINATING - REACHED MAXIMUM SCORE")
                 return self.best, self._score(self.best)
         print("TERMINATING - REACHED MAXIMUM STEPS")
-        return self.best, self._score(self.best), current_solution_cost_list, best_sol_cost_list
+        
+        return self.best, self._score(self.best), current_solution_cost_list, best_sol_cost_list, time_list
