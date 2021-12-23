@@ -3,9 +3,6 @@ from classes.Solution import Configuration, Result, EliteResults
 import numpy as np
 import copy
 import sys
-from heurispy.framework import genera_lista_ejecuciones_heuristicas, inicia_exploracion_heuristica
-from heurispy.problema import Problema
-from heurispy.heuristicas.busqueda_tabu import BusquedaTabu
 import time
 from random import choice, randint, random
 from string import ascii_lowercase
@@ -1008,98 +1005,6 @@ class RandomGreedy(Algorithm):
         return best_result_no_update, elite, random_params
 
 
-
-## TabuSearch  
-#
-# Specialization of Algorithm      
-class TabuSearchHeurispy(Algorithm):
-    
-    ## TabuSearchHeurispy class constructor
-    #   @param self The object pointer
-    #   @param system A System.System object
-    #   @param seed A seed to generate random values
-    #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param log Object of Logger.Logger type
-    def __init__(self, system,seed,Max_It_RG, log = Logger()):
-        super().__init__(system, log)
-        self.seed=seed
-        self.Max_It_RG=Max_It_RG
-    
-    
-    ## Method to create initial solution for tabue search
-    #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        GA=RandomGreedy(self.system)
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-      
-        #self.initial_solution=elite.elite_results[0].solution
-       
-        return elite.elite_results[0].solution
-        #return self.creat_initial_solution_with_largest_conf_fun()
-        
-    ## Method to compute the objective function of a solution
-    #   @param self The object pointer
-    #   @param new_solution The solution to get the objective function
-    #   @return The value of objective function
-    def objective_function(self, new_solution):
-        
-        return new_solution.objective_function(self.system)
-        
-    ## Method to pick one of neighbors 
-    #   @param self The object pointer
-    #   @param solution The input solution 
-    #   @param method The method of choosing a neigbor 
-    #   @return One of neighbors
-    def get_one_neighbor(self, solution, method="best"):
-        neighbor=None
-        # compute the neigbors of the solution
-        # sorted_solution_list=self.change_FaaS(solution)
-        sorted_solution_list=self.change_resource_type(solution)
-        if len(sorted_solution_list)>0:
-            # if the method is best, pick the first item of sorted list
-            if method=="best":
-                # pick the best neighbor
-                neighbor=sorted_solution_list[0]
-            else:
-                # pick a neighbor randomly
-                idx=np.random.randint(0,len(sorted_solution_list))
-                neighbor=sorted_solution_list[idx]
-        else:
-             print("There is not any neighbors")
-             
-        return neighbor
-    
-    ## Method to run tabu search
-    #   @param self The object pointer
-    #   @param max_iterations The maximum iterations
-    #   @param memory_space A list of memory size for tabu 
-    #           tabu search will run for each number in the list separately
-    #   @param max_search_without_improvement A list of maximum search without improvement
-    #           tabu search will run for each number in the list separately
-    #   @param repetitions The number of repetitions for tabu search
-    #   @return (1): the best result found by tabu search
-    #           (2): the list of current solution cost in each iteration
-    #           (3): the list of best solution cost found by tabu search until now in each iteration
-    def main_tabu_search(self,max_iterations,memory_space,max_search_without_improvement,repetitions):
-       
-        # create an object of problem class
-        coloration_problem = Problema(dominio=self.creat_initial_solution,
-                                    funcion_objetivo=self.objective_function,
-                                    funcion_variacion_soluciones=self.get_one_neighbor)
-        # create an object of tabu search class
-        tabu_search = BusquedaTabu(coloration_problem, max_iteraciones=max_iterations)
-        # create a dictionary of hyper parameters needed for tabu search
-        tabu_search_parameters = dict(espacio_memoria=memory_space, max_busquedas_sin_mejora=max_search_without_improvement)
-        # create a list of executions that tabu search will run for each element of the list
-        executions_list = genera_lista_ejecuciones_heuristicas(tabu_search_parameters, repeticiones=repetitions)
-        # run tabu search and get the results
-        best_result, current_cost_list, best_cost_list=inicia_exploracion_heuristica(tabu_search, executions_list, nucleos_cpu=4)
-        
-        return best_result, current_cost_list, best_cost_list
-    
-    
 ## IteratedLocalSearch  
 #
 # Specialization of Algorithm      
