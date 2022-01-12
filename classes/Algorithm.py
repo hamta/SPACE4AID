@@ -4,11 +4,8 @@ import numpy as np
 import copy
 import sys
 import time
-from random import choice, randint, random
-from string import ascii_lowercase
 from Solid.Solid.TabuSearch import TabuSearch
-from copy import deepcopy
-import pdb
+
 
 ## Algorithm
 class Algorithm:
