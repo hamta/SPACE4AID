@@ -9,6 +9,8 @@ import numpy as np
 import multiprocessing as mpp
 from multiprocessing import Pool
 import functools
+import argparse
+
 
 
 ## Function to create a directory given its name (if the directory already 
@@ -77,14 +79,15 @@ def generate_output_json(Lambda, result, S, onFile = True):
 
 ## Function to create an instance of Algorithm class and run the random greedy 
 # method
-#   @param S An instance of System.System class including system description
 #   @param MaxIt_and_seed List whose n-th element stores a tuple with the 
 #                         number of iterations to be performed by the n-th 
 #                         cpu core and the seed it should use for random 
 #                         numbers generation
+#   @param S An instance of System.System class including system description
+#   @param logger Logger.Logger object
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(MaxIt_and_seed, S):
-    GA = RandomGreedy(S, log=Logger(verbose=2))
+def fun_greedy(MaxIt_and_seed, S, logger):
+    GA = RandomGreedy(S, log=logger)
     return GA.random_greedy(MaxIt_and_seed[1], MaxIt_and_seed[0], 2)
 
 
@@ -111,12 +114,24 @@ def get_iterations_and_seed(iteration, seed, cpuCore):
 
 ## Main function
 #   @param system_file Name of the file storing the system description
-#   @param iteration Number of iterations to be performed by the RandomGreedy
-#   @param seed Seed for random number generation
-#   @param start_lambda Left extremum of the interval Lambda belongs to
-#   @param end_lambda Right extremum of the interval Lambda belongs to
-#   @param step Lambda is generated in start_lambda:step:end_lambda
-def main(system_file, iteration, seed, start_lambda, end_lambda, step):
+#   @param config Dictionary of configuration parameters
+#   @param log_directory Directory for logging
+def main(system_file, config, log_directory):
+    
+    # initialize logger
+    logger = Logger(verbose=args.verbose)
+    if log_directory != "":
+        createFolder(log_directory)
+        log_file = open(os.path.join(log_directory, "LOG.log"), "a")
+        logger.stream = log_file
+    
+    # configuration parameters
+    method = config["Method"]
+    iteration = config["IterationNumber"]
+    seed = config["Seed"]
+    start_lambda = config["LambdaBound"]["start"]
+    end_lambda = config["LambdaBound"]["end"]
+    step = config["LambdaBound"]["step"]
     
     # load system description
     system_file = create_pure_json(system_file)
@@ -126,15 +141,29 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
     # loop over Lambdas
     for Lambda in np.arange(start_lambda, end_lambda, step):
         
+        # initialize logger for current lambda
+        separate_loggers = (logger.verbose > 0)
+        if separate_loggers:
+            logger_lambda = Logger(stream=logger.stream, 
+                                   verbose=logger.verbose,
+                                   level=logger.level)
+            if log_directory != "":
+                log_file_lambda = "LOG_" + str(Lambda) + ".log"
+                log_file_lambda = open(os.path.join(log_directory, 
+                                                    log_file_lambda), "a")
+                logger_lambda.stream = log_file_lambda
+        else:
+            logger_lambda = logger
+        
         # set the current Lambda in the system description
         json_object["Lambda"] = Lambda
         
         # initialize system
-        S = System(system_json=json_object)#, log=Logger(verbose=2))
+        S = System(system_json=json_object, log=logger_lambda)
         
         ################## Multiprocessing ###################
         cpuCore = int(mpp.cpu_count())
-        iterations_and_seeds = get_iterations_and_seed(iteration, seed, cpuCore)
+        iterations_and_seeds = get_iterations_and_seed(iteration,seed,cpuCore)
         
         if __name__ == '__main__':
             
@@ -142,10 +171,10 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
             
             with Pool(processes=cpuCore) as pool:
                 
-                partial_gp = functools.partial(fun_greedy, S=S)
+                partial_gp = functools.partial(fun_greedy, S=S, logger=logger)
                 
                 full_result = pool.map(partial_gp, iterations_and_seeds)
-            
+
             end = time.time()
             
             # get final list combining the results of all threads
@@ -158,18 +187,52 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
             
         # print result
         generate_output_json(Lambda, elite.elite_results[0], S)
-        print("Lambda: ", Lambda, " --> elapsed_time: ", tm1)
+        logger.log("Lambda: {} --> elapsed_time: {}".format(Lambda, tm1))
+        
+        if separate_loggers:
+            log_file_lambda.close()
+    
+    if log_directory != "":
+        log_file.close()
         
 
     
 if __name__ == '__main__':
     
-    system_file = sys.argv[1]
-    iteration = int(sys.argv[2])
-    start_lambda = float(sys.argv[3])
-    end_lambda = float(sys.argv[4])
-    step = float(sys.argv[5])
-    seed = int(sys.argv[6])
+    parser = argparse.ArgumentParser(description="SPACE4AI-D")
+
+    parser.add_argument("-s", "--system_file", 
+                        help="System configuration file")
+    parser.add_argument('-c', "--config", 
+                        help="Test configuration file", 
+                        default="ConfigFiles/Input_file.json")
+    parser.add_argument('-v', "--verbose", 
+                        help="Verbosity level", 
+                        type=int,
+                        default=0)
+    parser.add_argument('-l', "--log_directory", 
+                        help="Directory for logging", 
+                        default="")
+
+    args = parser.parse_args()
+    
+    # initialize error stream
+    error = Logger(stream = sys.stderr, verbose=1, error=True)
+    
+    # check if the system configuration file exists
+    if not os.path.exists(args.system_file):
+        error.log("{} does not exist".format(args.system_file))
+        sys.exit(1)
+    
+    # check if the test configuration file exists
+    if not os.path.exists(args.config):
+        error.log("{} does not exist".format(args.config))
+        sys.exit(1)
+    
+    # load data from the test configuration file
+    config = {}
+    with open(args.config, "r") as config_file:
+        config = json.load(config_file)
     
     # system_file = "ConfigFiles/Random_Greedy_Pacsltk.json"
     # system_file = "ConfigFiles/Random_Greedy.json"
@@ -180,6 +243,6 @@ if __name__ == '__main__':
     # seed = 2
     # Lambda = start_lambda
    
-    main(system_file, iteration, seed, start_lambda, end_lambda, step)
+    main(args.system_file, config, args.log_directory)
     
     

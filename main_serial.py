@@ -1,18 +1,25 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jul 21 18:42:23 2021
-
-@author: federicafilippini
-"""
-
 from classes.Logger import Logger
 from classes.System import System
 from classes.Algorithm import RandomGreedy
-import numpy as np
 import time
 import sys
+import os
 import json
+import numpy as np
+import functools
+import argparse
+
+
+
+## Function to create a directory given its name (if the directory already 
+# exists, nothing is done)
+#   @param directory Name of the directory to be created
+def createFolder (directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except OSError:
+        print ("Error: Creating directory. " +  directory)
 
 
 ## Function to create the pure json file from system description by removing 
@@ -43,7 +50,7 @@ def create_pure_json(main_json_file):
     filehandle.writelines(data)
     filehandle.close()
     
-    return pure_json  
+    return pure_json    
 
 
 ## Function to generate the output json file as the optimal placement for a 
@@ -70,23 +77,36 @@ def generate_output_json(Lambda, result, S, onFile = True):
 
 ## Function to create an instance of Algorithm class and run the random greedy 
 # method
-#   @param MaxIt Maximum number of RandomGreedy iterations
+#   @param MaxIt Maximum number of iterations
+#   @param seed Seed for random numbers generation
 #   @param S An instance of System.System class including system description
-#   @param seed Seed for random number generation
+#   @param logger Logger.Logger object
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(MaxIt, S, seed):
-    GA = RandomGreedy(S, log=Logger(verbose=2))
-    return GA.random_greedy(seed, MaxIt)
+def fun_greedy(MaxIt, seed, S, logger):
+    GA = RandomGreedy(S, log=logger)
+    return GA.random_greedy(seed, MaxIt, 2)
 
 
 ## Main function
 #   @param system_file Name of the file storing the system description
-#   @param iteration Number of iterations to be performed by the RandomGreedy
-#   @param seed Seed for random number generation
-#   @param start_lambda Left extremum of the interval Lambda belongs to
-#   @param end_lambda Right extremum of the interval Lambda belongs to
-#   @param step Lambda is generated in start_lambda:step:end_lambda
-def main(system_file, iteration, seed, start_lambda, end_lambda, step):
+#   @param config Dictionary of configuration parameters
+#   @param log_directory Directory for logging
+def main(system_file, config, log_directory):
+    
+    # initialize logger
+    logger = Logger(verbose=args.verbose)
+    if log_directory != "":
+        createFolder(log_directory)
+        log_file = open(os.path.join(log_directory, "LOG.log"), "a")
+        logger.stream = log_file
+    
+    # configuration parameters
+    method = config["Method"]
+    iteration = config["IterationNumber"]
+    seed = config["Seed"]
+    start_lambda = config["LambdaBound"]["start"]
+    end_lambda = config["LambdaBound"]["end"]
+    step = config["LambdaBound"]["step"]
     
     # load system description
     system_file = create_pure_json(system_file)
@@ -96,40 +116,95 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
     # loop over Lambdas
     for Lambda in np.arange(start_lambda, end_lambda, step):
         
+        # initialize logger for current lambda
+        separate_loggers = (logger.verbose > 0)
+        if separate_loggers:
+            logger_lambda = Logger(stream=logger.stream, 
+                                   verbose=logger.verbose,
+                                   level=logger.level)
+            if log_directory != "":
+                log_file_lambda = "LOG_" + str(Lambda) + ".log"
+                log_file_lambda = open(os.path.join(log_directory, 
+                                                    log_file_lambda), "a")
+                logger_lambda.stream = log_file_lambda
+        else:
+            logger_lambda = logger
+        
         # set the current Lambda in the system description
         json_object["Lambda"] = Lambda
         
         # initialize system
-        S = System(system_json=json_object, log=Logger(verbose=1))
+        S = System(system_json=json_object, log=logger_lambda)
         
-        # compute result
         start = time.time()
-        best_result_no_update, elite, _ = fun_greedy(iteration, S, seed)
+            
+        full_result = fun_greedy(iteration, seed, S, logger_lambda)
+
         end = time.time()
-        
+            
+        # get elite solutions
+        elite = full_result[1]
+                
         # compute elapsed time
         tm1 = end-start
-        
+            
         # print result
         generate_output_json(Lambda, elite.elite_results[0], S)
-        print("Lambda: ", Lambda, " --> elapsed_time: ", tm1)
+        logger.log("Lambda: {} --> elapsed_time: {}".format(Lambda, tm1))
+        
+        if separate_loggers:
+            log_file_lambda.close()
+    
+    if log_directory != "":
+        log_file.close()
         
 
-
+    
 if __name__ == '__main__':
     
-    system_file = sys.argv[1]
-    iteration = int(sys.argv[2])
-    start_lambda = float(sys.argv[3])
-    end_lambda= float(sys.argv[4])
-    step = float(sys.argv[5])
-    seed = int(sys.argv[6])
+    parser = argparse.ArgumentParser(description="SPACE4AI-D")
+
+    parser.add_argument("-s", "--system_file", 
+                        help="System configuration file")
+    parser.add_argument('-c', "--config", 
+                        help="Test configuration file", 
+                        default="ConfigFiles/Input_file.json")
+    parser.add_argument('-v', "--verbose", 
+                        help="Verbosity level", 
+                        type=int,
+                        default=0)
+    parser.add_argument('-l', "--log_directory", 
+                        help="Directory for logging", 
+                        default="")
+
+    args = parser.parse_args()
     
+    # initialize error stream
+    error = Logger(stream = sys.stderr, verbose=1, error=True)
+
+    # check if the system configuration file exists
+    if not os.path.exists(args.system_file):
+        error.log("{} does not exist".format(args.system_file))
+        sys.exit(1)
+    
+    # check if the test configuration file exists
+    if not os.path.exists(args.config):
+        error.log("{} does not exist".format(args.config))
+        sys.exit(1)
+    
+    # load data from the test configuration file
+    config = {}
+    with open(args.config, "r") as config_file:
+        config = json.load(config_file)
+    
+    # system_file = "ConfigFiles/Random_Greedy_Pacsltk.json"
     # system_file = "ConfigFiles/Random_Greedy.json"
     # iteration = 1000
-    # start_lambda = 0.15
+    # start_lambda = 0.14
     # end_lambda = 0.15
     # step = 0.01
     # seed = 2
+    # Lambda = start_lambda
+   
+    main(args.system_file, config, args.log_directory)
     
-    main(system_file, iteration, seed, start_lambda, end_lambda, step)
