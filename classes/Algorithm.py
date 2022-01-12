@@ -923,13 +923,14 @@ class RandomGreedy(Algorithm):
         self.logger.log("Generate random solution", 3)
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         result.solution = Configuration(y_hat, self.logger)
-        self.logger.log("Check feasibility", 3)
-        print("Start check feasibility: "+str(time.time())+"\n")
+        self.logger.log("Start check feasibility: {}".format(time.time()), 3)
         feasible = result.check_feasibility(self.system)
+        self.logger.log("End check feasibility: {}".format(time.time()), 3)
         
         # if the solution is feasible, compute the corresponding cost 
         # before and after updating the clusters size
         if feasible:
+            self.logger.log("Solution is feasible", 3)
             # compute cost
             self.logger.log("Compute cost", 3)
             result.objective_function(self.system)
@@ -945,7 +946,6 @@ class RandomGreedy(Algorithm):
             for j in range(self.system.FaaS_start_index):
                 if y_bar[j] > 0:
                     VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
-            print("solution is feasible \n")
 
         else:
             new_result = copy.deepcopy(result)
@@ -983,8 +983,7 @@ class RandomGreedy(Algorithm):
         self.logger.log("Starting Randomized Greedy procedure", 1)
         self.logger.level += 1
         for iteration in range(MaxIt):
-            print("start creat solution: "+str(time.time())+"\n")
-            self.logger.log("#iter {}".format(iteration), 3)
+            self.logger.log("#iter {}: {}".format(iteration, time.time()), 3)
             # perform a step
             result, new_result, random_param = self.step()
             # update the results and the lists of random parameters
@@ -994,7 +993,6 @@ class RandomGreedy(Algorithm):
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
-            print("End of check feasibility: "+str(time.time())+"\n")
         self.logger.level -= 1
         random_params = [res_parts_random_list, VM_numbers_random_list, 
                          CL_res_random_list]    
