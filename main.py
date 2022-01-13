@@ -12,7 +12,6 @@ import functools
 import argparse
 
 
-
 ## Function to create a directory given its name (if the directory already 
 # exists, nothing is done)
 #   @param directory Name of the directory to be created
@@ -87,7 +86,9 @@ def generate_output_json(Lambda, result, S, onFile = True):
 def fun_greedy(core_params, S, verbose):
     log_file = open(core_params[2], "a")
     GA = RandomGreedy(S, log=Logger(stream=log_file, verbose=verbose))
-    return GA.random_greedy(seed=core_params[1], MaxIt=core_params[0], K=2)
+    result = GA.random_greedy(seed=core_params[1], MaxIt=core_params[0], K=2)
+    log_file.close()
+    return result
 
 
 ## Function to get a list whose n-th element stores a tuple with the number 
@@ -126,7 +127,6 @@ def main(system_file, config, log_directory):
     # initialize logger
     logger = Logger(verbose=args.verbose)
     if log_directory != "":
-        createFolder(log_directory)
         log_file = open(os.path.join(log_directory, "LOG.log"), "a")
         logger.stream = log_file
     
@@ -231,6 +231,14 @@ if __name__ == '__main__':
     if not os.path.exists(args.config):
         error.log("{} does not exist".format(args.config))
         sys.exit(1)
+    
+    # check if the log directory exists and create it otherwise
+    if args.log_directory != "" and os.path.exists(args.log_directory):
+        print("Directory {} already exists. Terminating...".\
+              format(args.log_directory))
+        sys.exit(0)
+    else:
+        createFolder(args.log_directory)
     
     # load data from the test configuration file
     config = {}
