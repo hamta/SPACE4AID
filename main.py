@@ -79,16 +79,15 @@ def generate_output_json(Lambda, result, S, onFile = True):
 
 ## Function to create an instance of Algorithm class and run the random greedy 
 # method
-#   @param MaxIt_and_seed List whose n-th element stores a tuple with the 
-#                         number of iterations to be performed by the n-th 
-#                         cpu core and the seed it should use for random 
-#                         numbers generation
+#   @param core_params Tuple of parameters required by the current core: 
+#                      (number of iterations, seed, logger)
 #   @param S An instance of System.System class including system description
-#   @param logger Logger.Logger object
+#   @param verbose Verbosity level
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(MaxIt_and_seed, S, logger):
-    GA = RandomGreedy(S, log=logger)
-    return GA.random_greedy(MaxIt_and_seed[1], MaxIt_and_seed[0], 2)
+def fun_greedy(core_params, S, verbose):
+    log_file = open(core_params[2], "a")
+    GA = RandomGreedy(S, log=Logger(stream=log_file, verbose=verbose))
+    return GA.random_greedy(seed=core_params[1], MaxIt=core_params[0], K=2)
 
 
 ## Function to get a list whose n-th element stores a tuple with the number 
@@ -97,19 +96,25 @@ def fun_greedy(MaxIt_and_seed, S, logger):
 #   @param iteration Total number of iterations to be performed
 #   @param seed Seed for random number generation
 #   @param cpuCore Total number of cpu cores
-#   @return The list of iterations to be performed by each core and the 
-#           corresponding seed
-def get_iterations_and_seed(iteration, seed, cpuCore):
-    iterations_and_seeds = []
+#   @param logger Current logger
+#   @return The list of parameters required by each core (number of
+#           iterations, seed and logger)
+def get_core_params(iteration, seed, cpuCore, logger):
+    core_params = []
     local = int(iteration / cpuCore)
     remainder = iteration % cpuCore
     for r in range(cpuCore):
+        if cpuCore > 1 and logger.verbose > 0:
+            log_file = ".".join(logger.stream.name.split(".")[:-1])
+            log_file += "_" + str(r) + ".log"
+        else:
+            log_file = logger.stream.name
         r_seed = r * r * cpuCore * cpuCore * seed
         if r < remainder:
-            iterations_and_seeds.append((local + 1, r_seed))
+            core_params.append((local + 1, r_seed, log_file))
         else:
-            iterations_and_seeds.append((local, r_seed))
-    return iterations_and_seeds
+            core_params.append((local, r_seed, log_file))
+    return core_params
 
 
 ## Main function
@@ -142,16 +147,13 @@ def main(system_file, config, log_directory):
     for Lambda in np.arange(start_lambda, end_lambda, step):
         
         # initialize logger for current lambda
-        separate_loggers = (logger.verbose > 0)
+        separate_loggers = (logger.verbose > 0 and log_directory != "")
         if separate_loggers:
-            logger_lambda = Logger(stream=logger.stream, 
-                                   verbose=logger.verbose,
-                                   level=logger.level)
-            if log_directory != "":
-                log_file_lambda = "LOG_" + str(Lambda) + ".log"
-                log_file_lambda = open(os.path.join(log_directory, 
-                                                    log_file_lambda), "a")
-                logger_lambda.stream = log_file_lambda
+            log_file_lambda = "LOG_" + str(Lambda) + ".log"
+            log_file_lambda = os.path.join(log_directory, log_file_lambda)
+            log_file_lambda = open(log_file_lambda, "a")
+            logger_lambda = Logger(stream=log_file_lambda, 
+                                   verbose=logger.verbose)
         else:
             logger_lambda = logger
         
@@ -163,7 +165,7 @@ def main(system_file, config, log_directory):
         
         ################## Multiprocessing ###################
         cpuCore = int(mpp.cpu_count())
-        iterations_and_seeds = get_iterations_and_seed(iteration,seed,cpuCore)
+        core_params = get_core_params(iteration,seed,cpuCore,logger_lambda)
         
         if __name__ == '__main__':
             
@@ -171,9 +173,10 @@ def main(system_file, config, log_directory):
             
             with Pool(processes=cpuCore) as pool:
                 
-                partial_gp = functools.partial(fun_greedy, S=S, logger=logger)
+                partial_gp = functools.partial(fun_greedy, S=S, 
+                                               verbose=logger_lambda.verbose)
                 
-                full_result = pool.map(partial_gp, iterations_and_seeds)
+                full_result = pool.map(partial_gp, core_params)
 
             end = time.time()
             
