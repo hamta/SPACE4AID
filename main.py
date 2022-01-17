@@ -70,10 +70,7 @@ def generate_output_json(Lambda, result, S, onFile = True):
     else:
         output_json = ""
     
-    #stream = open("output.log", "a")
-    #result.solution.logger = Logger(stream, verbose=7)
     result.print_result(S, solution_file=output_json)
-    #stream.close()
 
 
 ## Function to create an instance of Algorithm class and run the random greedy 
@@ -84,10 +81,14 @@ def generate_output_json(Lambda, result, S, onFile = True):
 #   @param verbose Verbosity level
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
 def fun_greedy(core_params, S, verbose):
-    log_file = open(core_params[2], "a")
-    GA = RandomGreedy(S, log=Logger(stream=log_file, verbose=verbose))
+    core_logger = Logger(verbose=verbose)
+    if core_params[2] != "":
+        log_file = open(core_params[2], "a")
+        core_logger.stream = log_file
+    GA = RandomGreedy(S, log=core_logger)
     result = GA.random_greedy(seed=core_params[1], MaxIt=core_params[0], K=2)
-    log_file.close()
+    if core_params[2] != "":
+        log_file.close()
     return result
 
 
@@ -105,11 +106,14 @@ def get_core_params(iteration, seed, cpuCore, logger):
     local = int(iteration / cpuCore)
     remainder = iteration % cpuCore
     for r in range(cpuCore):
-        if cpuCore > 1 and logger.verbose > 0:
-            log_file = ".".join(logger.stream.name.split(".")[:-1])
-            log_file += "_" + str(r) + ".log"
+        if logger.stream != sys.stdout:
+            if cpuCore > 1 and logger.verbose > 0:
+                log_file = ".".join(logger.stream.name.split(".")[:-1])
+                log_file += "_" + str(r) + ".log"
+            else:
+                log_file = logger.stream.name
         else:
-            log_file = logger.stream.name
+            log_file = ""
         r_seed = r * r * cpuCore * cpuCore * seed
         if r < remainder:
             core_params.append((local + 1, r_seed, log_file))
@@ -233,12 +237,13 @@ if __name__ == '__main__':
         sys.exit(1)
     
     # check if the log directory exists and create it otherwise
-    if args.log_directory != "" and os.path.exists(args.log_directory):
-        print("Directory {} already exists. Terminating...".\
-              format(args.log_directory))
-        sys.exit(0)
-    else:
-        createFolder(args.log_directory)
+    if args.log_directory != "":
+        if os.path.exists(args.log_directory):
+            print("Directory {} already exists. Terminating...".\
+                  format(args.log_directory))
+            sys.exit(0)
+        else:
+            createFolder(args.log_directory)
     
     # load data from the test configuration file
     config = {}
