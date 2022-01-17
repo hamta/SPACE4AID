@@ -281,7 +281,7 @@ class SystemPerformanceEvaluator:
                 p = PM.predict(**features)
             else:
                 p = S.demand_matrix[c_idx][p_idx,r_idx]
-            self.logger.log("{} --> {}".format(h, p), 7)
+            self.logger.log("(h:{}, j:{}) --> {}".format(h, r_idx, p), 7)
             perf_evaluation += p
             # check that the response time is not negative
             if perf_evaluation < 0:

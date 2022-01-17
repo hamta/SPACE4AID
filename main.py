@@ -147,11 +147,12 @@ def main(system_file, config, log_directory):
     with open(system_file, "r") as a_file:
         json_object = json.load(a_file)
     
+    separate_loggers = (logger.verbose > 0 and log_directory != "")
+    
     # loop over Lambdas
     for Lambda in np.arange(start_lambda, end_lambda, step):
         
         # initialize logger for current lambda
-        separate_loggers = (logger.verbose > 0 and log_directory != "")
         if separate_loggers:
             log_file_lambda = "LOG_" + str(Lambda) + ".log"
             log_file_lambda = os.path.join(log_directory, log_file_lambda)
@@ -193,7 +194,10 @@ def main(system_file, config, log_directory):
             tm1 = end-start
             
         # print result
+        logger_lambda.log("Printing final result", 1)
+        elite.elite_results[0].solution.logger = logger_lambda
         generate_output_json(Lambda, elite.elite_results[0], S)
+        
         logger.log("Lambda: {} --> elapsed_time: {}".format(Lambda, tm1))
         
         if separate_loggers:

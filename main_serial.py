@@ -6,7 +6,6 @@ import sys
 import os
 import json
 import numpy as np
-import functools
 import argparse
 
 
@@ -113,11 +112,12 @@ def main(system_file, config, log_directory):
     with open(system_file, "r") as a_file:
         json_object = json.load(a_file)
     
+    separate_loggers = (logger.verbose > 0 and log_directory != "")
+    
     # loop over Lambdas
     for Lambda in np.arange(start_lambda, end_lambda, step):
         
         # initialize logger for current lambda
-        separate_loggers = (logger.verbose > 0)
         if separate_loggers:
             logger_lambda = Logger(stream=logger.stream, 
                                    verbose=logger.verbose,
@@ -149,7 +149,10 @@ def main(system_file, config, log_directory):
         tm1 = end-start
             
         # print result
+        logger_lambda.log("Printing final result", 1)
+        elite.elite_results[0].solution.logger = logger_lambda
         generate_output_json(Lambda, elite.elite_results[0], S)
+        
         logger.log("Lambda: {} --> elapsed_time: {}".format(Lambda, tm1))
         
         if separate_loggers:
@@ -191,6 +194,15 @@ if __name__ == '__main__':
     if not os.path.exists(args.config):
         error.log("{} does not exist".format(args.config))
         sys.exit(1)
+    
+    # check if the log directory exists and create it otherwise
+    if args.log_directory != "":
+        if os.path.exists(args.log_directory):
+            print("Directory {} already exists. Terminating...".\
+                  format(args.log_directory))
+            sys.exit(0)
+        else:
+            createFolder(args.log_directory)
     
     # load data from the test configuration file
     config = {}

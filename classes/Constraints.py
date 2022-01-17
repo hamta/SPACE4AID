@@ -61,7 +61,7 @@ class LocalConstraint(PerformanceConstraint):
         feasible = False
            
         # evaluate the performance of component
-        PE = SystemPerformanceEvaluator()
+        PE = SystemPerformanceEvaluator(solution.logger)
         perf_evaluation = PE.get_perf_evaluation(S, solution.Y_hat, 
                                                  self.component_idx)
         # check if the denumerator is equal to zero
