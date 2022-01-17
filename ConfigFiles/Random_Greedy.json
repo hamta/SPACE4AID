@@ -421,7 +421,7 @@
         },
         "F1": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.25,
           "demandCold": 0.3
         }
@@ -453,7 +453,7 @@
         },
         "F2": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.25,
           "demandCold": 0.3
         }
@@ -485,7 +485,7 @@
         },
         "F3": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.25,
           "demandCold": 0.3
         }
@@ -511,7 +511,7 @@
         },
         "F4": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -535,7 +535,7 @@
         },
         "F5": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -559,7 +559,7 @@
         },
         "F6": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -583,7 +583,7 @@
         },
         "F7": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -607,7 +607,7 @@
         },
         "F8": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -631,7 +631,7 @@
         },
         "F9": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.25,
           "demandCold": 2.7
         }
@@ -649,7 +649,7 @@
         },
         "F10": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.675,
           "demandCold": 0.945
         }
@@ -665,7 +665,7 @@
         },
         "F11": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.675,
           "demandCold": 0.945
         }
@@ -681,7 +681,7 @@
         },
         "F12": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 0.675,
           "demandCold": 0.945
         }
@@ -691,13 +691,13 @@
       "h1": {
         "F13": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 4,
           "demandCold": 4.8
         },
         "F14": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2.3,
           "demandCold": 2.76
         }
@@ -705,13 +705,13 @@
       "h2": {
         "F15": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2,
           "demandCold": 2.8
         },
         "F16": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 1.3,
           "demandCold": 2.76
         }
@@ -719,13 +719,13 @@
       "h3": {
         "F17": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 2,
           "demandCold": 2.8
         },
         "F18": {
           "model":  "MLLIBfaas",
-          "regressor_file": "a-MLlibrary/output_faas/LRRidge.pickle",
+          "regressor_file": "MLmodels/faas/LRRidge.pickle",
           "demandWarm": 1.3,
           "demandCold": 2.76
         }
