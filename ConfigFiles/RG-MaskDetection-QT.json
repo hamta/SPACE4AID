@@ -74,9 +74,8 @@
       "h1":
       {
         "RasPi": {
-          "model": "CoreBasedPredictor",
-          "demand": 225.75,
-          "regressor_file": "MLmodels/RPi_blurFaces/interpolation_noSFS_avg_DecisionTree.pickle"
+          "model": "QTedge",
+          "demand": 225.75
         }
       }
     },
@@ -85,9 +84,8 @@
       "h1":
       {
         "RasPi": {
-          "model": "CoreBasedPredictor",
-          "demand": 200,
-          "regressor_file": "MLmodels/RPi_blurFaces/interpolation_noSFS_avg_DecisionTree.pickle"
+          "model": "QTedge",
+          "demand": 200
         }, 
         "VM1": {
           "model": "QTcloud",
