@@ -279,6 +279,7 @@ class SystemPerformanceEvaluator:
                 features = PM.get_features(c_idx=c_idx, p_idx=p_idx,
                                            r_idx=r_idx, S=S, Y_hat=Y_hat)
                 p = PM.predict(**features)
+                self.logger.log("features: {}".format(features), 7)
             else:
                 p = S.demand_matrix[c_idx][p_idx,r_idx]
             self.logger.log("(h:{}, j:{}) --> {}".format(h, r_idx, p), 7)
