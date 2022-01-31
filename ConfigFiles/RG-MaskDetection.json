@@ -91,11 +91,11 @@
       {
         "RasPi": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/RPi_blurFaces/HoldOut_noSFS_avg_XGBoost.pickle"
+          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
         },
         "RasPiAcc": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
+          "regressor_file": "MLmodels/ReviewModels/RPiAcc.pickle"
         }
       }
     },
@@ -105,7 +105,7 @@
       {
         "RasPiAcc": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
+          "regressor_file": "MLmodels/ReviewModels/RPiAcc.pickle"
         }, 
         "VM1": {
           "model": "CoreBasedPredictor",
