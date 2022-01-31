@@ -34,9 +34,17 @@
     {
       "RasPi":
       {
-        "description": "Raspberry PIs 4 Model B  ",
-        "number":1,
+        "description": "Raspberry PIs 4 Model B",
+        "number": 1,
         "cost": 0.0375,
+        "memory":4096,
+        "n_cores": 4
+      },
+      "RasPiAcc":
+      {
+        "description": "Raspberry PIs 4 Model B - Accelerator",
+        "number": 1,
+        "cost": 0.04125,
         "memory":4096,
         "n_cores": 4
       }
@@ -48,9 +56,17 @@
     {
       "VM1":
       {
-        "description": "AWS g3s.xlarge", 
+        "description": "Inhouse VM Type 1", 
+        "number": 4,
+        "cost": 0.375,
+        "memory":4096,
+        "n_cores": 2
+      },
+      "VM2":
+      {
+        "description": "Inhouse VM Type 2", 
         "number": 1,
-        "cost": 0.75,
+        "cost": 0.675,
         "memory":8192,
         "n_cores": 4
       }
@@ -60,11 +76,11 @@
   {
     "c1":
     {
-      "h1": ["RasPi"]
+      "h1": ["RasPi", "RasPiAcc"]
     },
     "c2":
     {
-      "h1": ["RasPi","VM1"]
+      "h1": ["RasPiAcc","VM1","VM2"]
     }
   },
   "Performance":
@@ -75,8 +91,11 @@
       {
         "RasPi": {
           "model": "CoreBasedPredictor",
-          "demand": 225.75,
-          "regressor_file": "MLmodels/RPi_blurFaces/interpolation_noSFS_avg_DecisionTree.pickle"
+          "regressor_file": "MLmodels/RPi_blurFaces/HoldOut_noSFS_avg_XGBoost.pickle"
+        },
+        "RasPiAcc": {
+          "model": "CoreBasedPredictor",
+          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
         }
       }
     },
@@ -84,22 +103,23 @@
     {
       "h1":
       {
-        "RasPi": {
+        "RasPiAcc": {
           "model": "CoreBasedPredictor",
-          "demand": 200,
-          "regressor_file": "MLmodels/RPi_blurFaces/interpolation_noSFS_avg_DecisionTree.pickle"
+          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
         }, 
         "VM1": {
-          "model": "QTcloud",
-          "demand": 300
+          "model": "CoreBasedPredictor",
+          "regressor_file": "MLmodels/ReviewModels/VM1.pickle"
+        },
+        "VM2": {
+          "model": "CoreBasedPredictor",
+          "regressor_file": "MLmodels/ReviewModels/VM2.pickle"
         }
       }
     }
   },
-   "Lambda": 0.002,
-   "LocalConstraints":{ "c1":{ "local_res_time": 500}
-                      },
-   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":5000}
+   "Lambda": 0.00000002,
+   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":670}
                         },
    "NetworkTechnology":{ "ND2":{ "computationallayers":["computationallayer1","computationallayer2"], "AccessDelay":0.00000277, "Bandwidth":10000}
                         },
