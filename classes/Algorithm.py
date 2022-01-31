@@ -200,6 +200,8 @@ class Algorithm:
     #   @return The updated Solution.Result object
     def reduce_cluster_size(self, resource_idx, result):
         
+        self.logger.level += 1
+        
         # initialize the new result
         new_result = copy.deepcopy(result)
         
@@ -215,6 +217,10 @@ class Algorithm:
                 # update the current solution, always checking its feasibility
                 feasible = True
                 while feasible and y_bar[resource_idx].max() > 1:
+                    
+                    self.logger.log("y_bar[{}] = {}".\
+                                    format(resource_idx,y_bar[resource_idx].max()), 
+                                    7)
                     
                     # create a copy of the current Y_hat matrix
                     temp = copy.deepcopy(new_result.solution.Y_hat)
@@ -234,11 +240,13 @@ class Algorithm:
                     new_performance = new_solution.check_feasibility(self.system)
                     
                     # if so, update the result
-                    if new_performance[0]:
+                    feasible = new_performance[0]
+                    if feasible:
                         # update the current solution
                         new_result.solution = new_solution
                         new_result.performance = new_performance
                         y_bar = new_result.solution.get_y_bar()
+                        self.logger.log("feasible", 7)
         
         return new_result
     
