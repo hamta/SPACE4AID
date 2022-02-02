@@ -248,6 +248,8 @@ class Algorithm:
                         y_bar = new_result.solution.get_y_bar()
                         self.logger.log("feasible", 7)
         
+        self.logger.level -= 1
+        
         return new_result
     
     ## Method to get all partitions that can be run on FaaS
