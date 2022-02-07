@@ -30,55 +30,55 @@
                              }
                        }
                },
- "EdgeResources": {"computationallayer1":   {"Drone1": {"description":"DJI Mini 2 Without GPU ", "number": 1, "cost": 4.5454,  "memory": 100},
-                                             "Drone2": {"description":"DJI Mini 2 With a Tegra GPU ", "number": 1, "cost": 6.8181,  "memory": 200}
+ "EdgeResources": {"computationallayer1":   {"Drone1": {"description":"DJI Mini 2 Without GPU ", "number": 1, "cost": 4.5454,  "memory": 1000},
+                                             "Drone2": {"description":"DJI Mini 2 With a Tegra GPU ", "number": 1, "cost": 6.8181,  "memory": 2000}
                                              },
-                   "computationallayer2":   {"EN1": {"description":"Asus Zenbook 13 UX325EA", "number": 1, "cost": 4.5454,  "memory": 500},
-                                             "EN2":   {"description":"Microsoft Surface Studio 2 LAM-00005 ", "number": 1, "cost": 9.0909, "memory": 1000}
+                   "computationallayer2":   {"EN1": {"description":"Asus Zenbook 13 UX325EA", "number": 1, "cost": 4.5454,  "memory": 4000},
+                                             "EN2":   {"description":"Microsoft Surface Studio 2 LAM-00005 ", "number": 1, "cost": 9.0909, "memory": 8000}
                                              }
                  },
 
- "CloudResources": {"computationallayer3":  {"VM1": {"description":"AWS g3s.xlarge", "number": 3, "cost": 0.75, "memory": 500 },
-                                             "VM2": {"description":"AWS g3.4xlarge", "number": 4, "cost": 1.14, "memory": 1000 }
+ "CloudResources": {"computationallayer3":  {"VM1": {"description":"AWS g3s.xlarge", "number": 3, "cost": 0.75, "memory": 30000 },
+                                             "VM2": {"description":"AWS g3.4xlarge", "number": 4, "cost": 1.14, "memory": 122000 }
                                             }
                    },
 
   
-  "FaaSResources": {"computationallayer4":   {"F1":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 50, 
+  "FaaSResources": {"computationallayer4":   {"F1":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F2":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 50, 
+                                              "F2":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F3":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 50, 
+                                              "F3":    {"description":"AWS Lambda with 50 MB memory size","cost": 0.06003, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F4":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F4":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F5":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F5":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F6":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F6":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F7":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F7":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F8":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F8":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F9":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 200, 
+                                              "F9":    {"description":"AWS Lambda with 200 MB memory size", "cost": 0.54027, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F10":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 80, 
+                                              "F10":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F11":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 80, 
+                                              "F11":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F12":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 80, 
+                                              "F12":    {"description":"AWS Lambda with 80 MB memory size", "cost": 0.162081, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F13":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.96048, "memory": 300, 
+                                              "F13":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.96048, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F14":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.96048, "memory": 300, 
+                                              "F14":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.96048, "memory": 6000, 
                                                      "idle_time_before_kill": 600},
-                                              "F15":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F15":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.2, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F16":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F16":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.1, "memory": 6000, 
                                                      "idle_time_before_kill": 600},
-                                              "F17":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F17":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.4, "memory": 4000, 
                                                      "idle_time_before_kill": 600},
-                                              "F18":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F18":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.3, "memory": 6000, 
                                                      "idle_time_before_kill": 600}
                                             
                                             },
@@ -179,11 +179,11 @@
                   "c5": {"h1": {"F13": [4, 4.8],
                                 "F14": [2.3, 2.76]
                                 },
-                         "h2": {"F15": [2, 2.8],
-                                "F16": [1.3, 2.76]
+                         "h2": {"F15": [0.5, 1],
+                                "F16": [0.6, 1.5]
                                 },
-                         "h3": {"F17": [2, 2.8],
-                                "F18": [1.3, 2.76]
+                         "h3": {"F17": [1, 1.5],
+                                "F18": [1.3, 2]
                                 }
                         }
 
@@ -204,8 +204,8 @@
                     },                
 
 
-"NetworkTechnology":    {"ND1": { "computationallayers": ["computationallayer1", "computationallayer2"], "AccessDelay": 0.000277,  "Bandwidth": 150},
-                         "ND2": { "computationallayers": ["computationallayer1", "computationallayer2", "computationallayer3", "computationallayer4"] , "AccessDelay": 0.000277,  "Bandwidth": 20},
+"NetworkTechnology":    {"ND1": { "computationallayers": ["computationallayer1", "computationallayer2"], "AccessDelay": 0.0000277,  "Bandwidth": 150},
+                         "ND2": { "computationallayers": ["computationallayer1", "computationallayer2", "computationallayer3", "computationallayer4"] , "AccessDelay": 0.00000277,  "Bandwidth": 20},
                          "ND3": { "computationallayers": ["computationallayer3", "computationallayer4"], "AccessDelay": 0,  "Bandwidth": 1000000}
                         },
                     

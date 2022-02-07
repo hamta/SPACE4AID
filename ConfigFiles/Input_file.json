@@ -3,6 +3,6 @@
  "BandwidthScenario": {
                      "5G_4gb": {"bandwidth": 4000}
                      },
- "IterationNumber": 100
+ "IterationNumber": 1000
 }
 

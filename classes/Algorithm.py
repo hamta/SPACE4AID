@@ -28,11 +28,15 @@ class Algorithm:
     ## Algorithm class constructor: initializes the system
     #   @param self The object pointer
     #   @param system A System.System object
+    #   @param seed Seed for random number generation
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
+    def __init__(self, system, seed=2, log = Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1)
         self.system = system
+        self.seed = seed
+        # set seed for random number generation
+        np.random.seed(seed)
         
     
     ## Method to create the initial random solution
@@ -930,7 +934,7 @@ class RandomGreedy(Algorithm):
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
-        print("Start check feasibility: "+str(time.time())+"\n")
+        #print("Start check feasibility: "+str(time.time())+"\n")
         feasible = result.check_feasibility(self.system)
         
         # if the solution is feasible, compute the corresponding cost 
@@ -962,7 +966,6 @@ class RandomGreedy(Algorithm):
     
     ## Method to generate a random gready solution 
     #   @param self The object pointer
-    #   @param seed Seed for random number generation
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
     #   @param K Number of elite results to be saved (default: 1)
@@ -970,10 +973,8 @@ class RandomGreedy(Algorithm):
     #           (2) Solution.EliteResults object storing the given number of 
     #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, seed, MaxIt = 1, K = 1):
-              
-        # set seed for random number generation
-        np.random.seed(seed)
+    def random_greedy(self, MaxIt = 1, K = 1):
+        
         
         # initialize the elite set, the best result without cluster update 
         # and the lists of random parameters

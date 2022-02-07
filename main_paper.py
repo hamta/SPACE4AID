@@ -221,10 +221,11 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     Hyp=HyperOpt(S)
                     proc = mpp.current_process()
                     pid = proc.pid
-                    seed=seed*pid*pid
+                    seed=seed*pid
                     new_HyperOpt_minimum_cost, new_HyperOpt_best_solution =Hyp.random_hyperopt(seed,iteration_number)
                     HyperOpt_execution_time.append(time.time()-start)
                    
+                  
                     
                     start=time.time()
                     GA=RandomGreedy(S)
@@ -346,19 +347,20 @@ def main( temp_folder,config_folder,output_folder,seed):
 if __name__ == '__main__':
     
     
-    temp_folder=sys.argv[1]   # address of temp files' folder
-    config_folder=sys.argv[2]  # address of config folder
-    output_folder=sys.argv[3]   # address of output folder
-    seed=sys.argv[4]
+    # temp_folder=sys.argv[1]   # address of temp files' folder
+    # config_folder=sys.argv[2]  # address of config folder
+    # output_folder=sys.argv[3]   # address of output folder
+    # seed=sys.argv[4]
     
-    # temp_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Temp_files"
-    # config_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/ConfigFiles"
-    # # # output_folder2="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files-5000Iterations"
-    # #output_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files"
-    # # output_folder1="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files"
-    # output_folder2="/Users/hamtasedghani/Desktop/USB/Output_Files-5000Iterations/Newoutput-without createValTime"
-    # output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
-    # output_folder=[output_folder1,output_folder2]
-    # seed=2
+    
+    temp_folder="/Users/hamtasedghani/space4ai-d/Temp_files"
+    config_folder="/Users/hamtasedghani/space4ai-d/ConfigFiles"
+    # # output_folder2="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files-5000Iterations"
+    #output_folder="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files"
+    # output_folder1="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files"
+    output_folder2="/Users/hamtasedghani/Desktop/USB/Output_Files-5000Iterations/Newoutput-without createValTime"
+    output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
+    output_folder=[output_folder1,output_folder2]
+    seed=2
     main( temp_folder,config_folder,output_folder,seed)
     

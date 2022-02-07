@@ -224,13 +224,13 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     proc = mpp.current_process()
                     pid = proc.pid
                     seed=seed*pid
-                    iteration_number_RG=10
+                    iteration_number_RG=1000
                     max_iterations=100
                     GA=RandomGreedy(S)
                     random_greedy_result=GA.random_greedy(seed, MaxIt=iteration_number_RG)
-                    initial_solution=random_greedy_result[1].elite_results[0].solution
-                    initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
-                   
+                    # initial_solution=random_greedy_result[1].elite_results[0].solution
+                    # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
+                    pdb.set_trace()
                     # 
                     #x=GA.change_component_placement(initial_solution)
                     # y=GA.get_partitions_with_j(initial_solution,x[0])
@@ -239,9 +239,16 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     method="random"
                     tabu_memory=500
                     #pdb.set_trace()
+                    start=time.time()
                     TS_Solid= TabuSearchSolid(seed,iteration_number_RG,tabu_memory, max_iterations, min_score=None,system=S)
-                    best_solution_Solid, best_cost_solid,current_cost_list,best_cost_list=TS_Solid.run(method=method)
+                    random_gready_time=time.time()-start
+                    best_solution_Solid, best_cost_solid,current_cost_list,best_cost_list, time_list=TS_Solid.run(method=method)
+                    time_list = [x - start for x in time_list]
+                    time_list.insert(0, 0)
+                    best_cost_list.insert(0,best_cost_list[0])
+                    current_cost_list.insert(0,current_cost_list[0])
                     
+                        
                   
                     
                     # TS_Heurispy=TabuSearchHeurispy(S,seed,iteration_number_RG)
@@ -267,6 +274,18 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     plt.ylabel("Cost", fontsize=10)
                     plt.legend()
                     plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    plt.show()
+                    
+                    
+                    plt.plot(time_list,current_cost_list,label="Current cost" )
+                    plt.plot(time_list,best_cost_list,label="Best cost" )
+                    plt.xlabel("Time (s)", fontsize=10)
+                    plt.ylabel("Cost ($)", fontsize=10)
+                    
+                    plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    #plt.plot(time_list[0],label="Random Gready finished" )
+                    plt.axvline(x=random_gready_time,color='k', linestyle='--', label="Random Gready finished")
+                    plt.legend()
                     plt.show()
                     print("best cost: ", best_cost_list[-1])
                     print("Running time Tabu search with worst initial solution:",time.time()-start)
@@ -363,6 +382,8 @@ if __name__ == '__main__':
     output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
     output_folder=[output_folder1,output_folder2]
     seed=2
-    json_file="system_description_for_tabu"
+    #json_file="system_description_for_tabu"
+    #json_file="RandomGreedy"
+    json_file="system_description1"
     main( temp_folder,config_folder,output_folder,seed,json_file)
     
