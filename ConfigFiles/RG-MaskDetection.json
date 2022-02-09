@@ -35,15 +35,15 @@
       "RasPi":
       {
         "description": "Raspberry PIs 4 Model B",
-        "number": 1,
+        "number": 3,
         "cost": 0.0375,
         "memory":4096,
         "n_cores": 4
       },
       "RasPi_NeuralStick":
       {
-        "description": "Raspberry PIs 4 Model B - Accelerator",
-        "number": 1,
+        "description": "Raspberry PIs 4 Model B - Neural Stick",
+        "number": 3,
         "cost": 0.04125,
         "memory":4096,
         "n_cores": 4
@@ -60,12 +60,12 @@
         "number": 4,
         "cost": 0.375,
         "memory":4096,
-        "n_cores": 2
+        "n_cores": 4
       },
       "VM2":
       {
         "description": "Inhouse VM Type 2", 
-        "number": 1,
+        "number": 4,
         "cost": 0.675,
         "memory":8192,
         "n_cores": 4
@@ -91,11 +91,11 @@
       {
         "RasPi": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/RPi.pickle"
+          "regressor_file": "MLmodels/ReviewModels/blur_RPi.pickle"
         },
         "RasPi_NeuralStick": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/RPiAcc1.pickle"
+          "regressor_file": "MLmodels/ReviewModels/blur_RPiNS.pickle"
         }
       }
     },
@@ -105,21 +105,21 @@
       {
         "RasPi_NeuralStick": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/RPiAcc2.pickle"
+          "regressor_file": "MLmodels/ReviewModels/mask_RPiNS.pickle"
         }, 
         "VM1": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/VM1.pickle"
+          "regressor_file": "MLmodels/ReviewModels/mask_VM1.pickle"
         },
         "VM2": {
           "model": "CoreBasedPredictor",
-          "regressor_file": "MLmodels/ReviewModels/VM2.pickle"
+          "regressor_file": "MLmodels/ReviewModels/mask_VM2.pickle"
         }
       }
     }
   },
    "Lambda": 0.00000002,
-   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":530}
+   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":110}
                         },
    "NetworkTechnology":{ "ND2":{ "computationallayers":["computationallayer1","computationallayer2"], "AccessDelay":0.00000277, "Bandwidth":10000}
                         },
