@@ -72,13 +72,13 @@
                                                      "idle_time_before_kill": 600},
                                               "F14":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.96048, "memory": 300, 
                                                      "idle_time_before_kill": 600},
-                                              "F15":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F15":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.2, "memory": 500, 
                                                      "idle_time_before_kill": 600},
-                                              "F16":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F16":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.1, "memory": 400, 
                                                      "idle_time_before_kill": 600},
-                                              "F17":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F17":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.4, "memory": 500, 
                                                      "idle_time_before_kill": 600},
-                                              "F18":    {"description":"AWS Lambda with 300 MB memory size", "cost": 0.828, "memory": 300, 
+                                              "F18":    {"description":"AWS Lambda with 300 MB memory size", "cost": 1.3, "memory": 400, 
                                                      "idle_time_before_kill": 600}
                                             
                                             },
@@ -179,11 +179,11 @@
                   "c5": {"h1": {"F13": [4, 4.8],
                                 "F14": [2.3, 2.76]
                                 },
-                         "h2": {"F15": [2, 2.8],
-                                "F16": [1.3, 2.76]
+                         "h2": {"F15": [0.5, 1],
+                                "F16": [0.6, 1.5]
                                 },
-                         "h3": {"F17": [2, 2.8],
-                                "F18": [1.3, 2.76]
+                         "h3": {"F17": [1, 1.5],
+                                "F18": [1.3, 2]
                                 }
                         }
 
@@ -204,8 +204,8 @@
                     },                
 
 
-"NetworkTechnology":    {"ND1": { "computationallayers": ["computationallayer1", "computationallayer2"], "AccessDelay": 0.000277,  "Bandwidth": 150},
-                         "ND2": { "computationallayers": ["computationallayer1", "computationallayer2", "computationallayer3", "computationallayer4"] , "AccessDelay": 0.000277,  "Bandwidth": 20},
+"NetworkTechnology":    {"ND1": { "computationallayers": ["computationallayer1", "computationallayer2"], "AccessDelay": 0.00000277,  "Bandwidth": 150},
+                         "ND2": { "computationallayers": ["computationallayer1", "computationallayer2", "computationallayer3", "computationallayer4"] , "AccessDelay": 0.00000277,  "Bandwidth": 20},
                          "ND3": { "computationallayers": ["computationallayer3", "computationallayer4"], "AccessDelay": 0,  "Bandwidth": 1000000}
                         },
                     

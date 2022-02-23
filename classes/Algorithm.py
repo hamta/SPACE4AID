@@ -7,6 +7,7 @@ import time
 from random import choice, randint, random
 from string import ascii_lowercase
 from Solid.Solid.TabuSearch import TabuSearch
+from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
 from copy import deepcopy
 import pdb
 
@@ -25,11 +26,15 @@ class Algorithm:
     ## Algorithm class constructor: initializes the system
     #   @param self The object pointer
     #   @param system A System.System object
+    #   @param seed Seed for random number generation
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
+    def __init__(self, system, seed, log = Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1)
         self.system = system
+        self.seed = seed
+        # set seed for random number generation
+        np.random.seed(seed)
         
     
     ## Method to create the initial random solution
@@ -508,8 +513,12 @@ class Algorithm:
         selected_node=len(nodes_sorted_list)
         i=1
         while len(neighbors)<1 and i<=len(nodes_sorted_list):
+            
             # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
+            if nodes_sorted_list[selected_node][1]<=0:
+                i+=1
+                continue
             idx_source_node=nodes_sorted_list[selected_node][0]
             
             # get all partitions located in higest utilization node
@@ -548,7 +557,7 @@ class Algorithm:
                                # create new solution by new assignment
                                 new_temp_solution=Configuration(new_temp_Y_hat)
                                 # check feasibility
-                                
+                               
                                 performance=new_temp_solution.check_feasibility(self.system)
                                 
                                 if performance[0]:
@@ -584,7 +593,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_to_FaaS(self, solution, sorting_method=0):
-        #pdb.set_trace()
+        
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -772,6 +781,7 @@ class Algorithm:
         # get the neighbors by changing FaaS configuration
         neighborhood1=self.change_FaaS(solution)
         # get the neighbors by changing resource type
+        
         neighborhood2=self.change_resource_type(solution)
         # get the neigbors by changing component placement
         neighborhood3=self.change_component_placement(solution)
@@ -885,11 +895,6 @@ class Algorithm:
         return new_solution
         
         
-            
-                    
-                
-                
-
 ## RandomGreedy
 #
 # Specialization of Algorithm that constructs the optimal solution through a 
@@ -900,8 +905,8 @@ class RandomGreedy(Algorithm):
     #   @param self The object pointer
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
-        super().__init__(system, log)
+    def __init__(self, system, seed, log = Logger()):
+        super().__init__(system,seed, log)
     
     
     ## Single step of the randomized greedy algorithm: it randomly generates 
@@ -927,7 +932,7 @@ class RandomGreedy(Algorithm):
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Check feasibility", 3)
-        print("Start check feasibility: "+str(time.time())+"\n")
+        #print("Start check feasibility: "+str(time.time())+"\n")
         feasible = result.check_feasibility(self.system)
         
         # if the solution is feasible, compute the corresponding cost 
@@ -959,7 +964,6 @@ class RandomGreedy(Algorithm):
     
     ## Method to generate a random gready solution 
     #   @param self The object pointer
-    #   @param seed Seed for random number generation
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
     #   @param K Number of elite results to be saved (default: 1)
@@ -967,10 +971,8 @@ class RandomGreedy(Algorithm):
     #           (2) Solution.EliteResults object storing the given number of 
     #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, seed, MaxIt = 1, K = 1):
-              
-        # set seed for random number generation
-        np.random.seed(seed)
+    def random_greedy(self, MaxIt = 1, K = 1):
+        
         
         # initialize the elite set, the best result without cluster update 
         # and the lists of random parameters
@@ -1013,11 +1015,10 @@ class IteratedLocalSearch(Algorithm):
     pass
 
 
-
-class TabuSearchSolid(TabuSearch,Algorithm):
-    """
-    Tries to get a randomly-generated string to match string "clout"
-    """
+## TabuSearch  
+#
+class Tabu_Search(TabuSearch,RandomGreedy):
+    
     ## TabuSearchSolid class constructor
     #   @param self The object pointer
     #   @param seed A seed to generate random values
@@ -1026,12 +1027,13 @@ class TabuSearchSolid(TabuSearch,Algorithm):
     #   @param min_score Minimum cost
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self,seed,Max_It_RG, tabu_size, max_steps, min_score, system, log = Logger()):
-        self.seed=seed
+    def __init__(self,Max_It_RG,seed, tabu_size, max_steps, min_score, system, log = Logger()):
+        
         self.Max_It_RG=Max_It_RG
-        Algorithm.__init__(self,system, log)
+        RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        initial_state=self.creat_initial_solution()
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
         TabuSearch.__init__(self,initial_state, tabu_size, max_steps, min_score)
        
     ## Method to get a list of neigbors
@@ -1051,18 +1053,46 @@ class TabuSearchSolid(TabuSearch,Algorithm):
         return solution.objective_function(self.system)*(-1)
     
     
-    ## Method to create initial solution for tabue search
-    #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        self.start_time_RG=time.time()
-        GA=RandomGreedy(self.system)
-   
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-        initial_solution=elite.elite_results[0].solution
-       
-        #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
-        return initial_solution
-    
   
+    
+    
+## Simulated Annealing
+
+class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
+     ## SimulatedAnnealingSolid class constructor
+    #   @param self The object pointer
+    #   @param seed A seed to generate random values
+    #   @param Max_It_RG Maximum iterations of random greedy
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param system A System.System object
+    #   @param log Object of Logger.Logger type
+    def __init__(self,Max_It_RG,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+        
+        self.Max_It_RG=Max_It_RG
+        RandomGreedy.__init__(self,system,seed, log)
+        # compute initial solution
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
+        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+        
+     ## Method to get a list of neigbors
+    #   @param self The object pointer
+    #   @return A list of solutions (neighbors)    
+    def _neighbor(self ):
+        
+        neighborhood=self.union_neighbors(self.current_state)
+        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+        return x.solution
+    
+    ## Method to get the cost of current solution
+    #   @param self The object pointer
+    #   @param solution The current solution
+    #   @return The cost of current solution
+    def _energy(self, solution):
+       
+        return solution.objective_function(self.system)
+    
+    
+    
+    
