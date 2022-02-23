@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 from math import exp
 from random import random
+import time
 
 
 class SimulatedAnnealing:
@@ -136,13 +137,17 @@ class SimulatedAnnealing:
         :param verbose: indicates whether or not to print progress regularly
         :return: best state and best energy
         """
+        best_sol_cost_list=[]
+        current_solution_cost_list=[]
+        time_list=[]
         self._clear()
+       
         self.current_state = self.initial_state
         self.current_temp = self.start_temp
         self.best_energy = self._energy(self.current_state)
         for i in range(self.max_steps):
             self.cur_steps += 1
-
+           
             if verbose and ((i + 1) % 100 == 0):
                 print(self)
 
@@ -156,6 +161,10 @@ class SimulatedAnnealing:
                 self.best_energy = self.current_energy
                 self.best_state = deepcopy(self.current_state)
 
+            best_sol_cost_list.append(self.best_energy)
+            current_solution_cost_list.append(self.current_energy)
+            time_list.append(time.time())
+
             if self.min_energy is not None and self.current_energy < self.min_energy:
                 print("TERMINATING - REACHED MINIMUM ENERGY")
                 return self.best_state, self.best_energy
@@ -163,6 +172,6 @@ class SimulatedAnnealing:
             self.adjust_temp()
             if self.current_temp < 0.000001:
                 print("TERMINATING - REACHED TEMPERATURE OF 0")
-                return self.best_state, self.best_energy
+                return self.best_state, self.best_energy, current_solution_cost_list, best_sol_cost_list, time_list
         print("TERMINATING - REACHED MAXIMUM STEPS")
-        return self.best_state, self.best_energy
+        return self.best_state, self.best_energy, current_solution_cost_list, best_sol_cost_list, time_list

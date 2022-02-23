@@ -4,6 +4,7 @@ from collections import deque
 from numpy import argmax
 import numpy as np
 import time
+import pdb
 
 
 class TabuSearch:
@@ -129,7 +130,7 @@ class TabuSearch:
         best_sol_cost_list=[]
         current_solution_cost_list=[]
         time_list=[]
-        
+       
         self._clear()
         best_sol_cost_list.append(-1*self._score(self.best))
         current_solution_cost_list.append(-1*self._score(self.current))
@@ -141,6 +142,8 @@ class TabuSearch:
                 print(self)
 
             neighborhood = self._neighborhood()
+            if len(neighborhood)<1:
+                break
             neighborhood_best = self._best(neighborhood,method)
             
             while True:

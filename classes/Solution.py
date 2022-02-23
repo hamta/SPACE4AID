@@ -506,6 +506,9 @@ class Result:
         else:
             sfile = open(solution_file, "w") if solution_file else sys.stdout
             print("Unfeasible solution", file=sfile)
+            if sfile != sys.stdout:
+                sfile.close()
+
 
 
 

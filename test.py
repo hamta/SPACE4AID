@@ -1,5 +1,5 @@
 from classes.System import System
-from classes.Algorithm import  RandomGreedy, TabuSearchHeurispy, TabuSearchSolid
+from classes.Algorithm import  RandomGreedy, Tabu_Search, Simulated_Annealing
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -178,26 +178,12 @@ def draw_plots(output_folder_list,bandwidth_scenarios, descriptions):
 #   @param Lambdas A list of incoming workload rate
 #   @param descriptions A list of methods   
 #   @param seed Seed for random number generation  
-def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number, 
+def TabuSearch_run(bandwidth_scenarios, iteration_number, 
                         temp_folder,output_folder, Lambda_list, descriptions, seed):
     
     for file_name in descriptions:   
         for bandwidth_scenario in bandwidth_scenarios: 
-              
-              Lambdas=[]
-              RandomGreedy_best_costs=[]
-              mixed_best_costs=[]
-              HyperOpt_best_costs=[]
-            
-              RandomGreedy_best_solutions=[]
-              mixed_best_solutions=[]
-              HyperOpt_best_solutions=[]
-              
-              
-              RandomGreedy_execution_time=[]
-              mixed_execution_time=[]
-              HyperOpt_execution_time=[]
-             
+          
               round_num=3
               Lambda_list=[0.1]
               for Lambda in Lambda_list:
@@ -224,10 +210,131 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     proc = mpp.current_process()
                     pid = proc.pid
                     seed=seed*pid
-                    iteration_number_RG=1000
+                    seed=2
+                    iteration_number_RG=10
                     max_iterations=100
-                    GA=RandomGreedy(S)
-                    random_greedy_result=GA.random_greedy(seed, MaxIt=iteration_number_RG)
+                   # GA=RandomGreedy(S,2)
+                    #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
+                    # initial_solution=random_greedy_result[1].elite_results[0].solution
+                    # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
+                    pdb.set_trace()
+                    # 
+                    #x=GA.change_component_placement(initial_solution)
+                    # y=GA.get_partitions_with_j(initial_solution,x[0])
+                    
+                    
+                    method="best"
+                    tabu_memory=500
+                    #pdb.set_trace()
+                    start=time.time()
+                    TS_Solid= Tabu_Search(iteration_number_RG,seed,tabu_memory, max_iterations, min_score=None,system=S)
+                    random_gready_time=time.time()-start
+                    best_solution_Solid, best_cost_solid,current_cost_list,best_cost_list, time_list=TS_Solid.run(method=method)
+                    time_list = [x - start for x in time_list]
+                    time_list.insert(0, 0)
+                    best_cost_list.insert(0,best_cost_list[0])
+                    current_cost_list.insert(0,current_cost_list[0])
+                    
+                        
+                  
+                    
+                    # TS_Heurispy=TabuSearchHeurispy(S,seed,iteration_number_RG)
+                    # memory_space=[50]
+                    # max_search_without_improvement=[10]
+                    # repetitions=1
+                    # best_result_Heurispy,current_cost_list,best_cost_list=TS_Heurispy.main_tabu_search(max_iterations,memory_space,max_search_without_improvement,repetitions)
+                    # best_solution_tabu=best_result_Heurispy["mejor_solucion"].Y_hat
+                    # best_cost_tabu=best_result_Heurispy["f_mejor_solucion"]
+                    
+                    
+                    
+                    it_list=[]
+                    for i in range(len(current_cost_list)):
+                        it_list.append(i)
+                    
+                    #best_cost_list.append(best_cost_tabu)
+                    #it_list.append(it+1)
+                    
+                    plt.plot(it_list,current_cost_list,label="Current cost" )
+                    plt.plot(it_list,best_cost_list,label="Best cost" )
+                    plt.xlabel("Max iterations", fontsize=10)
+                    plt.ylabel("Cost", fontsize=10)
+                    plt.legend()
+                    plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    plt.show()
+                    
+                    
+                    plt.plot(time_list,current_cost_list,label="Current cost" )
+                    plt.plot(time_list,best_cost_list,label="Best cost" )
+                    plt.xlabel("Time (s)", fontsize=10)
+                    plt.ylabel("Cost ($)", fontsize=10)
+                    
+                    plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    #plt.plot(time_list[0],label="Random Gready finished" )
+                    plt.axvline(x=random_gready_time,color='k', linestyle='--', label="Random Gready finished")
+                    plt.legend()
+                    plt.show()
+                    print("best cost: ", best_cost_list[-1])
+                    print("Running time Tabu search with worst initial solution:",time.time()-start)
+                    # GA=RandomGreedy(S)
+                    #pdb.set_trace()
+                    # random_greedy_result=GA.random_greedy(seed, MaxIt=iteration_number)
+                    # TS=TabuSearch(S)
+                    # x=TS.change_FaaS(random_greedy_result[1].elite_results[0].solution)
+                    # new_RandomGreedy_minimum_cost=random_greedy_result[2][1]
+                    # new_RandomGreedy_best_solution=random_greedy_result[2][0]
+                    # primary_best_solution=random_greedy_result[1][0]
+                   
+                    # RandomGreedy_solutions=random_greedy_result[0]
+                    # res_parts_random_list, VM_numbers_random_list, CL_res_random_list =random_greedy_result[3]
+                    # RandomGreedy_execution_time.append(time.time()-start)
+                   
+                    # print("\n RandomGreedy_minimum_cost="+str(new_RandomGreedy_minimum_cost)+"\n")
+                   
+                    # #vals_list=Hyp.creat_trials_by_RandomGreedy(RandomGreedy_solutions, res_parts_random_list, VM_numbers_random_list, CL_res_random_list)
+                    # start=time.time()
+                    # #new_mixed_minimum_cost, new_mixed_best_solution =Hyp.random_hyperopt(seed,iteration_number, vals_list)
+                    # mixed_execution_time.append(time.time()-start)
+                   
+                    # Lambdas.append(Lambda)
+                    
+def SimulatedAnealing_run(bandwidth_scenarios, iteration_number, 
+                        temp_folder,output_folder, Lambda_list, descriptions, seed):
+    
+    for file_name in descriptions:   
+        for bandwidth_scenario in bandwidth_scenarios: 
+          
+              round_num=3
+              Lambda_list=[0.1]
+              for Lambda in Lambda_list:
+                    print("\n Lambda="+str(Lambda)+"\n")
+                   
+                  
+                       
+                    system_file=temp_folder + "/"+file_name + bandwidth_scenario[0]+str(round(Lambda,round_num)) + ".json"
+                    a_file = open(system_file, "r")
+                    
+                    json_object = json.load(a_file)
+                    a_file.close()
+                    json_object["Lambda"] = Lambda
+                    
+                   
+                    a_file = open(system_file, "w")
+                    json.dump(json_object, a_file, indent=4)
+                    
+                    
+                    a_file.close()
+                    S = System(system_file)
+                  
+                    start=time.time()
+                    proc = mpp.current_process()
+                    pid = proc.pid
+                    seed=seed*pid
+                    seed=2
+                    iteration_number_RG=10
+                    max_iterations=100
+                   # GA=RandomGreedy(S,2)
+                    #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
                     # initial_solution=random_greedy_result[1].elite_results[0].solution
                     # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
                     pdb.set_trace()
@@ -240,9 +347,11 @@ def mixed_RandomGreedy_HyperOpt(bandwidth_scenarios, iteration_number,
                     tabu_memory=500
                     #pdb.set_trace()
                     start=time.time()
-                    TS_Solid= TabuSearchSolid(seed,iteration_number_RG,tabu_memory, max_iterations, min_score=None,system=S)
+                    #TS_Solid= Tabu_Search(iteration_number_RG,seed,tabu_memory, max_iterations, min_score=None,system=S)
+                    SA=Simulated_Annealing(iteration_number_RG,seed, 5, .99, max_iterations, min_energy=None, schedule='exponential', system=S)
                     random_gready_time=time.time()-start
-                    best_solution_Solid, best_cost_solid,current_cost_list,best_cost_list, time_list=TS_Solid.run(method=method)
+                    best_solution_Solid, best_cost_solid,current_cost_list,best_cost_list, time_list=SA.run()
+                    
                     time_list = [x - start for x in time_list]
                     time_list.insert(0, 0)
                     best_cost_list.insert(0,best_cost_list[0])
@@ -360,8 +469,8 @@ def main( temp_folder,config_folder,output_folder,seed,json_file):
     descriptions=[json_file]
     generate_json_files (Lambdas,config_folder, temp_folder, bandwidth_scenarios, descriptions) 
     
-    mixed_RandomGreedy_HyperOpt( bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed)
-      
+    TabuSearch_run( bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed)
+    #SimulatedAnealing_run(bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed) 
     #draw_plots(output_folder,bandwidth_scenarios, descriptions)
       
 if __name__ == '__main__':
@@ -382,8 +491,8 @@ if __name__ == '__main__':
     output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
     output_folder=[output_folder1,output_folder2]
     seed=2
-    #json_file="system_description_for_tabu"
+    json_file="system_description_for_tabu"
     #json_file="RandomGreedy"
-    json_file="system_description1"
+    #json_file="system_description1"
     main( temp_folder,config_folder,output_folder,seed,json_file)
     

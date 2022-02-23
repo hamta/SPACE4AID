@@ -10,6 +10,7 @@ import time
 from random import choice, randint, random
 from string import ascii_lowercase
 from Solid.Solid.TabuSearch import TabuSearch
+from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
 from copy import deepcopy
 import pdb
 
@@ -30,7 +31,7 @@ class Algorithm:
     #   @param system A System.System object
     #   @param seed Seed for random number generation
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, seed=2, log = Logger()):
+    def __init__(self, system, seed, log = Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1)
         self.system = system
@@ -515,8 +516,12 @@ class Algorithm:
         selected_node=len(nodes_sorted_list)
         i=1
         while len(neighbors)<1 and i<=len(nodes_sorted_list):
+            
             # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
+            if nodes_sorted_list[selected_node][1]<=0:
+                i+=1
+                continue
             idx_source_node=nodes_sorted_list[selected_node][0]
             
             # get all partitions located in higest utilization node
@@ -555,7 +560,7 @@ class Algorithm:
                                # create new solution by new assignment
                                 new_temp_solution=Configuration(new_temp_Y_hat)
                                 # check feasibility
-                                
+                               
                                 performance=new_temp_solution.check_feasibility(self.system)
                                 
                                 if performance[0]:
@@ -591,7 +596,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_to_FaaS(self, solution, sorting_method=0):
-        #pdb.set_trace()
+        
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -779,6 +784,7 @@ class Algorithm:
         # get the neighbors by changing FaaS configuration
         neighborhood1=self.change_FaaS(solution)
         # get the neighbors by changing resource type
+        
         neighborhood2=self.change_resource_type(solution)
         # get the neigbors by changing component placement
         neighborhood3=self.change_component_placement(solution)
@@ -892,11 +898,6 @@ class Algorithm:
         return new_solution
         
         
-            
-                    
-                
-                
-
 ## RandomGreedy
 #
 # Specialization of Algorithm that constructs the optimal solution through a 
@@ -907,8 +908,8 @@ class RandomGreedy(Algorithm):
     #   @param self The object pointer
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
-        super().__init__(system, log)
+    def __init__(self, system, seed, log = Logger()):
+        super().__init__(system,seed, log)
     
     
     ## Single step of the randomized greedy algorithm: it randomly generates 
@@ -1009,98 +1010,6 @@ class RandomGreedy(Algorithm):
         return best_result_no_update, elite, random_params
 
 
-
-## TabuSearch  
-#
-# Specialization of Algorithm      
-class TabuSearchHeurispy(Algorithm):
-    
-    ## TabuSearchHeurispy class constructor
-    #   @param self The object pointer
-    #   @param system A System.System object
-    #   @param seed A seed to generate random values
-    #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param log Object of Logger.Logger type
-    def __init__(self, system,seed,Max_It_RG, log = Logger()):
-        super().__init__(system, log)
-        self.seed=seed
-        self.Max_It_RG=Max_It_RG
-    
-    
-    ## Method to create initial solution for tabue search
-    #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        GA=RandomGreedy(self.system)
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-      
-        #self.initial_solution=elite.elite_results[0].solution
-       
-        return elite.elite_results[0].solution
-        #return self.creat_initial_solution_with_largest_conf_fun()
-        
-    ## Method to compute the objective function of a solution
-    #   @param self The object pointer
-    #   @param new_solution The solution to get the objective function
-    #   @return The value of objective function
-    def objective_function(self, new_solution):
-        
-        return new_solution.objective_function(self.system)
-        
-    ## Method to pick one of neighbors 
-    #   @param self The object pointer
-    #   @param solution The input solution 
-    #   @param method The method of choosing a neigbor 
-    #   @return One of neighbors
-    def get_one_neighbor(self, solution, method="best"):
-        neighbor=None
-        # compute the neigbors of the solution
-        # sorted_solution_list=self.change_FaaS(solution)
-        sorted_solution_list=self.change_resource_type(solution)
-        if len(sorted_solution_list)>0:
-            # if the method is best, pick the first item of sorted list
-            if method=="best":
-                # pick the best neighbor
-                neighbor=sorted_solution_list[0]
-            else:
-                # pick a neighbor randomly
-                idx=np.random.randint(0,len(sorted_solution_list))
-                neighbor=sorted_solution_list[idx]
-        else:
-             print("There is not any neighbors")
-             
-        return neighbor
-    
-    ## Method to run tabu search
-    #   @param self The object pointer
-    #   @param max_iterations The maximum iterations
-    #   @param memory_space A list of memory size for tabu 
-    #           tabu search will run for each number in the list separately
-    #   @param max_search_without_improvement A list of maximum search without improvement
-    #           tabu search will run for each number in the list separately
-    #   @param repetitions The number of repetitions for tabu search
-    #   @return (1): the best result found by tabu search
-    #           (2): the list of current solution cost in each iteration
-    #           (3): the list of best solution cost found by tabu search until now in each iteration
-    def main_tabu_search(self,max_iterations,memory_space,max_search_without_improvement,repetitions):
-       
-        # create an object of problem class
-        coloration_problem = Problema(dominio=self.creat_initial_solution,
-                                    funcion_objetivo=self.objective_function,
-                                    funcion_variacion_soluciones=self.get_one_neighbor)
-        # create an object of tabu search class
-        tabu_search = BusquedaTabu(coloration_problem, max_iteraciones=max_iterations)
-        # create a dictionary of hyper parameters needed for tabu search
-        tabu_search_parameters = dict(espacio_memoria=memory_space, max_busquedas_sin_mejora=max_search_without_improvement)
-        # create a list of executions that tabu search will run for each element of the list
-        executions_list = genera_lista_ejecuciones_heuristicas(tabu_search_parameters, repeticiones=repetitions)
-        # run tabu search and get the results
-        best_result, current_cost_list, best_cost_list=inicia_exploracion_heuristica(tabu_search, executions_list, nucleos_cpu=4)
-        
-        return best_result, current_cost_list, best_cost_list
-    
-    
 ## IteratedLocalSearch  
 #
 # Specialization of Algorithm      
@@ -1109,11 +1018,10 @@ class IteratedLocalSearch(Algorithm):
     pass
 
 
-
-class TabuSearchSolid(TabuSearch,Algorithm):
-    """
-    Tries to get a randomly-generated string to match string "clout"
-    """
+## TabuSearch  
+#
+class Tabu_Search(TabuSearch,RandomGreedy):
+    
     ## TabuSearchSolid class constructor
     #   @param self The object pointer
     #   @param seed A seed to generate random values
@@ -1122,12 +1030,13 @@ class TabuSearchSolid(TabuSearch,Algorithm):
     #   @param min_score Minimum cost
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self,seed,Max_It_RG, tabu_size, max_steps, min_score, system, log = Logger()):
-        self.seed=seed
+    def __init__(self,Max_It_RG,seed, tabu_size, max_steps, min_score, system, log = Logger()):
+        
         self.Max_It_RG=Max_It_RG
-        Algorithm.__init__(self,system, log)
+        RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        initial_state=self.creat_initial_solution()
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
         TabuSearch.__init__(self,initial_state, tabu_size, max_steps, min_score)
        
     ## Method to get a list of neigbors
@@ -1147,18 +1056,46 @@ class TabuSearchSolid(TabuSearch,Algorithm):
         return solution.objective_function(self.system)*(-1)
     
     
-    ## Method to create initial solution for tabue search
-    #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        self.start_time_RG=time.time()
-        GA=RandomGreedy(self.system)
-   
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-        initial_solution=elite.elite_results[0].solution
-       
-        #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
-        return initial_solution
-    
   
+    
+    
+## Simulated Annealing
+
+class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
+     ## SimulatedAnnealingSolid class constructor
+    #   @param self The object pointer
+    #   @param seed A seed to generate random values
+    #   @param Max_It_RG Maximum iterations of random greedy
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param system A System.System object
+    #   @param log Object of Logger.Logger type
+    def __init__(self,Max_It_RG,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+        
+        self.Max_It_RG=Max_It_RG
+        RandomGreedy.__init__(self,system,seed, log)
+        # compute initial solution
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
+        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+        
+     ## Method to get a list of neigbors
+    #   @param self The object pointer
+    #   @return A list of solutions (neighbors)    
+    def _neighbor(self ):
+        
+        neighborhood=self.union_neighbors(self.current_state)
+        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+        return x.solution
+    
+    ## Method to get the cost of current solution
+    #   @param self The object pointer
+    #   @param solution The current solution
+    #   @return The cost of current solution
+    def _energy(self, solution):
+       
+        return solution.objective_function(self.system)
+    
+    
+    
+    
