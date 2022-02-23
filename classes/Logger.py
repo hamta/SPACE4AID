@@ -23,15 +23,21 @@ class Logger:
     ## @var level
     # Indentation level for logging (default: 0 - no indent)
     
+    ## @var error
+    # True if used to print error messages (default: False)
+    
     ## Logger class constructor
     #   @param self The object pointer
     #   @param stream Stream for logging (default: sys.stdout)
     #   @param verbose Verbosity level (default: 0 - no logging)
     #   @param level Indentation level for logging (default: 0 - no indent)
-    def __init__(self, stream = sys.stdout, verbose = 0, level = 0):
+    #   @param error True if used to print error messages (default: False)
+    def __init__(self, stream = sys.stdout, verbose = 0, level = 0,
+                 error = False):
         self.stream = stream
         self.verbose = verbose
         self.level = level
+        self.error = error            
     
     ## Method to support pickling/unpickling of Logger objects
     #   @param self The object pointer
@@ -60,13 +66,16 @@ class Logger:
     #   @param message The string to be printed
     #   @return The new string preceded by the proper number of spaces
     def prepare_logging(self, message):
-        full_message = " " * 4 * self.level + message
+        full_message = " " * 4 * self.level
+        if self.error:
+            full_message += "ERROR: "
+        full_message += message
         return full_message
     
     ## Method to print the given message
     #   @param message The string to be printed
     #   @param v Minimum verbosity level to print the message
-    def log(self, message, v):
+    def log(self, message, v = 0):
         if self.verbose >= v:
             full_message = self.prepare_logging(message)
             print(full_message, file = self.stream)

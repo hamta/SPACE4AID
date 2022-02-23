@@ -2,12 +2,17 @@ from classes.Logger import Logger
 from classes.Graph import DAG, Component
 from classes.Resources import ComputationalLayer, VirtualMachine, EdgeNode, FaaS
 from classes.NetworkTechnology import NetworkDomain
-from classes.Performance import NetworkPE, ServerFarmPE, FunctionPE, EdgePE
+from classes.PerformanceFactory import Pfactory
+from classes.PerformanceEvaluators import NetworkPerformanceEvaluator
 from classes.Constraints import LocalConstraint, GlobalConstraint
 import json
 import sys
 import numpy as np
-import copy   
+import copy
+import collections
+
+def recursivedict():
+    return collections.defaultdict(recursivedict)
 
 ## System
 #
@@ -34,12 +39,6 @@ class System:
     ## @var components 
     # List of all Graph.Component objects
             
-    ## @var demand_dict 
-    # Dictionary representing the demand matrix of the available 
-    # Graph.Component.Partition objects in a given 
-    # Graph.Component when they are deployed on different  
-    # Resources.Resource objects
-    
     ## @var demand_matrix 
     # List of 2D numpy arrays representing the demand to run all 
     # Graph.Component.Partition objects in each Graph.Component 
@@ -67,6 +66,10 @@ class System:
     ## @var error
     # Object of Logger.Logger class, used to print error messages on sys.stderr
     
+    ## @var faas_service_times
+    # Dictionary storing the warm and cold service time for all 
+    # Graph.Component.Partition objects executed on Resources.FaaS
+    
     ## @var FaaS_start_index
     # Index of the first Resources.FaaS object available in System.resources
     
@@ -89,8 +92,19 @@ class System:
     # List of NetworkTechnology objects, characterized by a given access 
     # delay and bandwidth
     
+    ## @var performance_models
+    # List of 2D lists storing the performance model/evaluator initialized 
+    # from the PerformanceFactory for each pair of Graph.Component.Partition 
+    # and Resources.Resource object
+    
     ## @var resources 
     # List of all the available Resources.Resource objects
+    
+    ## @var sorted_FaaS_by_memory_cost
+    # List of Resources.FaaS objects sorted by memory (and then cost)
+    
+    ## @var sorted_FaaS_by_cost_memory
+    # List of Resources.FaaS objects sorted by cost (and then memory)
     
     ## @var T
     # Time
@@ -105,7 +119,7 @@ class System:
     #   @param log Object of Logger.Logger type
     def __init__(self, system_file = "", system_json = None, log = Logger()):
         self.logger = log
-        self.error = Logger(stream=sys.stderr, verbose=1)
+        self.error = Logger(stream=sys.stderr, verbose=1, error=True)
         if system_file != "":
             self.logger.log("Loading system from configuration file", 1)
             self.read_configuration_file(system_file)
@@ -113,7 +127,7 @@ class System:
             self.logger.log("Loading system from json object", 1)
             self.load_json(system_json)
         else:
-            self.error.log("ERROR: no configuration file or json specified",1)
+            self.error.log("No configuration file or json specified")
             sys.exit(1)
     
     
@@ -149,7 +163,7 @@ class System:
                                         verbose=self.logger.verbose,
                                         level=self.logger.level+1))
         else:
-            self.error.log("ERROR: no DAG available in configuration file", 1)
+            self.error.log("No DAG available in configuration file")
             sys.exit(1)
         
         # initialize lambda
@@ -157,7 +171,7 @@ class System:
             self.logger.log("Initializing Lambda", 2)
             self.Lambda = float(data["Lambda"])
         else:
-            self.error.log("ERROR: no Lambda available in configuration file", 1)
+            self.error.log("No Lambda available in configuration file")
             sys.exit(1)
                
         # initialize components and local constraints
@@ -175,7 +189,7 @@ class System:
             # perform initialization
             self.initialize_components(C, LC)
         else:
-            self.error.log("ERROR: no components available in configuration file", 1)
+            self.error.log("No components available in configuration file")
             sys.exit(1)
         
         # get global constraints to initialize the maximun response time of 
@@ -207,22 +221,21 @@ class System:
                                           list(NT[ND]["computationallayers"]),
                                           float(NT[ND]["AccessDelay"]),
                                           float(NT[ND]["Bandwidth"]),
-                                          NetworkPE())
+                                          NetworkPerformanceEvaluator())
                     self.network_technologies.append(network_domain)
                 else:
-                    self.error.log("ERROR: missing field in {} description".\
-                                   format(ND), 1)
+                    self.error.log("Missing field in {} description".format(ND))
                     sys.exit(1)
         else:
-            self.error.log("ERROR: no NetworkTechnology available in configuration file", 1)
+            self.error.log("No NetworkTechnology available in configuration file", 1)
             sys.exit(1)
        
         # load dictionary of component-to-node compatibility 
-        self.logger.log("Initializing compatibility and demand matrices", 2)
+        self.logger.log("Initializing compatibility matrix and performance-related components", 2)
         if "CompatibilityMatrix" in data.keys():
             self.compatibility_dict = data["CompatibilityMatrix"]
         else:
-            self.error.log("ERROR: no CompatibilityMatrix available in configuration file", 1)
+            self.error.log("No CompatibilityMatrix available in configuration file")
             sys.exit(1)
         
         # variable to check, for each component, if all resources mentioned 
@@ -230,28 +243,30 @@ class System:
         is_compatible = True
      
         # load demand matrix
-        if "DemandMatrix" in data.keys():
-            self.demand_dict = data["DemandMatrix"]
+        if "Performance" in data.keys():
+            performance_dict = data["Performance"]
             # check if, for each component, all resources mentioned in the 
-            # demand matrix are compatible with the component itself
-            for c in self.demand_dict:
-                for r in self.demand_dict[c].keys():
-                    if not r in self.compatibility_dict[c]:
-                        is_compatible = False
-                        self.error.log("ERROR: demand and compatibility matrix are not consistent", 1)
-                        sys.exit(1)    
+            # performance dictionary are compatible with the component itself
+            for c in performance_dict:
+                for p in performance_dict[c]:
+                    for r in performance_dict[c][p].keys():
+                        if not r in self.compatibility_dict[c][p]:
+                            is_compatible = False
+                            self.error.log("Performance dictionary and compatibility matrix are not consistent")
+                            sys.exit(1)
         else:
             is_compatible = False
-            self.error.log("ERROR: no DemandMatrix available in configuration file", 1)
+            self.error.log("No Performance dictionary available in configuration file")
             sys.exit(1)
        
-        # if demand matrix is available and it is consistent with 
+        # if performance dictionary is available and it is consistent with 
         # compatibility matrix, convert both these dictionaries to arrays
         if is_compatible:
-            self.convert_dic_to_matrix()
+            self.convert_dic_to_matrix(performance_dict)
         
         # sort FaaS to have a list of sorted FaaS that is needed by Algorithm
         self.sort_FaaS_nodes()
+        
         # initialize time
         self.logger.log("Initializing time", 2)
         if "Time" in data.keys():
@@ -344,7 +359,7 @@ class System:
                     self.dic_map_part_idx[c] = temp
                     self.components.append(Component(c, deployments,partitions, self.Lambda))
             else:
-                self.error.log("ERROR: no match between components in DAG and system input file", 1)
+                self.error.log("No match between components in DAG and system input file")
                 sys.exit(1)
             self.dic_map_com_idx[c] = comp_idx
     
@@ -384,17 +399,19 @@ class System:
                 for node in ER[CL]:
                     temp = ER[CL][node]
                     if "number" in temp.keys() and "cost" in temp.keys() \
-                        and "memory" in temp.keys():
+                        and "memory" in temp.keys() \
+                            and "n_cores" in temp.keys():
                         new_node = EdgeNode(CL, node, float(temp["cost"]),
-                                            float(temp["memory"]),EdgePE(),
-                                            int(temp["number"]))
+                                            float(temp["memory"]),
+                                            int(temp["number"]),
+                                            int(temp["n_cores"]))
                         self.resources.append(new_node)
                         self.dic_map_res_idx[node] = resource_idx
                         cl.add_resource(resource_idx)
                         resource_idx += 1
                     else:
-                        self.error.log("ERROR: missing field in {} description".\
-                                       format(node), 1)
+                        self.error.log("Missing field in {} description".\
+                                       format(node))
                         sys.exit(1)
                     # add the resource description to the corresponding 
                     # dictionary
@@ -417,18 +434,19 @@ class System:
                 for VM in CR[CL]:
                     temp = CR[CL][VM]
                     if "number" in temp.keys() and "cost" in temp.keys() \
-                        and "memory" in temp.keys():
+                        and "memory" in temp.keys() \
+                            and "n_cores" in temp.keys():
                         new_vm = VirtualMachine(CL, VM, float(temp["cost"]), 
                                                 float(temp["memory"]), 
-                                                ServerFarmPE(),
-                                                int(temp["number"]))
+                                                int(temp["number"]),
+                                                int(temp["n_cores"]))
                         self.resources.append(new_vm)
                         self.dic_map_res_idx[VM] = resource_idx
                         cl.add_resource(resource_idx)
                         resource_idx += 1
                     else:
-                        self.error.log("ERROR: missing field in {} description".\
-                                       format(VM), 1)
+                        self.error.log("Missing field in {} description".\
+                                       format(VM))
                         sys.exit(1)
                     # add the resource description to the corresponding 
                     # dictionary
@@ -444,40 +462,42 @@ class System:
         if "FaaSResources" in data.keys():
             self.logger.log("FaaS resources", 3)
             FR = data["FaaSResources"]
-            # initialize transition cost
-            if "transition_cost" in FR.keys():
-                transition_cost = float(FR["transition_cost"])
-            else:
-                self.error.log("ERROR: missing transition cost in FaaSResources", 1)
-                sys.exit(1)
             # loop over computational layers
             for CL in FR:
                 if CL.startswith("computationallayer"):
                     cl = ComputationalLayer(CL)
+                    # initialize transition cost
+                    if "transition_cost" in FR[CL].keys():
+                        transition_cost = float(FR[CL]["transition_cost"])
+                    else:
+                        self.error.log("Missing transition cost in {}".\
+                                       format(CL))
+                        sys.exit(1)
                     # loop over functions and add them to the corresponding 
                     # layer
                     for func in FR[CL]:
-                        temp = FR[CL][func]
-                        if "cost" in temp.keys() and "memory" in temp.keys() \
-                            and "idle_time_before_kill" in temp.keys():
-                            new_f = FaaS(CL, func, float(temp["cost"]), 
-                                         float(temp["memory"]), FunctionPE(),
-                                         transition_cost, 
-                                         float(temp["idle_time_before_kill"]))
-                            self.resources.append(new_f)
-                            self.dic_map_res_idx[func]=resource_idx
-                            cl.add_resource(resource_idx)
-                            resource_idx += 1
-                        else:
-                            self.logger.log("ERROR: missing field in {} description".\
-                                            format(func), 1)
-                            sys.exit(1)
-                        # add the resource description to the corresponding 
-                        # dictionary
-                        if "description" in temp.keys():
-                            self.description[func] = temp["description"]
-                        else:
-                            self.description[func] = "No description"
+                        if func != "transition_cost":
+                            temp = FR[CL][func]
+                            if "cost" in temp.keys() and "memory" in temp.keys() \
+                                and "idle_time_before_kill" in temp.keys():
+                                new_f = FaaS(CL, func, float(temp["cost"]), 
+                                             float(temp["memory"]), 
+                                             transition_cost, 
+                                             float(temp["idle_time_before_kill"]))
+                                self.resources.append(new_f)
+                                self.dic_map_res_idx[func]=resource_idx
+                                cl.add_resource(resource_idx)
+                                resource_idx += 1
+                            else:
+                                self.logger.log("Missing field in {} description".\
+                                                format(func), 1)
+                                sys.exit(1)
+                            # add the resource description to the corresponding 
+                            # dictionary
+                            if "description" in temp.keys():
+                                self.description[func] = temp["description"]
+                            else:
+                                self.description[func] = "No description"
                     # add the new computational layer
                     self.CLs.append(cl)
 
@@ -498,55 +518,82 @@ class System:
                 if c in self.dic_map_com_idx.keys():
                     C_list.append(list(self.dic_map_com_idx.keys()).index(c))
                 else:
-                    self.error.log("ERROR: no match between components and path in global constraints", 1)
+                    self.error.log("No match between components and path in global constraints")
                     sys.exit(1)
             self.global_constraints.append(GlobalConstraint(C_list, 
                                                             GC[p]["global_res_time"],
                                                             p))
     
     
-    ## Method to convert the compatibility and demand dictionaries into 
-    # lists of 2D numpy arrays such that M[i][h,j] represents either the 
+    ## Method to convert the compatibility and performance dictionaries into 
+    # two lists of 2D numpy arrays such that M[i][h,j] represents either the 
     # compatibility of partition h in component i with resource j or the 
-    # demand to run such partition on the given resource
+    # demand to run such partition on the given resource, a list of 2D 
+    # lists storing the performance models, and a dictionary storing warm 
+    # and cold service times for all partitions executed on FaaS resources
     #    @param self The object pointer
-    def convert_dic_to_matrix(self):
+    #    @param performance_dict Dictionary of performance-related information
+    def convert_dic_to_matrix(self, performance_dict):
         self.compatibility_matrix = []
         self.demand_matrix = []
-        comp_idx = 0
+        self.performance_models = []
+        self.faas_service_times = recursivedict()
+        # count the total number of resources
+        r = len(self.resources)
         # loop over components
-        for comp in self.components:
+        for comp_idx, comp in enumerate(self.components):
             # count the total number of partitions
             p = len(comp.partitions)
             # define and initialize the matrices to zero
-            self.compatibility_matrix.append(np.full((p, len(self.resources)), 
-                                                     0, dtype = int))
-            self.demand_matrix.append(np.full((p, len(self.resources)), 
-                                              0, dtype=float))
-        # loop over components to assign the values to the matrices
-        for c in self.compatibility_dict:
+            self.compatibility_matrix.append(np.full((p, r), 0, dtype = int))
+            self.demand_matrix.append(np.full((p, r), 0, dtype=float))
+            # define and initialize the performance models to None
+            self.performance_models.append([[None] * r] * p)
             # loop over partitions
-            for part in self.compatibility_dict[c]: 
+            for part_idx, part in enumerate(comp.partitions):
                 # loop over resources
-                for res in self.compatibility_dict[c][part]:
-                    comp_idx = self.dic_map_part_idx[c][part][0]
-                    part_idx = self.dic_map_part_idx[c][part][1]
-                   
-                    self.compatibility_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]] = 1
-                   
-                    # for Edge and Cloud resources, the demand is taken 
-                    # directly from the dictionary
-                    if self.dic_map_res_idx[res] < self.FaaS_start_index:
-                        self.demand_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]] = self.demand_dict[c][part][res]
-                    # for FaaS resources, it should be computed accordingly
+                for res in self.compatibility_dict[comp.name][part.name]:
+                    res_idx = self.dic_map_res_idx[res]
+                    # set to 1 the element in the compatibility matrix
+                    self.compatibility_matrix[comp_idx][part_idx][res_idx] = 1
+                    # set the performance model
+                    perf_data = performance_dict[comp.name][part.name][res]
+                    if "model" in perf_data.keys():
+                        model_data = {}
+                        for key in perf_data.keys():
+                            if key != "model" and not key.startswith("demand"):
+                                model_data[key] = perf_data[key]
+                        m = Pfactory.create(perf_data["model"], **model_data)
+                        self.performance_models[comp_idx][part_idx][res_idx] = m
                     else:
-                        arrival_rate = self.components[self.dic_map_com_idx[c]].comp_Lambda
-                        warm_service_time = self.demand_dict[c][part][res][0]
-                        cold_service_time = self.demand_dict[c][part][res][1]
-                        self.demand_matrix[comp_idx][part_idx][self.dic_map_res_idx[res]]  = self.resources[self.dic_map_res_idx[res]].get_avg_res_time(
-                            arrival_rate, 
-                            warm_service_time, 
-                            cold_service_time)
+                        self.error.log("Missing performance model/evaluator")
+                        sys.exit(1)
+                    # get the demand (if available)
+                    d = np.nan
+                    # For Edge and Cloud resources, the demand is taken 
+                    # directly from the dictionary
+                    if res_idx < self.FaaS_start_index and \
+                        "demand" in perf_data.keys():
+                        d = performance_dict[comp.name][part.name][res]["demand"]
+                    else:
+                        # for FaaS resources, it should be computed accordingly
+                        if "demandWarm" in perf_data.keys() and \
+                            "demandCold" in perf_data.keys():
+                            warm_service_time = perf_data["demandWarm"]
+                            cold_service_time = perf_data["demandCold"]
+                            # add the warm and cold service time to the 
+                            # corresponding dictionary
+                            self.faas_service_times[comp.name][part.name][res] = [warm_service_time,
+                                                                                 cold_service_time]
+                            # compute the demand
+                            pm = self.performance_models[comp_idx][part_idx][res_idx]
+                            features = pm.get_features(c_idx=comp_idx, 
+                                                       p_idx=part_idx, 
+                                                       r_idx=res_idx, 
+                                                       S=self)
+                            d = pm.predict(**features)
+                    # write the demand into the matrix
+                    self.demand_matrix[comp_idx][part_idx, res_idx] = d
     
     
     ## Method to sort all input FaaS nodes increasingly by memory 
@@ -558,29 +605,26 @@ class System:
     #           Each item of list includes the index, utilization and cost of the resource.
     #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
     def sort_FaaS_nodes(self):
-       
         idx_min_memory_node=[]
-        for c in self.compatibility_dict:
+        for i, c in enumerate(self.components):
             # loop over partitions
-            for part in self.compatibility_dict[c]: 
+            for h, part in enumerate(c.partitions):
                 # loop over all FaaS
-                for res in self.compatibility_dict[c][part]:
-                    if self.dic_map_res_idx[res] >= self.FaaS_start_index:
-                        j=self.dic_map_res_idx[res]
-                       
-                    # add the information of node to the list includes node index, memory and cost
-                    # The cost that we consider is the product of time unit cost and  warm service time(d_hot)
-                        idx_min_memory_node.append((j, self.resources[j].memory, self.resources[j].cost*self.demand_dict[c][part][res][0]))
+                for res in self.compatibility_dict[c.name][part.name]:
+                    j = self.dic_map_res_idx[res]
+                    if j >= self.FaaS_start_index:
+                        # add the information of node to the list includes node index, memory and cost
+                        # The cost that we consider is the product of time unit cost and  warm service time(d_hot)
+                        idx_min_memory_node.append((j, self.resources[j].memory, self.resources[j].cost * self.faas_service_times[c.name][part.name][res][0]))
                 
         # Sort the list based on memory and cost respectively    
         # Each item of list includes the index, memory and cost of the resource.
         # The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
-        self.sorted_FaaS_by_memory_cost= sorted(idx_min_memory_node, key=lambda element: (element[1], element[2]))
+        self.sorted_FaaS_by_memory_cost = sorted(idx_min_memory_node, key=lambda element: (element[1], element[2]))
         # Sort the list based on cost and memory respectively
         # Each item of list includes the index, utilization and cost of the resource.
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
-        self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
-       
+        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))  
     
     
     
@@ -617,8 +661,29 @@ class System:
                           str(self.compatibility_dict).replace("\'", "\""))
         
         # demand matrix
-        system_string += (', \n"DemandMatrix": ' + \
-                          str(self.demand_dict).replace("\'", "\""))
+        system_string += ', \n"Performance": {'
+        for i, c in enumerate(self.components):
+            c = self.components[i]
+            component_string = '"' + c.name + '": {'
+            for h, p in enumerate(c.partitions):
+                component_string += ('"' + p.name + '": {')
+                for res in self.compatibility_dict[c.name][p.name]:
+                    component_string += ('"' + res + '": {')
+                    j = self.dic_map_res_idx[res]
+                    component_string += str(self.performance_models[i][h][j])
+                    if not np.isnan(self.demand_matrix[i][h,j]):
+                        component_string += (', "demand": ' + \
+                                             str(self.demand_matrix[i][h,j]))
+                    if j >= self.FaaS_start_index:
+                        dw = self.faas_service_times[c.name][p.name][res][0]
+                        dc = self.faas_service_times[c.name][p.name][res][1]
+                        component_string += (', "demandWarm": ' + \
+                                             str(dw) + ', "demandCold": ' +\
+                                             str(dc))
+                    component_string += '},'
+                component_string = component_string[:-1] + '},'
+            system_string += (component_string[:-1] + '},')
+        system_string = system_string[:-1] + '}'
         
         # lambda
         system_string += (', \n"Lambda": ' + str(self.Lambda))

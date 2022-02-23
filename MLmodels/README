@@ -1,0 +1,38 @@
+List of available ML models (and corresponding MAPE):
+
+- blurFaces (model trained on data coming from the an OSCAR application running on a VM cluster):
+	* basic features: cores, log(cores)
+	- HoldOut: XGBoost (1.30%)
+	- extrapolation: XGBoost (1.70%)
+	- interpolation: XGBoost (3.02%)
+
+- CSVM (model trained on data coming from a PyCOMPSs application running on the Marenostrum cluster; feature augmentation performed with the average):
+	* basic features: cores, log(cores)
+	- HoldOut: XGBoost + SFS (0.32%)
+	- extrapolation: XGBoost + SFS (0.23%)
+	- interpolation: RandomForest + SFS (4.77%)
+
+- faas (model trained on data taken from the analysis of the pacsltk.perfmodel tool):
+	* basic features: Lambda, warm_service_time, cold_service_time, expiration_time
+	- LRidge (?)
+
+- maskDetection (model trained on data coming from the an OSCAR application running on a VM cluster):
+	* basic features: cores, log(cores)
+	- HoldOut: XGBoost + SFS (0.69%) (feature augmentation performed with the average)
+	- HoldOut: XGBoost + SFS (0.66%)
+	- HoldOut: XGBoost (0.70%) (feature augmentation performed with the average)
+	- HoldOut: XGBoost (0.64%)
+	- extrapolation: XGBoost + SFS (25.26%) (feature augmentation performed with the average)
+	- extrapolation: XGBoost + SFS (25.30%)
+	- interpolation: LRidge + SFS (8.57%) (feature augmentation performed with the average)
+
+- RPi_blurFaces (model trained on data coming from an OSCAR application running on a Raspberry PI cluster):
+	* basic features: cores, log(cores)
+	- HoldOut: XGBoost + SFS (8.09%) (feature augmentation performed with the average)
+	- HoldOut: XGBoost + SFS (11.28%) 
+	- HoldOut: XGBoost (8.08%) (feature augmentation performed with the average)
+	- HoldOut: XGBoost (11.29%) 
+	- extrapolation: RandomForest + SFS (18.38%) (feature augmentation performed with the average) 
+	- extrapolation: DecisionTree + SFS (18.41%) 
+	- interpolation: XGBoost (13.53%) (feature augmentation performed with the average) 
+	- interpolation: XGBoost + SFS (13.60%) 

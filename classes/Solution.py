@@ -1,5 +1,5 @@
 from classes.Logger import Logger
-from classes.Performance import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
+from classes.PerformanceEvaluators import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
 import numpy as np
 import itertools
 import json
@@ -43,7 +43,7 @@ class Configuration:
     #   @param self The object pointer
     #   @param solution The other solution to compare with current object
     def __eq__(self,solution):
-        equality=[]
+        equality = []
         # compare the equality of assignment for each component
         for i, j in zip(self.Y_hat, solution.Y_hat):
             equality.append(np.array_equal(i, j))
@@ -130,16 +130,13 @@ class Configuration:
     def memory_constraints_check(self, S):
         
         # create y from y_hat
-        I = len(S.components)
-        J = len(S.resources)
-        y = []
-        for i in range(I):
-            y.append(np.array(self.Y_hat[i] > 0, dtype = int))
+        y = self.get_y()
        
         # for each resource, check if the sum of the memory requirements of 
         # all component partitions assigned to it is greater than the maximum 
         # capacity of the resource
         feasible = True
+        J = len(S.resources)
         j = 0
         while j < J and feasible:
             memory = 0
@@ -180,7 +177,83 @@ class Configuration:
                             feasible = False
                     last_part_res = h[0][0]
         
-        return feasible     
+        return feasible
+    
+    
+    ## Method to check that only a single Graph.Component.Partition object 
+    # is assigned to a Resources.Resource whenever the corresponding 
+    # PerformanceModels.BasePerformanceModel does not support co-location, 
+    # and that the Resources.Resource object utilization does not exceed 1 
+    # if the co-location is admissible
+    #   @param self The object pointer
+    #   @param S A System.System object
+    #   @return True if the assignment is feasible
+    def performance_assignment_check(self, S):
+        
+        feasible = True
+        
+        # matrix size
+        I = len(self.Y_hat)
+        
+        # loop over all resources
+        j = 0
+        while j < S.FaaS_start_index and feasible:
+            
+            # number of partitions assigned to the current resource
+            count_j = 0
+            colocation_allowed = True
+            
+            # loop over all components
+            i = 0
+            while i < I and feasible:
+                
+                # loop over all partitions
+                h = 0
+                while h < self.Y_hat[i].shape[0] and feasible:
+                    
+                    # check if the partition is deployed on resource j
+                    if self.Y_hat[i][h,j] > 0:
+                        
+                        # increment counter
+                        count_j += 1
+                        
+                        # check if the corresponding performance model allows
+                        # co-location
+                        if not S.performance_models[i][h][j].allows_colocation:
+                            colocation_allowed = False
+                            
+                            # if co-location is not allowed but more than one 
+                            # partition is deployed on j, the solution is not 
+                            # feasible
+                            if not colocation_allowed and count_j > 1:
+                                feasible = False
+                    h += 1
+                 
+                # if co-location is not allowed but more than one partition 
+                # is deployed on j, the solution is not feasible
+                if not colocation_allowed and count_j > 1:
+                    feasible = False
+                
+                i += 1
+                
+            # if more than one partition is deployed on j
+            if count_j > 1:
+                # if co-location is not allowed, the solution is not feasible
+                if not colocation_allowed:
+                    feasible = False
+                else:
+                    # otherwise, we must check the device utilization
+                    if j < S.cloud_start_index:
+                        model = EdgePE()
+                    else:
+                        model = ServerFarmPE()
+                    utilization = model.compute_utilization(j, self.Y_hat, S)
+                    if utilization >= 1:
+                        feasible = False
+            
+            j += 1
+                        
+        return feasible
 
 
     ## Method to check the feasibility of the current configuration
@@ -195,48 +268,36 @@ class Configuration:
         I = len(S.components)
         components_performance = [[True, np.infty]] * I
         paths_performance = []
+        
+        # check if the assignments are compatible with the performance models 
+        # in terms of partitions co-location / resources utilization
+        self.logger.log("Co-location / Utilization constraints check", 4)
+        feasible = self.performance_assignment_check(S)
        
-        # check the utilization of all resources in edge and cloud
-        edge=EdgePE()
-        cloud=ServerFarmPE()
-        feasible=True
-        self.logger.log("Utilization of edge check", 4)
-        for j in range(S.cloud_start_index):
-            utilization=edge.compute_utilization(j, self.Y_hat, S)
-            if utilization>=1:
-                feasible=False
-               
         if feasible:
-            self.logger.log("Utilization of cloud check", 4)    
-            for j in range(S.cloud_start_index,S.FaaS_start_index):
-                utilization=cloud.compute_utilization(j, self.Y_hat, S)
-                if utilization>=1:
-                    feasible=False
-                   
+            # check if the memory constraints are satisfied
+            self.logger.log("Memory constraints check", 4)
+            feasible = self.memory_constraints_check(S)
+            
             if feasible:
-                # check if the memory constraints are satisfied
-                self.logger.log("Memory constraints check", 4)
-                feasible = self.memory_constraints_check(S)
+                # check if the cloud placement constraint is satisfied
+                self.logger.log("Cloud placement constraint check", 4)
+                feasible = self.move_backward_check(S)
                 
                 if feasible:
-                    # check if the cloud placement constraint is satisfied
-                    self.logger.log("Cloud placement constraint check", 4)
-                    feasible = self.move_backward_check(S)
+                    # check if all local constraints are satisfied
+                    self.logger.log("Local constraints check", 4)
+                    for LC in S.local_constraints:
+                        i = LC.component_idx
+                        components_performance[i] = LC.check_feasibility(S, self)
+                        feasible = feasible and components_performance[i][0]
                     
                     if feasible:
-                        # check if all local constraints are satisfied
-                        self.logger.log("Local constraints check", 4)
-                        for LC in S.local_constraints:
-                            i = LC.component_idx
-                            components_performance[i] = LC.check_feasibility(S, self)
-                            feasible = feasible and components_performance[i][0]
-                        
-                        if feasible:
-                            self.logger.log("Global constraints check", 4)
-                            # check global constraints
-                            for GC in S.global_constraints:
-                                paths_performance.append(GC.check_feasibility(S, self))
-                                feasible = feasible and paths_performance[-1][0]
+                        self.logger.log("Global constraints check", 4)
+                        # check global constraints
+                        for GC in S.global_constraints:
+                            paths_performance.append(GC.check_feasibility(S, self))
+                            feasible = feasible and paths_performance[-1][0]
 
         if not feasible:
             self.logger.level += 1
@@ -272,7 +333,7 @@ class Configuration:
             costs.append(S.resources[j].cost * y_bar[j])
         #
         # compute the cost of FaaS and transition cost if not using SCAR
-        if S.FaaS_start_index<J:
+        if S.FaaS_start_index < J:
             key_list_comp = list(S.dic_map_com_idx.keys())
             val_list_comp = list(S.dic_map_com_idx.values())
             key_list_res = list(S.dic_map_res_idx.keys())
@@ -290,7 +351,11 @@ class Configuration:
                         # get the name of resource by its index
                         res=key_list_res[val_list_res.index(j)]
                         # compute the cost of the FaaS
-                        costs.append(S.resources[j].cost * self.Y_hat[i][part_idx][j] * S.demand_dict[comp][part][res][0]* S.components[i].comp_Lambda * S.T )
+                        costs.append(S.resources[j].cost * \
+                                     self.Y_hat[i][part_idx][j] * \
+                                     S.faas_service_times[comp][part][res][0] * \
+                                     S.components[i].comp_Lambda * \
+                                     S.T)
         
         return sum(costs)
     
@@ -506,6 +571,8 @@ class Result:
         else:
             sfile = open(solution_file, "w") if solution_file else sys.stdout
             print("Unfeasible solution", file=sfile)
+            if sfile != sys.stdout:
+                sfile.close()
 
 
 

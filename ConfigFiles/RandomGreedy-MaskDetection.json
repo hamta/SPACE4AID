@@ -15,15 +15,15 @@
    "CompatibilityMatrix":{ "c1":{ "h1":["RasPi"]},
                            "c2":{ "h1":["RasPi","VM1"]}
                         },
-   "DemandMatrix":{ "c1":{ "h1":{ "RasPi": 17474.5 }
+   "DemandMatrix":{ "c1":{ "h1":{ "RasPi": 225.75}
                          },
-                    "c2":{ "h1":{"RasPi": 13900, "VM1": 4242.3}
+                    "c2":{ "h1":{"RasPi": 200, "VM1": 300}
                          }
                   },
-   "Lambda":0.000046,
-   "LocalConstraints":{ "c1":{ "local_res_time":89100 }
+   "Lambda": 0.002,
+   "LocalConstraints":{ "c1":{ "local_res_time":500}
                       },
-   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":94350}
+   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":5000}
                         },
    "NetworkTechnology":{ "ND2":{ "computationallayers":["computationallayer1","computationallayer2"], "AccessDelay":0.00000277, "Bandwidth":10000}
                         },

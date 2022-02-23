@@ -1,4 +1,4 @@
-from classes.Performance import SystemPerformanceEvaluator
+from classes.PerformanceEvaluators import SystemPerformanceEvaluator
 from abc import ABC, abstractmethod
 import numpy as np
 
@@ -61,7 +61,7 @@ class LocalConstraint(PerformanceConstraint):
         feasible = False
            
         # evaluate the performance of component
-        PE = SystemPerformanceEvaluator()
+        PE = SystemPerformanceEvaluator(solution.logger)
         perf_evaluation = PE.get_perf_evaluation(S, solution.Y_hat, 
                                                  self.component_idx)
         # check if the denumerator is equal to zero
