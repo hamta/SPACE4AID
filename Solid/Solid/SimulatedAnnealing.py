@@ -4,7 +4,6 @@ from math import exp
 from random import random
 import time
 
-
 class SimulatedAnnealing:
     """
     Conducts simulated annealing algorithm
@@ -145,6 +144,10 @@ class SimulatedAnnealing:
         self.current_state = self.initial_state
         self.current_temp = self.start_temp
         self.best_energy = self._energy(self.current_state)
+        
+        best_sol_cost_list.append(self.best_energy)
+        current_solution_cost_list.append(self.current_energy)
+        time_list.append(time.time())
         for i in range(self.max_steps):
             self.cur_steps += 1
            
@@ -167,10 +170,11 @@ class SimulatedAnnealing:
 
             if self.min_energy is not None and self.current_energy < self.min_energy:
                 print("TERMINATING - REACHED MINIMUM ENERGY")
-                return self.best_state, self.best_energy
+                return self.best_state, self.best_energy, current_solution_cost_list, best_sol_cost_list, time_list
 
             self.adjust_temp()
             if self.current_temp < 0.000001:
+              
                 print("TERMINATING - REACHED TEMPERATURE OF 0")
                 return self.best_state, self.best_energy, current_solution_cost_list, best_sol_cost_list, time_list
         print("TERMINATING - REACHED MAXIMUM STEPS")

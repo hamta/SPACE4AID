@@ -4,7 +4,6 @@ from collections import deque
 from numpy import argmax
 import numpy as np
 import time
-import pdb
 
 
 class TabuSearch:
