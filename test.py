@@ -185,8 +185,9 @@ def TabuSearch_run(bandwidth_scenarios, iteration_number,
         for bandwidth_scenario in bandwidth_scenarios: 
           
               round_num=3
-              Lambda_list=[0.1]
-              for Lambda in Lambda_list:
+              method_list=["random", "best"]
+              Lambda=0.1
+              for method in method_list:
                     print("\n Lambda="+str(Lambda)+"\n")
                    
                   
@@ -223,7 +224,7 @@ def TabuSearch_run(bandwidth_scenarios, iteration_number,
                     # y=GA.get_partitions_with_j(initial_solution,x[0])
                     
                     
-                    method="best"
+                    
                     tabu_memory=500
                     #pdb.set_trace()
                     start=time.time()
@@ -254,9 +255,13 @@ def TabuSearch_run(bandwidth_scenarios, iteration_number,
                     
                     #best_cost_list.append(best_cost_tabu)
                     #it_list.append(it+1)
+                    np.save(output_folder + "/Tabu_"+ method +'_iterations.npy',it_list) 
+                    np.save(output_folder + "/Tabu_"+ method +'_current_cost.npy',current_cost_list) 
+                    np.save(output_folder + "/Tabu_"+ method +'_best_cost.npy',best_cost_list) 
+                    np.save(output_folder + "/Tabu_"+ method +'_time.npy',time_list) 
                     
-                    plt.plot(it_list,current_cost_list,label="Current cost" )
-                    plt.plot(it_list,best_cost_list,label="Best cost" )
+                    plt.plot(it_list[:12],current_cost_list[:12],label="Current cost" )
+                    plt.plot(it_list[:12],best_cost_list[:12],label="Best cost" )
                     plt.xlabel("Max iterations", fontsize=10)
                     plt.ylabel("Cost", fontsize=10)
                     plt.legend()
@@ -264,8 +269,8 @@ def TabuSearch_run(bandwidth_scenarios, iteration_number,
                     plt.show()
                     
                     
-                    plt.plot(time_list,current_cost_list,label="Current cost" )
-                    plt.plot(time_list,best_cost_list,label="Best cost" )
+                    plt.plot(time_list[:12],current_cost_list[:12],label="Current cost" )
+                    plt.plot(time_list[:12],best_cost_list[:12],label="Best cost" )
                     plt.xlabel("Time (s)", fontsize=10)
                     plt.ylabel("Cost ($)", fontsize=10)
                     
@@ -305,6 +310,7 @@ def SimulatedAnealing_run(bandwidth_scenarios, iteration_number,
         for bandwidth_scenario in bandwidth_scenarios: 
           
               round_num=3
+              
               Lambda_list=[0.1]
               for Lambda in Lambda_list:
                     print("\n Lambda="+str(Lambda)+"\n")
@@ -332,20 +338,18 @@ def SimulatedAnealing_run(bandwidth_scenarios, iteration_number,
                     seed=seed*pid
                     seed=2
                     iteration_number_RG=10
-                    max_iterations=100
+                    max_iterations=500
                    # GA=RandomGreedy(S,2)
                     #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
                     # initial_solution=random_greedy_result[1].elite_results[0].solution
                     # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
-                    pdb.set_trace()
+                  
                     # 
                     #x=GA.change_component_placement(initial_solution)
                     # y=GA.get_partitions_with_j(initial_solution,x[0])
                     
                     
-                    method="random"
-                    tabu_memory=500
-                    #pdb.set_trace()
+                   
                     start=time.time()
                     #TS_Solid= Tabu_Search(iteration_number_RG,seed,tabu_memory, max_iterations, min_score=None,system=S)
                     SA=Simulated_Annealing(iteration_number_RG,seed, 5, .99, max_iterations, min_energy=None, schedule='exponential', system=S)
@@ -377,21 +381,28 @@ def SimulatedAnealing_run(bandwidth_scenarios, iteration_number,
                     #best_cost_list.append(best_cost_tabu)
                     #it_list.append(it+1)
                     
+                    
+                    np.save(output_folder + "/SA_iterations.npy",it_list) 
+                    np.save(output_folder + "/SA_current_cost.npy",current_cost_list) 
+                    np.save(output_folder + "/SA_best_cost.npy",best_cost_list) 
+                    np.save(output_folder + "/SA_time.npy",time_list) 
+                    np.save(output_folder + "/random_gready_time.npy",random_gready_time) 
+                    
                     plt.plot(it_list,current_cost_list,label="Current cost" )
                     plt.plot(it_list,best_cost_list,label="Best cost" )
                     plt.xlabel("Max iterations", fontsize=10)
                     plt.ylabel("Cost", fontsize=10)
                     plt.legend()
-                    plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    plt.title("RG Iter= "+ str(iteration_number_RG))
                     plt.show()
                     
                     
-                    plt.plot(time_list,current_cost_list,label="Current cost" )
-                    plt.plot(time_list,best_cost_list,label="Best cost" )
+                    plt.plot(time_list[:12],current_cost_list[:12],label="Current cost" )
+                    plt.plot(time_list[:12],best_cost_list[:12],label="Best cost" )
                     plt.xlabel("Time (s)", fontsize=10)
                     plt.ylabel("Cost ($)", fontsize=10)
                     
-                    plt.title("RG Iter= "+ str(iteration_number_RG)+ ", Neighboring: " +method )
+                    plt.title("RG Iter= "+ str(iteration_number_RG) )
                     #plt.plot(time_list[0],label="Random Gready finished" )
                     plt.axvline(x=random_gready_time,color='k', linestyle='--', label="Random Gready finished")
                     plt.legend()
@@ -421,12 +432,150 @@ def SimulatedAnealing_run(bandwidth_scenarios, iteration_number,
                     # Lambdas.append(Lambda)
                     
 
-
-
-
-
-
-
+def run_Tabu_SA(bandwidth_scenarios, iteration_number, 
+                        temp_folder,output_folder, Lambda_list, descriptions, seed):
+    
+    
+    method_list=[ "random", "best" ]#["random", "best" ]
+    Lambda=0.1
+    iteration_number_RG=10          
+    for file_name in descriptions:   
+        for bandwidth_scenario in bandwidth_scenarios: 
+          
+              round_num=3
+              
+              for method in method_list:
+                    print("\n Lambda="+str(Lambda)+"\n")
+                   
+                  
+                       
+                       
+                    system_file=temp_folder + "/"+file_name + bandwidth_scenario[0]+str(round(Lambda,round_num)) + ".json"
+                    a_file = open(system_file, "r")
+                    
+                    json_object = json.load(a_file)
+                    a_file.close()
+                    json_object["Lambda"] = Lambda
+                    
+                   
+                    a_file = open(system_file, "w")
+                    json.dump(json_object, a_file, indent=4)
+                    
+                    
+                    a_file.close()
+                    S = System(system_file)
+                  
+                    start=time.time()
+                    proc = mpp.current_process()
+                    pid = proc.pid
+                    seed=seed*pid
+                    seed=2
+                    
+                    max_iterations_Tabu=50
+                   # GA=RandomGreedy(S,2)
+                    #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
+                    # initial_solution=random_greedy_result[1].elite_results[0].solution
+                    # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
+                  
+                    # 
+                    #x=GA.change_component_placement(initial_solution)
+                    # y=GA.get_partitions_with_j(initial_solution,x[0])
+                    
+                    
+                    
+                    tabu_memory=500
+                    #pdb.set_trace()
+                    start=time.time()
+                    TS_Solid= Tabu_Search(iteration_number_RG,seed,tabu_memory, max_iterations_Tabu, min_score=None,system=S)
+                    random_gready_time=time.time()-start
+                    best_solution_Tabu, best_cost_Tabu,current_cost_list_Tabu,best_cost_list_Tabu, time_list_Tabu=TS_Solid.run(method=method)
+                    time_list_Tabu = [x - start for x in time_list_Tabu]
+                    time_list_Tabu.insert(0, 0)
+                    best_cost_list_Tabu.insert(0,best_cost_list_Tabu[0])
+                    current_cost_list_Tabu.insert(0,current_cost_list_Tabu[0])
+                    
+                    it_list_Tabu=[]
+                    for i in range(len(current_cost_list_Tabu)):
+                        it_list_Tabu.append(i)    
+                    
+                    np.save(output_folder + "/Tabu_"+ method +'_iterations.npy',it_list_Tabu) 
+                    np.save(output_folder + "/Tabu_"+ method +'_current_cost.npy',current_cost_list_Tabu) 
+                    np.save(output_folder + "/Tabu_"+ method +'_best_cost.npy',best_cost_list_Tabu) 
+                    np.save(output_folder + "/Tabu_"+ method +'_time.npy',time_list_Tabu) 
+                    pdb.set_trace()
+                    
+                    
+                    
+            ################################### SA ###################################
+             
+        max_iterations_SA= 50 #len(it_list_Tabu)-1
+        start=time.time()
+        SA=Simulated_Annealing(iteration_number_RG,seed, 5, .99, max_iterations_SA, min_energy=None, schedule='exponential', system=S)
+        #random_gready_time=time.time()-start
+        best_solution_SA, best_cost_SA,current_cost_list_SA,best_cost_list_SA, time_list_SA=SA.run()
+      
+        time_list_SA = [x - start for x in time_list_SA]
+        time_list_SA.insert(0, 0)
+        best_cost_list_SA.insert(0,best_cost_list_SA[0])
+        current_cost_list_SA.insert(0,current_cost_list_SA[0])
+        
+        np.save(output_folder + "/SA_iterations.npy",it_list_Tabu) 
+        np.save(output_folder + "/SA_current_cost.npy",current_cost_list_SA) 
+        np.save(output_folder + "/SA_best_cost.npy",best_cost_list_SA) 
+        np.save(output_folder + "/SA_time.npy",time_list_SA) 
+        np.save(output_folder + "/random_gready_time.npy",random_gready_time) 
+        pdb.set_trace()
+      
+def draw_Tabu_SA(output_folder):
+     method_list=["random","best"] 
+     iteration_number_RG=10
+     for method in method_list:
+         it_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_iterations.npy')
+         current_cost_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_current_cost.npy')
+         best_cost_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_best_cost.npy')
+         time_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_time.npy')
+         
+         #plt.plot(it_list_Tabu,current_cost_list_Tabu,label="Current cost " + method )
+         if method=="best":
+             plt.plot(time_list_Tabu[:35],best_cost_list_Tabu[:35],label="Local search best result" )
+         else:
+             plt.plot(time_list_Tabu[:47],best_cost_list_Tabu[:47],label="Tabu search best result " )
+         plt.xlabel("Max iterations", fontsize=10)
+         plt.ylabel("Cost", fontsize=10)
+         
+     random_gready_time= np.load(output_folder + "/random_gready_time.npy") 
+    # it_list_SA=np.load(output_folder +'/SA_iterations.npy',allow_pickle=True)
+    # current_cost_list_SA=np.load(output_folder + "/SA_current_cost.npy")
+     best_cost_list_SA=np.load(output_folder +"/SA_best_cost.npy", allow_pickle=True)
+     time_list_SA=np.load(output_folder + "/SA_time.npy", allow_pickle=True)           
+     plt.title("RG Iter= "+ str(iteration_number_RG), fontsize=8)
+      #plt.plot(it_list_Tabu,current_cost_list_SA,label="Current cost" )
+     plt.plot(time_list_SA[:70],best_cost_list_SA[:70],label="Simulated annealing best result" )
+     plt.axvline(x=random_gready_time,color='k', linestyle='--', label="Random Gready finished")
+     plt.xlabel("Time", fontsize=10)
+     plt.ylabel("Cost", fontsize=10)
+     plt.legend()
+    
+     plt.show()
+     
+     for method in method_list:
+         it_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_iterations.npy')
+         current_cost_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_current_cost.npy')
+         best_cost_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_best_cost.npy')
+         time_list_Tabu=np.load(output_folder + "/Tabu_"+ method +'_time.npy')
+         
+         #plt.plot(it_list_Tabu,current_cost_list_Tabu,label="Current cost " + method )
+         if method=="best":
+             plt.plot(time_list_Tabu[:40],best_cost_list_Tabu[:40],label="Local search best cost" )
+         else:
+             plt.plot(time_list_Tabu[:50],best_cost_list_Tabu[:50],label="Tabu search best cost " )
+             plt.plot(time_list_Tabu[:50],current_cost_list_Tabu[:50],label="Tabu search current cost " )
+             
+         plt.xlabel("Time", fontsize=10)
+         plt.ylabel("Cost", fontsize=10)
+     plt.legend()
+    
+     plt.show()
 
 def main( temp_folder,config_folder,output_folder,seed,json_file):     
      
@@ -470,9 +619,13 @@ def main( temp_folder,config_folder,output_folder,seed,json_file):
     generate_json_files (Lambdas,config_folder, temp_folder, bandwidth_scenarios, descriptions) 
     
     TabuSearch_run( bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed)
-    #SimulatedAnealing_run(bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed) 
+    SimulatedAnealing_run(bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed) 
+    #run_Tabu_SA(bandwidth_scenarios, iteration_number, temp_folder,output_folder, Lambdas , descriptions,seed) 
     #draw_plots(output_folder,bandwidth_scenarios, descriptions)
-      
+    draw_Tabu_SA(output_folder) 
+   
+              
+    
 if __name__ == '__main__':
     
     
@@ -489,7 +642,7 @@ if __name__ == '__main__':
     # output_folder1="/Users/hamtasedghani/Desktop/untitled folder/space4ai-d/Output_files/Output_Files"
     output_folder2="/Users/hamtasedghani/Desktop/USB/Output_Files-5000Iterations/Newoutput-without createValTime"
     output_folder1="/Users/hamtasedghani/Desktop/USB/Output_Files-1000Iterations/Newoutput-without createValTime"
-    output_folder=[output_folder1,output_folder2]
+    output_folder="/Users/hamtasedghani/space4ai-d/OutputFiles_Tabu_SA"
     seed=2
     json_file="system_description_for_tabu"
     #json_file="RandomGreedy"
