@@ -8,6 +8,7 @@ from random import choice, randint, random
 from string import ascii_lowercase
 from Solid.Solid.TabuSearch import TabuSearch
 from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
+from Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
 from copy import deepcopy
 import pdb
 
@@ -1095,4 +1096,39 @@ class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
     
     
     
+## Genetic algorithm
+
+class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
+     ## GeneticAlgorithm class constructor
+    #   @param self The object pointer
+    #   @param seed A seed to generate random values
+    #   @param Max_It_RG Maximum iterations of random greedy
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param system A System.System object
+    #   @param log Object of Logger.Logger type
+    def __init__(self,Max_It_RG,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+        
+        self.Max_It_RG=Max_It_RG
+        RandomGreedy.__init__(self,system,seed, log)
+        # compute initial solution
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
+        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+        
+     ## Method to get a list of neigbors
+    #   @param self The object pointer
+    #   @return A list of solutions (neighbors)    
+    def _neighbor(self ):
+        
+        neighborhood=self.union_neighbors(self.current_state)
+        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+        return x.solution
     
+    ## Method to get the cost of current solution
+    #   @param self The object pointer
+    #   @param solution The current solution
+    #   @return The cost of current solution
+    def _energy(self, solution):
+       
+        return solution.objective_function(self.system)
