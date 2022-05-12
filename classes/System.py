@@ -634,7 +634,6 @@ class System:
          with open(solution_file) as f:
             data = json.load(f)
          return data
-
     
     ## Method to convert the system description into a json object
     #   @param self The object pointer
