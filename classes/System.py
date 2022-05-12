@@ -185,6 +185,7 @@ class System:
             GC = data["GlobalConstraints"]
             self.convert_GCdic_to_list(GC)
         else:
+            self.global_constraints = []
             self.logger.log("No global constraints specified", 3)
         
         # initialize resources, together with their description and the 
@@ -581,8 +582,10 @@ class System:
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
         self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
        
-    
-    
+    def read_solution_file(self,solution_file):
+         with open(solution_file) as f:
+            data = json.load(f)
+         return data
     
     ## Method to convert the system description into a json object
     #   @param self The object pointer
