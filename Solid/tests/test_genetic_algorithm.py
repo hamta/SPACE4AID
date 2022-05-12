@@ -1,6 +1,6 @@
 from random import choice
 from Solid.GeneticAlgorithm import GeneticAlgorithm
-
+import pdb
 
 class Algorithm(GeneticAlgorithm):
     """
@@ -14,5 +14,6 @@ class Algorithm(GeneticAlgorithm):
 
 
 def test_algorithm():
+    pdb.set_trace()
     algorithm = Algorithm(.5, .7, 500, max_fitness=None)
     algorithm.run()
