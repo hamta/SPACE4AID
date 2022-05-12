@@ -37,7 +37,64 @@ class Algorithm:
         # set seed for random number generation
         np.random.seed(seed)
         
-    
+     ## Method to create a solution from a solution file in output file format 
+    #   @param self The object pointer
+    #   @param solution_file A solution file
+    #   @return result 
+    def create_solution_by_file(self, solution_file):
+        # read solution json file
+         data=self.system.read_solution_file(solution_file)
+         if "components" in data.keys():
+            # load components info
+            C = data["components"]
+            Y_hat=[]
+         else:
+            self.error.log("ERROR: no components available in solution file", 1)
+            sys.exit(1)
+         # loop over all components
+         I = len(self.system.components)
+         for i in range(I):
+            # get the number of partitions and available resources
+            H, J = self.system.compatibility_matrix[i].shape
+            # create the empty matrices
+            Y_hat.append(np.full((H, J), 0, dtype=int))
+        
+         for c in C:
+            if c in self.system.dic_map_com_idx.keys(): 
+                comp_idx=self.system.dic_map_com_idx[c]
+            else:
+                 self.error.log("ERROR: the commponent does not exist in the system", 1)
+                 sys.exit(1)
+            dep_included=False
+            for s in C[c]:
+                if s.startswith("s"):
+                    dep_included=True
+                    part_included=False
+                    for h in C[c][s]:
+                        if h.startswith("h"):
+                            part_included=True
+                            part_idx=self.system.dic_map_part_idx[c][h][1]
+                            
+                            CL=list(C[c][s][h].keys())[0]
+                            res=list(C[c][s][h][CL].keys())[0]
+                            res_idx=self.system.dic_map_res_idx[res]
+                            if res_idx<self.system.FaaS_start_index:
+                                number=C[c][s][h][CL][res]["number"]
+                            else:
+                                number=1
+                            Y_hat[comp_idx][part_idx][res_idx]=number
+                    if part_included==False:
+                        self.error.log("ERROR: there is no selected partition for component "+ c+ +" and deployment "+s+" in the solution file", 1)
+                        sys.exit(1)
+            if dep_included==False:
+                self.error.log("ERROR: there is no selected deployment for component "+ c +" in the solution file", 1)
+                sys.exit(1)
+         result = Result()
+         result.solution = Configuration(Y_hat, self.logger) 
+         result.check_feasibility(self.system)
+         result.objective_function(self.system)
+         return result          
+        
     ## Method to create the initial random solution
     #   @param self The object pointer
     #   @return (1) List of 2D numpy matrices denoting the amount of  
