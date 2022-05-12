@@ -1,6 +1,6 @@
 from classes.Logger import Logger
 from classes.System import System
-from classes.Algorithm import RandomGreedy
+from classes.Algorithm import RandomGreedy, Algorithm
 import time
 import sys
 import os
@@ -8,7 +8,9 @@ import json
 import numpy as np
 import multiprocessing as mpp
 from multiprocessing import Pool
+import argparse
 import functools
+import sys
 
 
 ## Function to create a directory given its name (if the directory already 
@@ -82,10 +84,11 @@ def generate_output_json(Lambda, result, S, onFile = True):
 #   @param MaxIt Maximum number of RandomGreedy iterations
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
 def fun_greedy(MaxIt, S, seed):
-    GA = RandomGreedy(S, log=Logger(verbose=2))
+    
     proc = mpp.current_process()
     pid = proc.pid
-    return GA.random_greedy(seed*pid, MaxIt, 2)
+    GA = RandomGreedy(S,seed*pid, log=Logger(verbose=2))
+    return GA.random_greedy( MaxIt)
 
 
 ## Function to get a list whose n-th element stores the number of iterations
@@ -160,20 +163,104 @@ def main(system_file, iteration, seed, start_lambda, end_lambda, step):
     
 if __name__ == '__main__':
     
-    system_file = sys.argv[1]
-    iteration = int(sys.argv[2])
-    start_lambda = float(sys.argv[3])
-    end_lambda = float(sys.argv[4])
-    step = float(sys.argv[5])
-    seed = int(sys.argv[6])
+    # system_file = sys.argv[1]
+    # iteration = int(sys.argv[2])
+    # start_lambda = float(sys.argv[3])
+    # end_lambda = float(sys.argv[4])
+    # step = float(sys.argv[5])
+    # seed = int(sys.argv[6])
     
-    # system_file = "ConfigFiles/Random_Greedy.json"
-    # iteration = 1000
-    # start_lambda = 0.15
-    # end_lambda = 0.15
-    # step = 0.01
-    # seed = 2
+    system_file = "ConfigFiles/Random_Greedy.json"
+    iteration = 100
+    start_lambda = 0.15
+    end_lambda = 0.16
+    step = 0.01
+    seed = 2
+    
+    
+    #  # load system description
+    system_file = create_pure_json(system_file)
+    with open(system_file, "r") as a_file:
+        json_object = json.load(a_file)
+    
+    
+    # set the current Lambda in the system description
+   # json_object["Lambda"] = Lambda
+    
+    # initialize system
    
-    main(system_file, iteration, seed, start_lambda, end_lambda, step)
+    S = System(system_json=json_object)#, log=Logger(verbose=2))
+    # best_result_no_update, elite, random_params=fun_greedy(iteration, S, seed)
+    # generate_output_json(S.Lambda, elite.elite_results[0], S)
     
+    solution_file="Output_Files/Lambda_0.16_output_json.json"
+    # random_greedy_result=fun_greedy(100, S, seed)
+    breakpoint()
+    # random_greedy_result[0].print_result(S, solution_file=solution_file)
+    A = Algorithm(S,seed, log=Logger(verbose=2))
+    result=A.create_solution_by_file(solution_file)
+    result.print_result(S, solution_file=solution_file)
+
+    parser = argparse.ArgumentParser(description="SPACE4AI-D")
+
+    parser.add_argument("-s", "--system_file", 
+                        help="System configuration file")
+    parser.add_argument('-c', "--config", 
+                        help="Test configuration file", 
+                        default="ConfigFiles/Input_file.json")
+    parser.add_argument('-v', "--verbose", 
+                        help="Verbosity level", 
+                        type=int,
+                        default=0)
+    parser.add_argument('-e', '--evaluation_lambda', nargs=2, help="Evaluate the solution with Lambda")
+    parser.add_argument('-l', "--log_directory", 
+                        help="Directory for logging", 
+                        default="")
+
+    args = parser.parse_args()
     
+    # initialize error stream
+    error = Logger(stream = sys.stderr, verbose=1, error=True)
+    
+    # check if the system configuration file exists
+    if not os.path.exists(args.system_file):
+        error.log("{} does not exist".format(args.system_file))
+        sys.exit(1)
+    
+    # check if the test configuration file exists
+    if args.evaluation_lambda == "":
+        if not os.path.exists(args.config):
+            error.log("{} does not exist".format(args.config))
+            sys.exit(1)
+        else:
+            config = {}
+            with open(args.config, "r") as config_file:
+                config = json.load(config_file)
+    else:
+        try:
+             Lambda = float(args.evaluation_lambda[0])
+        except ValueError:
+             error.log("{} must be a number".format(args.config))
+             sys.exit(1)
+        if not os.path.exists(args.evaluation_lambda[1]):
+            error.log("{} does not exist".format(args.config))
+            sys.exit(1)
+        else:
+            solution_file=args.evaluation_lambda[1]
+    
+    # check if the log directory exists and create it otherwise
+    if args.log_directory != "":
+        if os.path.exists(args.log_directory):
+            print("Directory {} already exists. Terminating...".\
+                  format(args.log_directory))
+            sys.exit(0)
+        else:
+            createFolder(args.log_directory)
+    
+    # load data from the test configuration file
+    
+   
+   # main(args.system_file, config, args.log_directory)
+     
+    # 
+    #main(system_file, iteration, seed, start_lambda, end_lambda, step)
