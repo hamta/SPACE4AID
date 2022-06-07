@@ -1,34 +1,39 @@
 from classes.Logger import Logger
 from classes.Solution import Configuration, Result, EliteResults
+from classes.PerformanceEvaluators import SystemPerformanceEvaluator, ServerFarmPE, EdgePE
 import numpy as np
 import copy
 import sys
 import time
 from Solid.Solid.TabuSearch import TabuSearch
-
+from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
+from Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
+import math
 
 ## Algorithm
 class Algorithm:
-    
+
     ## @var system
     # A System.System object
-    
+
     ## @var logger
     # Object of Logger.Logger type, used to print general messages
-    
+
     ## @var error
     # Object of Logger class, used to print error messages on sys.stderr
-    
+
     ## Algorithm class constructor: initializes the system
     #   @param self The object pointer
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
+    def __init__(self, system,seed=1, log = Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1)
         self.system = system
-        
-     ## Method to create a solution from a solution file in output file format 
+        self.seed = seed
+        np.random.seed(seed)
+
+     ## Method to create a solution from a solution file in output file format
     #   @param self The object pointer
     #   @param solution_file A solution file
     #   @return result 
@@ -49,43 +54,45 @@ class Algorithm:
             H, J = self.system.compatibility_matrix[i].shape
             # create the empty matrices
             Y_hat.append(np.full((H, J), 0, dtype=int))
-        
+        # loop over components
          for c in C:
-            if c in self.system.dic_map_com_idx.keys(): 
+            if c in self.system.dic_map_com_idx.keys():
                 comp_idx=self.system.dic_map_com_idx[c]
             else:
                  self.error.log("ERROR: the commponent does not exist in the system", 1)
                  sys.exit(1)
             dep_included=False
+            # loop over deployments
             for s in C[c]:
                 if s.startswith("s"):
-                    dep_included=True
-                    part_included=False
+                    dep_included = True
+                    part_included = False
+                    # loop over partitions
                     for h in C[c][s]:
                         if h.startswith("h"):
                             part_included=True
-                            part_idx=self.system.dic_map_part_idx[c][h][1]
-                            
-                            CL=list(C[c][s][h].keys())[0]
-                            res=list(C[c][s][h][CL].keys())[0]
-                            res_idx=self.system.dic_map_res_idx[res]
-                            if res_idx<self.system.FaaS_start_index:
-                                number=C[c][s][h][CL][res]["number"]
+                            part_idx = self.system.dic_map_part_idx[c][h][1]
+
+                            CL = list(C[c][s][h].keys())[0]
+                            res = list(C[c][s][h][CL].keys())[0]
+                            res_idx = self.system.dic_map_res_idx[res]
+                            if res_idx < self.system.FaaS_start_index:
+                                number = C[c][s][h][CL][res]["number"]
                             else:
-                                number=1
+                                number = 1
                             Y_hat[comp_idx][part_idx][res_idx]=number
-                    if part_included==False:
-                        self.error.log("ERROR: there is no selected partition for component "+ c+ +" and deployment "+s+" in the solution file", 1)
+                    if not part_included:
+                        self.error.log("ERROR: there is no selected partition for component " + c + " and deployment " + s + " in the solution file", 1)
                         sys.exit(1)
-            if dep_included==False:
-                self.error.log("ERROR: there is no selected deployment for component "+ c +" in the solution file", 1)
+            if not dep_included:
+                self.error.log("ERROR: there is no selected deployment for component " + c + " in the solution file", 1)
                 sys.exit(1)
          result = Result()
-         result.solution = Configuration(Y_hat, self.logger) 
+         result.solution = Configuration(Y_hat, self.logger)
          result.check_feasibility(self.system)
          result.objective_function(self.system)
-         return result          
-        
+         return result
+
     ## Method to create the initial random solution
     #   @param self The object pointer
     #   @return (1) List of 2D numpy matrices denoting the amount of  
@@ -99,17 +106,17 @@ class Algorithm:
     #           (4) List of indices of the resource randomly selected in each 
     #           computational layer
     def create_random_initial_solution(self):
-      
+
         # increase indentation level for logging
         self.logger.level += 1
-        
+
         # initialize the assignments
         self.logger.log("Initialize matrices", 4)
         CL_res_random = []
         res_parts_random = []
         y_hat = []
         y = []
-        
+
         # loop over all components
         I = len(self.system.components)
         for i in range(I):
@@ -118,7 +125,7 @@ class Algorithm:
             # create the empty matrices
             y_hat.append(np.full((H, J), 0, dtype=int))
             y.append(np.full((H, J), 0, dtype=int))
-        
+
         # generate the list of candidate nodes, selecting one node per each 
         # computational layer (and all nodes in the FaaS layers)
         self.logger.log("Generate candidate resources", 4)
@@ -136,11 +143,11 @@ class Algorithm:
                 CL_res_random.append(l.resources.index(random_num))
                 candidate_nodes.append(random_num)
             resource_count += len(l.resources)
-        
+
         # loop over all components
         self.logger.log("Assign components", 4)
         for comp in self.system.components:
-            
+
             # randomly select a deployment for that component
             random_dep = np.random.choice(comp.deployments)
             h = 0
@@ -174,12 +181,12 @@ class Algorithm:
                 if self.system.graph.G.succ[comp.name] != {}:
                     if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
                         self.system.graph.G[comp.name][part.Next]["data_size"] = part.data_size
-                
+
             res_parts_random.append(rand)
-        
+
         # loop over edge/cloud resources
         self.logger.log("Set number of resources", 4)
-        VM_numbers = [] 
+        VM_numbers = []
         for j in range(self.system.FaaS_start_index):
             # randomly generate the number of resources that can be assigned 
             # to the partitions that run on that resource
@@ -195,12 +202,12 @@ class Algorithm:
                     # the number
                     if y[i][h][j] > 0:
                         y_hat[i][h][j] = y[i][h][j] * number
-        
+
         self.logger.level -= 1
-        
+
         return  y_hat, res_parts_random, VM_numbers, CL_res_random
 
-    
+
     ## Method to increase the number of resources allocated to a partition
     #   @param self The object pointer
     #   @param comp_idx The index of the Graph.Component object
@@ -208,27 +215,27 @@ class Algorithm:
     #   @param solution The current feasible solution
     #   @return True if the number of resources has been increased
     #
-    # TODO: increase also the resources assigned to all the colocated partitions
-    #
     def increase_number_of_resource(self, comp_idx, part_idx, solution):
-        
+
         increased = False
-        
+
         # get the index of the resources where the component partition is 
         # allocated
         resource_idx = np.nonzero(solution.Y_hat[comp_idx][part_idx,:])[0]
-        
+        # get all components' index and partitions' index that are running j
+        partitions_with_j=self.get_partitions_with_j(solution.Y_hat,resource_idx)
         # check if the number of resources assigned to the partition is 
         # lower than the number of available resources
         assigned_resources = solution.Y_hat[comp_idx][part_idx, resource_idx]
         if assigned_resources < self.system.resources[resource_idx].number:
-            # if so, increase the number of assigned resources
-            solution.Y_hat[comp_idx][part_idx, resource_idx] += 1
+            # if so, increase the number of assigned resources in all partitions
+            for comp_part in partitions_with_j:
+                solution.Y_hat[comp_part[0]][comp_part[1], resource_idx] += 1
             increased = True
 
         return increased
-    
-    
+
+
     ## Method to return all the alternative resources of current allocated 
     # resource for the given component 
     #   @param self The object pointer
@@ -237,18 +244,18 @@ class Algorithm:
     #   @param solution The current feasible solution
     #   @return The indices of the alternative resources
     def alternative_resources(self, comp_idx, part_idx, solution):
-        
+
         # get the assignment matrix
         Y = solution.get_y()
-        
+
         # get the list of compatible, unused resources
-        l = np.greater(self.system.compatibility_matrix[comp_idx][part_idx,:], 
+        l = np.greater(self.system.compatibility_matrix[comp_idx][part_idx,:],
                        Y[comp_idx][part_idx,:])
         resource_idxs = np.where(l)[0]
-        
+
         return resource_idxs
-   
-  
+
+
     ## Method reduce the number of Resources.VirtualMachine objects in a 
     # cluster 
     #   @param self The object pointer
@@ -256,32 +263,32 @@ class Algorithm:
     #   @param result The current Solution.Result object
     #   @return The updated Solution.Result object
     def reduce_cluster_size(self, resource_idx, result):
-        
+
         self.logger.level += 1
-        
+
         # initialize the new result
         new_result = copy.deepcopy(result)
-        
+
         # check if the resource index corresponds to an edge/cloud resource
         if resource_idx < self.system.FaaS_start_index:
-            
+
             # check if more than one resource of the given type is available
             if self.system.resources[resource_idx].number > 1:
-                
+
                 # get the max number of used resources
                 y_bar = new_result.solution.get_y_bar()
-                
+
                 # update the current solution, always checking its feasibility
                 feasible = True
                 while feasible and y_bar[resource_idx].max() > 1:
-                    
+
                     self.logger.log("y_bar[{}] = {}".\
-                                    format(resource_idx,y_bar[resource_idx].max()), 
+                                    format(resource_idx,y_bar[resource_idx].max()),
                                     7)
-                    
+
                     # create a copy of the current Y_hat matrix
                     temp = copy.deepcopy(new_result.solution.Y_hat)
-                
+
                     # loop over all components
                     for i in range(len(new_result.solution.Y_hat)):
                         # loop over all component partitions
@@ -289,13 +296,13 @@ class Algorithm:
                             # decrease the number of resources (if > 1)
                             if temp[i][h,resource_idx] > 1:
                                 temp[i][h,resource_idx] -= 1
-                    
+
                     # create a new solution with the updated Y_hat
                     new_solution = Configuration(temp)
-                    
+
                     # check if the new solution is feasible
                     new_performance = new_solution.check_feasibility(self.system)
-                    
+
                     # if so, update the result
                     feasible = new_performance[0]
                     if feasible:
@@ -304,56 +311,56 @@ class Algorithm:
                         new_result.performance = new_performance
                         y_bar = new_result.solution.get_y_bar()
                         self.logger.log("feasible", 7)
-        
+
         self.logger.level -= 1
-        
+
         return new_result
-    
+
     ## Method to get all partitions that can be run on FaaS
     #   @param self The object pointer
     #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
     #   @return A list of partitions allocated to the FaaS including the components index, partition index and resource index
     def get_partitions_with_FaaS(self,Y_hat):
-     
+
         partitions_with_FaaS=[]
         # loop over components
         for comp_idx, comp in enumerate(Y_hat):
-         
+
            # get the partitions and resources allocated to them
-          
+
            h_idxs,res_idxs=comp.nonzero()
            # get the indexes of FaaS allocated to the partitions
            res_FaaS_idx=res_idxs[res_idxs>=self.system.FaaS_start_index]
            # if the allocated resources are in FaaS, get the index of partitions and FaaS to add to the output list
            if len(res_FaaS_idx)>0:
-               
+
                for i in range(len(res_FaaS_idx)):
                     h_FaaS_idx=comp[:,res_FaaS_idx[i]].nonzero()[0][0]
-                  
-                    partitions_with_FaaS.append((comp_idx,h_FaaS_idx,res_FaaS_idx[i])) 
-                  
+
+                    partitions_with_FaaS.append((comp_idx,h_FaaS_idx,res_FaaS_idx[i]))
+
         return partitions_with_FaaS
-    
-    ## Method to get all partitions that can be run on resource j
+
+    ## Method to get all partitions that is running on resource j
     #   @param self The object pointer
     #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
     #   @param j The index of resource
     #   @return A list of partitions allocated to resource j including the components index and partition index
     def get_partitions_with_j(self,Y_hat,j):
         partitions_with_j=[]
-          # loop over components 
+          # loop over components
         for comp_idx, comp in enumerate(Y_hat):
           # get the partitions that are located in resource j
            comps_parts= np.nonzero(comp[:,j])[0]
-           # if some partitions are located in j, add them to output list 
+           # if some partitions are located in j, add them to output list
            if len(comps_parts>0):
-              
+
                for comp_part in comps_parts:
-                  
-                   partitions_with_j.append((comp_idx,comp_part)) 
-                  
+
+                   partitions_with_j.append((comp_idx,comp_part))
+
         return partitions_with_j
-    
+
     ## Method to change the input solution to find some neigbors of the current solution by changing the FaaS assignments
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -389,19 +396,19 @@ class Algorithm:
                     new_feasible_results.append(result)
         if len(new_feasible_results)>0:
             # sort the list of result      
-            new_sorted_results = sorted(new_feasible_results, key=lambda x: x.cost)    
+            new_sorted_results = sorted(new_feasible_results, key=lambda x: x.cost)
             #new_sorted_solution=[x.solution for x in new_sorted_results]
         # return the list of neibors
         return new_sorted_results
-    
-    
+
+
     ## Method to get active resources and computationallayers
     #   @param self The object pointer
     #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
     #   @return (1) A list of resources that are in used in current Y_hat called active resources
     #           (2) A list includes the computational layers of active resources 
     def get_active_res_computationallayers(self, Y_hat):
-        
+
         act_res_idxs=[]
         # loop over components
         for  comp in Y_hat:
@@ -411,7 +418,7 @@ class Algorithm:
            act_res_idxs.extend(res_idxs)
         # remove the duplicated resource indeces in active resource list
         active_res_idxs=list(set(act_res_idxs))
-        
+
         # initialize active computational layer list
         act_camputationallayers=[]
         # loop over active resource list
@@ -421,7 +428,7 @@ class Algorithm:
         # remove the duplicated computational layers in active computational layer list
         active_camputationallayers=list(set(act_camputationallayers))
         return active_res_idxs, active_camputationallayers
-            
+
     ## Method to sort all nodes increasingly except FaaS by utilization and cost 
     #   @param self The object pointer
     #   @param Y_hat Assignment matrix includes all components and partitions assigned to resources 
@@ -432,23 +439,33 @@ class Algorithm:
     #           Each item of list includes the index, utilization and cost of the resource.
     #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
     def sort_nodes(self, Y_hat):
-  
+
         #min_utilization=np.inf
         idx_min_U_node=[]
         # loop over all alternative resources
-        for j in range(self.system.FaaS_start_index):
-            # compute the utilization of current node
-            utilization=self.system.resources[j].performance_evaluator.compute_utilization(j, Y_hat,self.system)
-            # add the information of node to the list includes node index, utilization and cost
-            idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
-                
+        edge=EdgePE()
+        cloud=ServerFarmPE()
+        for j in range(self.system.cloud_start_index):
+              # compute the utilization of current node
+            utilization=edge.compute_utilization(j, Y_hat, self.system)
+            if not math.isnan(utilization) and utilization>0:
+                # add the information of node to the list includes node index, utilization and cost
+                idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
+
+        for j in range(self.system.cloud_start_index,self.system.FaaS_start_index):
+             # compute the utilization of current node
+            utilization=cloud.compute_utilization(j, Y_hat, self.system)
+            if not math.isnan(utilization) and utilization>0:
+                # add the information of node to the list includes node index, utilization and cost
+                idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
+
         # sort the list based on utilization and cost respectively     
         sorted_node_by_U_cost= sorted(idx_min_U_node, key=lambda element: (element[1], element[2]))
         # sort the list based on cost and utilization respectively
         sorted_node_by_cost_U= sorted(idx_min_U_node, key=lambda element: (element[2], element[1]))
         # return the index of best alternative
         return sorted_node_by_U_cost, sorted_node_by_cost_U
-        
+
     ## Method to change the current solution by changing component placement
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -457,7 +474,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def change_component_placement(self, solution, sorting_method=0):
-        
+
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -478,7 +495,7 @@ class Algorithm:
             # get all partitions located in higest utilization node
             partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
             # get the list of nodes and computational layers in used 
-            active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
+            active_res_idxs, active_camputationallayers = self.get_active_res_computationallayers(solution.Y_hat)
             # loop over partitions
             for part in partitions:
                 # get all alternative resources of the partitions
@@ -486,29 +503,29 @@ class Algorithm:
                 # # set a boolean variable to break, if best destination is founded
                 # find=False
                 i=0
-               
+
                  # search to find the best campatible resource with lowest utilization for current partition
                 #while not find and i<len(nodes_sorted_list)-1 and i<j:
                 while  i<len(nodes_sorted_list)-1 and i<j:
-                    
+
                     des_node_idx=nodes_sorted_list[i][0]
                     # Check some conditions to avoid violating the limitation of our problem that says:
                     # Only one node can be in used in each computational layer 
                     # So, the destination node can be used only if it is one of running (active) node, 
                     # or its computational layer is not an active computational layer
-                    
+
                     if des_node_idx in active_res_idxs or \
                             self.system.resources[des_node_idx].CLname not in active_camputationallayers:
                         if des_node_idx in alternative_res_idxs:
-                           
+
                             # get a copy of current solution as a new temprary assignment matrix (Y_hat)
                             new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
                             # get all partitions running on the destination node
-                            partitions_min_U=self.get_partitions_with_j(solution.Y_hat,des_node_idx)
+                            partitions_min_U = self.get_partitions_with_j(solution.Y_hat,des_node_idx)
                             # assign the current partition to the new alternative node in new Y_hat with maximume number of its instances
                             new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
                             new_temp_Y_hat[part[0]][part[1]][des_node_idx]=self.system.resources[des_node_idx].number
-                           
+
                             if len(partitions_min_U)>0:
                                 # assign the maximume instance number of destination node to the partitions that are running on destination node
                                 for part_min in partitions_min_U:
@@ -529,29 +546,29 @@ class Algorithm:
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
-                                
-                   
+
+
                     i+=1
-                   
-                        
+
+
                 # if not find:
                 #      print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
             # if some neighbors are founded, sort them by cost and return the list    
-            if len(neighbors)>0:        
+            if len(neighbors)>0:
                 new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
                 #new_sorted_solutions=[x.solution for x in new_sorted_results]
-                
+
             else:
                # print("No neighbor could be find by changing component placement of source node " +str(idx_source_node))
-                new_sorted_results=None
-            j+=1
-            
-        if  new_sorted_results==None:
-             print("Any neighbors could not be found by changing component placement for the current solution")  
-        return new_sorted_results    
-            
-            
-            
+                new_sorted_results = None
+            j += 1
+
+        if new_sorted_results is None:
+             print("Any neighbors could not be found by changing component placement for the current solution")
+        return new_sorted_results
+
+
+
     ## Method to change the current solution by changing resource type
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -560,8 +577,8 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost   
     def change_resource_type(self, solution, sorting_method=0):
-       
-        
+
+
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -575,7 +592,7 @@ class Algorithm:
             # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
             idx_source_node=nodes_sorted_list[selected_node][0]
-            
+
             # get all partitions located in higest utilization node
             partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
             alternative_res_idxs_parts=[]
@@ -584,7 +601,7 @@ class Algorithm:
                 alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
             # get the intersection of the alternative nodes of all partitions runing on source node
             candidate_nodes=alternative_res_idxs_parts[0].intersection(*alternative_res_idxs_parts)
-            
+
             if len(candidate_nodes)>0:
                 # get the list of nodes and computational layers in used 
                 active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
@@ -612,9 +629,9 @@ class Algorithm:
                                # create new solution by new assignment
                                 new_temp_solution=Configuration(new_temp_Y_hat)
                                 # check feasibility
-                                
+
                                 performance=new_temp_solution.check_feasibility(self.system)
-                                
+
                                 if performance[0]:
                                     # create a new result
                                     result=Result()
@@ -625,21 +642,21 @@ class Algorithm:
                                     new_result.performance = performance
                                     # add the new result to the neigbor list
                                     neighbors.append(new_result)
-                
+
                 if len(neighbors)>0:
                     # sort neighbor list by cost and return the best one
                     new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
                     #new_sorted_solutions=[x.solution for x in new_sorted_results]
             #     else:
             #         print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no feasible solution exists given the shared compatiblie nodes ")
-                    
+
             # else:
             #     print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
             i+=1
         if  new_sorted_results==None:
             print("Any neighbors could not be found by changing resource type for the current solution")
-        return new_sorted_results 
-    
+        return new_sorted_results
+
     ## Method to change the current solution by moveing partitions from edge or cloud toFaaS
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -657,7 +674,7 @@ class Algorithm:
         else:
             nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
         selected_node=len(nodes_sorted_list)
-        
+
         # sort FaaS by memory and cost respectively
         sorted_FaaS=self.system.sorted_FaaS_by_memory_cost
         # if we need to sort FaaS by cost and memory respectively, we use self.system.sorted_FaaS_by_cost_memory
@@ -667,7 +684,7 @@ class Algorithm:
             # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
             idx_source_node=nodes_sorted_list[selected_node][0]
-            
+
             # get all partitions located in higest utilization node
             partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
             alternative_res_idxs_parts=[]
@@ -679,10 +696,10 @@ class Algorithm:
                 if len(FaaS_alternatives)<1:
                     all_FaaS_compatible=False
                 alternative_res_idxs_parts.append(FaaS_alternatives)
-                
-           
-          
-            
+
+
+
+
             if all_FaaS_compatible:
                 new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
                 for idx, part in enumerate(partitions):
@@ -690,13 +707,13 @@ class Algorithm:
                     des=sorted_FaaS_idx[max(idx_alternative)]
                     #alternative_res_idxs_parts[idx] sorted_FaaS
                     new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
-                        
+
                     new_temp_Y_hat[part[0]][part[1]][des]=1
                 # create new solution by new assignment
                 new_temp_solution=Configuration(new_temp_Y_hat)
                 # check feasibility
                 performance=new_temp_solution.check_feasibility(self.system)
-                
+
                 if performance[0]:
                     # create a new result
                     new_result=Result()
@@ -706,23 +723,23 @@ class Algorithm:
                     # add the new result to the neigbor list
                     neighbors.append(new_result)
             else:
-            
+
                 for idx, part in enumerate(partitions):
                     if len(alternative_res_idxs_parts[idx])>0:
                         new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
-                        
-                       
+
+
                         idx_alternative=[sorted_FaaS_idx.index(j) for j in alternative_res_idxs_parts[idx]]
                         des=sorted_FaaS_idx[max(idx_alternative)]
                         #alternative_res_idxs_parts[idx] sorted_FaaS
                         new_temp_Y_hat[part[0]][part[1]][idx_source_node]=0
-                            
+
                         new_temp_Y_hat[part[0]][part[1]][des]=1
                     # create new solution by new assignment
                         new_temp_solution=Configuration(new_temp_Y_hat)
                         # check feasibility
                         performance=new_temp_solution.check_feasibility(self.system)
-                        
+
                         if performance[0]:
                             # create a new result
                             result=Result()
@@ -734,17 +751,17 @@ class Algorithm:
                             # add the new result to the neigbor list
                             neighbors.append(new_result)
             i+=1
-        
+
         if len(neighbors)>0:
             # sort neighbor list by cost and return the best one
             new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
             #new_sorted_solutions=[x.solution for x in new_sorted_results]
         else:
             print("Any neighbors could not be found by moveing to FaaS for the current solution")
-            
+
         return new_sorted_results
-   
-        
+
+
     ## Method to move the partitions running on FaaS to the edge/cloud
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -753,17 +770,17 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_from_FaaS(self, solution, sorting_method=0):
-      
+
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
         if sorting_method==0:
             nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
         else:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1] 
-        # call the method to get all partitions located in FaaS 
+            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+        # call the method to get all partitions located in FaaS
         partitions_with_FaaS=self.get_partitions_with_FaaS(solution.Y_hat)
-         # get the list of nodes and computational layers in used 
+         # get the list of nodes and computational layers in used
         active_res_idxs, active_camputationallayers=self.get_active_res_computationallayers(solution.Y_hat)
         # loop over partitions
         for part in partitions_with_FaaS:
@@ -774,18 +791,18 @@ class Algorithm:
                 find=False
                  # search to find the best campatible resource with lowest utilization for current partition
                 #while not find and i<len(nodes_sorted_list)-1 and i<j:
-                while  i<len(nodes_sorted_list)-1 and not find :
-                    
+                while i < len(nodes_sorted_list)-1 and not find :
+
                     des_node_idx=nodes_sorted_list[i][0]
                     # Check some conditions to avoid violating the limitation of our problem that says:
-                    # Only one node can be in used in each computational layer 
-                    # So, the destination node can be used only if it is one of running (active) node, 
+                    # Only one node can be in used in each computational layer
+                    # So, the destination node can be used only if it is one of running (active) node,
                     # or its computational layer is not an active computational layer
-                    
+
                     if des_node_idx in active_res_idxs or \
                             self.system.resources[des_node_idx].CLname not in active_camputationallayers:
                         if des_node_idx in alternative_res_idxs:
-                           
+
                             # get a copy of current solution as a new temprary assignment matrix (Y_hat)
                             new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
                             # get all partitions running on the destination node
@@ -793,7 +810,7 @@ class Algorithm:
                             # assign the current partition to the new alternative node in new Y_hat with maximume number of its instances
                             new_temp_Y_hat[part[0]][part[1]][part[2]]=0
                             new_temp_Y_hat[part[0]][part[1]][des_node_idx]=self.system.resources[des_node_idx].number
-                           
+
                             if len(partitions_on_des)>0:
                                 # assign the maximume instance number of destination node to the partitions that are running on destination node
                                 for part_des in partitions_on_des:
@@ -814,24 +831,21 @@ class Algorithm:
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
                                 find=True
-                   
+
                     i+=1
-        
-        
-        if len(neighbors)>0:        
-                new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
-           
-            
-        if  new_sorted_results==None:
-             print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")  
-        return new_sorted_results    
-    
+
+        if len(neighbors) > 0:
+            new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
+        if new_sorted_results is None:
+             print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")
+        return new_sorted_results
+
     ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
     #   @param self The object pointer
     #   @param solution Current solution 
     #   @return A list neigbors (new solutions) sorted by cost   
     def union_neighbors(self, solution):
-       
+
         neighborhood=[]
         # get the neighbors by changing FaaS configuration
         neighborhood1=self.change_FaaS(solution)
@@ -843,7 +857,7 @@ class Algorithm:
         neighborhood4=self.move_to_FaaS(solution)
         # get the neigbors by moveing from FaaS to edge/cloud
         neighborhood5=self.move_from_FaaS(solution)
-        
+
         # mixe all neigbors
         if neighborhood1 is not None:
             neighborhood.extend(neighborhood1)
@@ -862,18 +876,18 @@ class Algorithm:
         for neighbor_idx in range(len(sorted_neighborhood)-1):
             if sorted_neighborhood[neighbor_idx].cost==sorted_neighborhood[neighbor_idx+1].cost:
                 if sorted_neighborhood[neighbor_idx].solution==sorted_neighborhood[neighbor_idx+1].solution:
-                    
+
                     new_sorted_neighborhood.remove(new_sorted_neighborhood[neighbor_idx])
 
         return new_sorted_neighborhood
-            
+
     ## Method to create the initial solution with largest configuration function (for only FaaS scenario)
     #   @param self The object pointer
     #   @return solution  
     def creat_initial_solution_with_largest_conf_fun(self):
         y_hat = []
         y = []
-        
+
         # loop over all components
         I = len(self.system.components)
         for i in range(I):
@@ -882,7 +896,7 @@ class Algorithm:
             # create the empty matrices
             y_hat.append(np.full((H, J), 0, dtype=int))
             y.append(np.full((H, J), 0, dtype=int))
-        
+
         candidate_nodes = []
         resource_count = 0
         # loop over all computational layers
@@ -897,10 +911,10 @@ class Algorithm:
                 candidate_nodes.append(random_num)
             resource_count += len(l.resources)
         for comp in self.system.components:
-            
+
             # randomly select a deployment for that component
             random_dep = np.random.choice(comp.deployments)
-          
+
             # loop over all partitions in the deployment
             for part_idx in random_dep.partitions_indices:
                 part = comp.partitions[part_idx]
@@ -917,17 +931,17 @@ class Algorithm:
                     if j_idx in range(self.system.cloud_start_index):
                         cost=self.system.resources[j_idx].cost
                     elif j_idx in range(self.system.cloud_start_index, self.system.FaaS_start_index):
-                        cost=self.system.resources[j_idx].cost 
+                        cost=self.system.resources[j_idx].cost
                     #
                     # compute the cost of FaaS and transition cost if not using SCAR
                     elif j_idx in range(self.system.FaaS_start_index, J):
-                       
-                        cost=self.system.resources[j_idx].cost * self.system.components[i].comp_Lambda * self.system.T 
-                    
+
+                        cost=self.system.resources[j_idx].cost * self.system.components[i].comp_Lambda * self.system.T
+
                     if cost>max_cost:
                         max_cost=copy.deepcopy(cost)
                         j_largest=j_idx
-                        
+
                 y[i][h_idx,j_largest] = 1
                 y_hat[i][h_idx,j_largest] = 1
                 # if the partition is the last partition (i.e., its successor 
@@ -937,37 +951,31 @@ class Algorithm:
                     if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
                         self.system.graph.G[comp.name][part.Next]["data_size"] = part.data_size
         solution = Configuration(y_hat, self.logger)
-      
+
         feasible = solution.check_feasibility(self.system)
-        
-       
+
+
         if feasible:
             new_solution=solution
-              
+
         else:
             new_solution=None
         return new_solution
-        
-        
-            
-                    
-                
-                
 
 ## RandomGreedy
 #
 # Specialization of Algorithm that constructs the optimal solution through a 
 # randomized greedy approach
 class RandomGreedy(Algorithm):
-    
+
     ## RandomGreedy class constructor
     #   @param self The object pointer
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self, system, log = Logger()):
-        super().__init__(system, log)
-    
-    
+    def __init__(self, system,seed, log = Logger()):
+        super().__init__(system,seed, log)
+
+
     ## Single step of the randomized greedy algorithm: it randomly generates 
     # a candidate solution, then evaluates its feasibility. If it is feasible, 
     # it evaluates its cost and updates it by reducing the cluster size
@@ -976,15 +984,15 @@ class RandomGreedy(Algorithm):
     #           performance results before and after the update, and a tuple 
     #           storing all the random parameters
     def step(self):
-        
+
         # increase indentation level for logging
         self.logger.level += 1
         self.logger.log("Randomized Greedy step", 3)
-        
+
         # initialize results
         result = Result()
         new_result = Result()
-        
+
         # generate random solution and check its feasibility
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
@@ -993,7 +1001,7 @@ class RandomGreedy(Algorithm):
         self.logger.log("Start check feasibility: {}".format(time.time()), 3)
         feasible = result.check_feasibility(self.system)
         self.logger.log("End check feasibility: {}".format(time.time()), 3)
-        
+
         # if the solution is feasible, compute the corresponding cost 
         # before and after updating the clusters size
         if feasible:
@@ -1017,10 +1025,10 @@ class RandomGreedy(Algorithm):
         else:
             new_result = copy.deepcopy(result)
         self.logger.level -= 2
-        
+
         return result, new_result, (res_parts_random, VM_numbers_random, CL_res_random)
-            
-    
+
+
     ## Method to generate a random gready solution 
     #   @param self The object pointer
     #   @param seed Seed for random number generation
@@ -1031,14 +1039,11 @@ class RandomGreedy(Algorithm):
     #           (2) Solution.EliteResults object storing the given number of 
     #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, seed, MaxIt = 1, K = 1):
-              
-        # set seed for random number generation
-        np.random.seed(seed)
-        
+    def random_greedy(self, MaxIt = 1, K = 1):
+
         # initialize the elite set, the best result without cluster update 
         # and the lists of random parameters
-        elite = EliteResults(K, Logger(self.logger.stream, 
+        elite = EliteResults(K, Logger(self.logger.stream,
                                        self.logger.verbose,
                                        self.logger.level+1))
         best_result_no_update = Result()
@@ -1061,9 +1066,9 @@ class RandomGreedy(Algorithm):
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
         self.logger.level -= 1
-        random_params = [res_parts_random_list, VM_numbers_random_list, 
-                         CL_res_random_list]    
-        
+        random_params = [res_parts_random_list, VM_numbers_random_list,
+                         CL_res_random_list]
+
         return best_result_no_update, elite, random_params
 
 
@@ -1071,12 +1076,12 @@ class RandomGreedy(Algorithm):
 #
 # Specialization of Algorithm      
 class IteratedLocalSearch(Algorithm):
-    
+
     pass
 
 
 
-class TabuSearchSolid(TabuSearch,Algorithm):
+class Tabu_Search(TabuSearch,RandomGreedy):
     """
     Tries to get a randomly-generated string to match string "clout"
     """
@@ -1088,31 +1093,33 @@ class TabuSearchSolid(TabuSearch,Algorithm):
     #   @param min_score Minimum cost
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self,seed,Max_It_RG, tabu_size, max_steps, min_score, system, log = Logger()):
-        self.seed=seed
+    def __init__(self,Max_It_RG,seed, tabu_size, max_steps, min_score, system, log = Logger()):
+
         self.Max_It_RG=Max_It_RG
-        Algorithm.__init__(self,system, log)
+        RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        initial_state=self.creat_initial_solution()
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
         TabuSearch.__init__(self,initial_state, tabu_size, max_steps, min_score)
-       
+
     ## Method to get a list of neigbors
     #   @param self The object pointer
-    #   @return A list of solutions (neighbors)    
+    #   @return A list of solutions (neighbors)
     def _neighborhood(self ):
-        
+
         neighborhood=self.union_neighbors(self.current)
         return [x.solution for x in neighborhood]
-    
+
     ## Method to get the cost of current solution
     #   @param self The object pointer
     #   @param solution The current solution
     #   @return The cost of current solution
     def _score(self, solution):
-       
+
         return solution.objective_function(self.system)*(-1)
-    
-    
+
+
+
     ## Method to create initial solution for tabue search
     #   @param self The object pointer
     #   @return A solution
@@ -1120,11 +1127,162 @@ class TabuSearchSolid(TabuSearch,Algorithm):
         # create a RandomGreedy object and run random gready method
         self.start_time_RG=time.time()
         GA=RandomGreedy(self.system)
-   
+
         best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
         initial_solution=elite.elite_results[0].solution
-       
+
         #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
         return initial_solution
-    
-  
+
+## Simulated Annealing
+
+class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
+     ## SimulatedAnnealingSolid class constructor
+    #   @param self The object pointer
+    #   @param seed A seed to generate random values
+    #   @param Max_It_RG Maximum iterations of random greedy
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param system A System.System object
+    #   @param log Object of Logger.Logger type
+    def __init__(self, Max_It_RG ,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+
+        self.Max_It_RG=Max_It_RG
+        RandomGreedy.__init__(self,system,seed, log)
+        # compute initial solution
+        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
+        initial_state =elite.elite_results[0].solution
+        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+
+     ## Method to get a list of neigbors
+    #   @param self The object pointer
+    #   @return A list of solutions (neighbors)
+    def _neighbor(self ):
+
+        neighborhood=self.union_neighbors(self.current_state)
+        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+        return x.solution
+
+    ## Method to get the cost of current solution
+    #   @param self The object pointer
+    #   @param solution The current solution
+    #   @return The cost of current solution
+    def _energy(self, solution):
+
+        return solution.objective_function(self.system)
+
+
+
+## Genetic algorithm
+
+class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
+     ## GeneticAlgorithm class constructor
+    #   @param self The object pointer
+    #   @param seed A seed to generate random values
+    #   @param Max_It_RG Maximum iterations of random greedy
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param system A System.System object
+    #   @param log Object of Logger.Logger type
+    def __init__(self,Max_It_RG,seed, crossover_rate, mutation_rate, max_steps, system,max_fitness=None, log = Logger()):
+
+        self.Max_It_RG=Max_It_RG
+        RandomGreedy.__init__(self,system,seed, log)
+
+        GeneticAlgorithm.__init__(self,  crossover_rate, mutation_rate, max_steps, max_fitness)
+
+    def _initial_population(self, K):
+        #return list(list([choice([0, 1]) for _ in range(6)]) for _ in range(50))
+        best_result_no_update, elite, random_params = self.random_greedy(MaxIt = self.Max_It_RG, K=K)
+        population=[]
+        if len(elite.elite_results)<K:
+            Len=len(elite.elite_results)
+        else:
+            Len=K
+        for i in range(Len):
+
+            population.append(elite.elite_results[i].solution)
+        return population
+
+    def _fitness(self, member):
+
+
+        return member.objective_function(self.system)
+
+    def _mutate(self, member):
+        """
+        Randomly mutates a member
+
+        :param member: a member
+        :return: mutated member
+        """
+        if self.mutation_rate >= np.random.random():
+            results = None
+            fns = [self.change_FaaS, self.change_resource_type, self.change_component_placement,
+                   self.move_to_FaaS, self.move_from_FaaS]
+            np.random.shuffle(fns)
+            while results is None and len(fns) > 0:
+                fn = fns.pop()
+                results = fn(member)
+            if results is not None:
+                member = [result.solution for result in results]
+        else:
+            member=list([member])
+        return member
+
+    def _crossover(self, parent1, parent2):
+        # get a partition point randomly
+        partition = np.random.randint(0, len(self.population[0].Y_hat) - 1)
+        part1 = copy.deepcopy(parent1.Y_hat[0:partition])
+        part2 = copy.deepcopy(parent2.Y_hat[partition:])
+        children = self.mix_parts( partition, part1, part2)
+
+        part1 = copy.deepcopy(parent2.Y_hat[0:partition])
+        part2 = copy.deepcopy(parent1.Y_hat[partition:])
+        children.extend(self.mix_parts( partition, part1, part2))
+        solutions=[]
+        for child in children:
+            # creat a solution by new child (Y_hat)
+            new_solution=Configuration(child)
+            # check if new solution is feasible
+            performance=new_solution.check_feasibility(self.system)
+            if performance[0]:
+                solutions.append(new_solution)
+
+        return solutions
+
+    def mix_parts(self,partition,part1,part2):
+        act_res1, act_CL1 = self.get_active_res_computationallayers(part1)
+        act_res2, act_CL2 = self.get_active_res_computationallayers(part2)
+
+        intersec_CL = set(act_CL1).intersection(act_CL2)
+        child1=copy.deepcopy(part1+ part2)
+        children=[]
+        if intersec_CL is not None:
+            two_child=False
+            for cl in intersec_CL:
+                res_idxs= [compLayer.resources for compLayer in self.system.CLs if compLayer.name==cl][0]
+                if res_idxs[0] >= self.system.FaaS_start_index:
+                    continue
+                res_part1=set(res_idxs).intersection(act_res1).pop()
+                res_part2=set(res_idxs).intersection(act_res2).pop()
+                if res_part1 == res_part2:
+                    continue
+                else:
+                    if not two_child:
+                        two_child=True
+                        child2=copy.deepcopy(part1+ part2)
+                    partitions2 = self.get_partitions_with_j(part2,res_part2)
+                    partitions1 = self.get_partitions_with_j(part1,res_part1)
+                    for part in partitions2:
+                        child1[part[0]+partition][part[1]][res_part2]=0
+                        child1[part[0]+partition][part[1]][res_part1]=part1[partitions1[0][0]][partitions1[0][1]][res_part1]
+                    for part in partitions1:
+                        child2[part[0]][part[1]][res_part1]=0
+                        child2[part[0]][part[1]][res_part2]=part2[partitions2[0][0]][partitions1[0][1]][res_part2]
+        children.append(child1)
+        if two_child:
+            children.append(child2)
+
+        return children
+
