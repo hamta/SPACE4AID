@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import uuid4
 from sortedcontainers import SortedList
 import sys
-import pdb
+import math
 import pathlib
 
 ## Configuration
@@ -264,7 +264,7 @@ class Configuration:
        
         # increase indentation level for logging
         self.logger.level += 1
-        
+
         # define status of components and paths response times and constraints
         I = len(S.components)
         components_performance = [[True, np.infty]] * I
@@ -279,12 +279,12 @@ class Configuration:
             # check if the memory constraints are satisfied
             self.logger.log("Memory constraints check", 4)
             feasible = self.memory_constraints_check(S)
-            
+
             if feasible:
                 # check if the cloud placement constraint is satisfied
                 self.logger.log("Cloud placement constraint check", 4)
                 feasible = self.move_backward_check(S)
-                
+
                 if feasible:
                     # check if all local constraints are satisfied
                     self.logger.log("Local constraints check", 4)
@@ -326,16 +326,21 @@ class Configuration:
             self.logger.log("Evaluating partition response times", 6)
             self.logger.level += 1
             for h in range(len(j[0])):
-                if j[1][h] < S.FaaS_start_index:
-                    p = S.resources[j[1][h]].evaluate_partition(component_idx,
-                                                                j[0][h],j[1][h],
-                                                                self.Y_hat, S)
-                    
+                r_idx=j[1][h]
+                p_idx=j[0][h]
+                if r_idx < S.FaaS_start_index:
+
+                    PM = S.performance_models[component_idx][p_idx][r_idx]
+                    features = PM.get_features(c_idx=component_idx, p_idx=p_idx,
+                                               r_idx=r_idx, S=S, Y_hat=self.Y_hat)
+                    p = PM.predict(**features)
+                    self.logger.log("features: {}".format(features), 7)
                 else:
-                    p = S.resources[j[1][h]].evaluate_partition(component_idx,
-                                                                j[0][h],j[1][h],
-                                                                S)
-                Performances.append((component_idx,j[0][h],p))
+
+                    p = S.demand_matrix[component_idx][p_idx,r_idx]
+                    
+
+                Performances.append((component_idx,p_idx,p))
         return Performances
     
     ## Method return all constraints evaluation
@@ -425,18 +430,21 @@ class Configuration:
         edge=EdgePE()
         cloud=ServerFarmPE()
         utilizations=[]
+
         for j in range(S.cloud_start_index):
             utilization=edge.compute_utilization(j, self.Y_hat, S)
-            utilizations.append(utilization)
-            if utilization>=1:
-                feasible=False
+            if not math.isnan(utilization) and utilization>0:
+                utilizations.append((j,utilization))
+                if utilization>=1:
+                    feasible=False
         
-     
+
         for j in range(S.cloud_start_index,S.FaaS_start_index):
             utilization=cloud.compute_utilization(j, self.Y_hat, S)
-            utilizations.append(utilization)
-            if utilization>=1:
-                feasible=False
+            if not math.isnan(utilization) and utilization>0:
+                utilizations.append((j,utilization))
+                if utilization>=1:
+                    feasible=False
         
         
         feasible= all([x[1] for x in all_constraint_evaluation[0] ] ) and all([x[1] for x in all_constraint_evaluation[1]])   
@@ -561,11 +569,11 @@ class Configuration:
             solution_string += '},'
         
         # write total cost
-        solution_string = solution_string[:-1] + '},  "total_cost": '
+        solution_string = solution_string[:-1] + '},  "total_cost": "'
         if cost:
-            solution_string += (str(cost) + '}')
+            solution_string += (str(cost) + '"}')
         else:
-            solution_string += (str(self.objective_function(S)) + '}')
+            solution_string += (str(self.objective_function(S)) + '"}')
         
         # load string as json
         solution_string = solution_string.replace('0.,', '0.0,')
@@ -577,7 +585,7 @@ class Configuration:
     
     def to_json_unfeasible(self, S,total_evaluation, response_times = None, path_response_times = None, 
                  cost = None):
-        
+
         if not response_times:
             PE = SystemPerformanceEvaluator(Logger(self.logger.stream,
                                              self.logger.verbose,
@@ -585,13 +593,17 @@ class Configuration:
             response_times = PE.compute_performance(S, self.Y_hat)
         
         solution_string = '{"Lambda": ' + str(S.Lambda)
-       
+
         # write components deployments and response times
-        solution_string += ',  "components": {'
+        solution_string += ',  "components": { '
         I = len(self.Y_hat)
+        # get the list of components included in local constraint
+        LCcomponent_idx=[(C[0],C[1]) for C in total_evaluation[2][0]]
+
         for i in range(I):
             component = S.components[i].name
-            if response_times[i] == np.infty:
+            R_cons=[a_tuple[1] for a_tuple in LCcomponent_idx if a_tuple[0]==i]
+            if (len(R_cons)>0 and not R_cons[0]) or total_evaluation[1][i][2] == np.infty:
                 component_string = ' "' + component + '": {'
                 allocation = np.nonzero(self.Y_hat[i])
                 first_h= allocation[0][0]
@@ -663,54 +675,45 @@ class Configuration:
         
         # write global constraints
         
-        solution_string = solution_string[:-1] + '},  "global_constraints": {'
-        for GCidx in range(len(S.global_constraints)):
-            solution_string += S.global_constraints[GCidx].__str__(S.components)
-            # write response time of the path
-            
-            if path_response_times:
-                if path_response_times[GCidx][1]== np.infty:
-                    solution_string = solution_string[:-1] + ', "path_response_time": '
-                    solution_string += ' "inf"'
-                
-            else:
-                path_name, f, time = total_evaluation[2][1][GCidx]
-                if time== np.infty:
-                    solution_string = solution_string[:-1] + ', "path_response_time": '
-                    solution_string += ' "inf"'
-                
-            solution_string += '},'
         solution_string = solution_string[:-1] + '},'
-        edge=EdgePE()
-        cloud=ServerFarmPE()
-        solution_string += ' "Resources": {'
-        y_bar=self.get_y_bar()
-        breakpoint()
-        for j in range(len(total_evaluation[3])):
-            utilization=total_evaluation[3][j]
-            if utilization>=1:
-                resource = S.resources[j].name
-                number = y_bar[j]
-                  
+        if len(total_evaluation[2][1])>0:
+            feasible=[x[1] for x in total_evaluation[2][1]]
+            if not all(feasible):
+                solution_string += ' "global_constraints": {'
+                violated_idx= [i for i, x in enumerate(feasible) if not x]
+                for GCidx in range(len(S.global_constraints)):
+                    solution_string += S.global_constraints[GCidx].__str__(S.components)
+                    # write response time of the path
+
+
+                    path_name, f, time = total_evaluation[2][1][GCidx]
+                    solution_string = solution_string[:-1] + ', "path_response_time": '
+                    if time== np.infty:
+                        solution_string += ' "inf"'
+                    else:
+                        solution_string += str(time)
+
+                    solution_string += '},'
+                solution_string = solution_string[:-1] + '},'
+        if len(total_evaluation[3])>0:
+            solution_string += ' "Resources": {'
+            y_bar=self.get_y_bar()
+
+            for j in range(len(total_evaluation[3])):
+                res_idx=total_evaluation[3][j][0]
+                utilization=total_evaluation[3][j][1]
+
+                resource = S.resources[res_idx].name
+                number = y_bar[res_idx]
+                description = S.description[resource]
                 solution_string += ('"' + resource + \
                                          '": {"description": "' + \
                                         description + '", "number": ' + str(number) + ', "utilization": ')
                 solution_string +=str(utilization) + '},'
                 
-   
-        # for j in range(S.cloud_start_index,S.FaaS_start_index):
-        #     utilization=cloud.compute_utilization(j, self.Y_hat, S)
-        #     if utilization>=1:
-        #         resource = S.resources[j].name
-        #         number = y_bar[j]
-                  
-        #         solution_string += ('"' + resource + \
-        #                                  '": {"description": "' + \
-        #                                 description +  '", "number": ' + str(number) + ', "utilization": ')
-        #         solution_string +=str(utilization) + '},'
-                # write total cost
-        solution_string = solution_string[:-1] + '} '
-        solution_string = solution_string+ '} '        
+
+            solution_string = solution_string[:-1] + '} '
+        solution_string = solution_string[:-1]+ '} '
         # load string as json
         solution_string = solution_string.replace('0.,', '0.0,')
         jj = json.dumps(json.loads(solution_string), indent = 2)
@@ -733,7 +736,7 @@ class Configuration:
     def print_solution(self, S, response_times = None, 
                        path_response_times = None, 
                        cost = None, solution_file = "", feasible=True):
-       
+
         # get solution description in json format
         total_evaluation, jj = self.to_json(S, response_times, path_response_times, cost)
         if solution_file:
@@ -745,7 +748,7 @@ class Configuration:
         if not feasible:
          
             path=pathlib.Path(solution_file).parent.resolve()
-            infeasible_file=str(path) + "/" + str(S.Lambda)+ "infeasible.json"
+            infeasible_file=str(path) + "/" + str(S.Lambda)+ "_infeasible.json"
             infeasible_json=self.to_json_unfeasible(S, total_evaluation, response_times, path_response_times, cost)
             with open(infeasible_file, "w") as f:
                 f.write(infeasible_json)
