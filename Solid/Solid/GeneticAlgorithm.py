@@ -1,6 +1,8 @@
+import copy
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
-from random import randint, random, shuffle
+import time
+import numpy as np
 
 
 class GeneticAlgorithm:
@@ -21,15 +23,15 @@ class GeneticAlgorithm:
     best_member = None
 
     max_steps = None
-    max_fitness = None
+    min_fitness = None
 
-    def __init__(self, crossover_rate, mutation_rate, max_steps, max_fitness=None):
+    def __init__(self, crossover_rate, mutation_rate, max_steps, min_fitness=None):
         """
 
         :param crossover_rate: probability of crossover
         :param mutation_rate: probability of mutation
         :param max_steps: maximum steps to run genetic algorithm for
-        :param max_fitness: fitness value to stop algorithm once reached
+        :param min_fitness: fitness value to stop algorithm once reached
         """
         if isinstance(crossover_rate, float):
             if 0 <= crossover_rate <= 1:
@@ -52,9 +54,9 @@ class GeneticAlgorithm:
         else:
             raise ValueError('Maximum steps must be a positive integer')
 
-        if max_fitness is not None:
-            if isinstance(max_fitness, (int, float)):
-                self.max_fitness = float(max_fitness)
+        if min_fitness is not None:
+            if isinstance(min_fitness, (int, float)):
+                self.min_fitness = float(min_fitness)
             else:
                 raise ValueError('Maximum fitness must be a numeric type')
 
@@ -81,7 +83,7 @@ class GeneticAlgorithm:
         self.best_fitness = None
 
     @abstractmethod
-    def _initial_population(self):
+    def _initial_population(self,K):
         """
         Generates initial population -
         members must be represented by a list of binary-values integers
@@ -117,7 +119,7 @@ class GeneticAlgorithm:
         best_idx = 0
         cur_idx = 0
         for x in self.fitnesses:
-            if x > self.fitnesses[best_idx]:
+            if x < self.fitnesses[best_idx]:
                 best_idx = cur_idx
             cur_idx += 1
         return self.population[best_idx], self.fitnesses[best_idx]
@@ -130,7 +132,7 @@ class GeneticAlgorithm:
         :param n: number of members to select
         :return: n members
         """
-        shuffle(self.population)
+        np.random.shuffle(self.population)
         total_fitness = sum(self.fitnesses)
         if total_fitness != 0:
             probs = list([self._fitness(x) / total_fitness for x in self.population])
@@ -138,7 +140,7 @@ class GeneticAlgorithm:
             return self.population[0:n]
         res = []
         for _ in range(n):
-            r = random()
+            r = np.random.random()
             sum_ = 0
             for i, x in enumerate(probs):
                 sum_ += probs[i]
@@ -147,6 +149,7 @@ class GeneticAlgorithm:
                     break
         return res
 
+    @abstractmethod
     def _crossover(self, parent1, parent2):
         """
         Creates new member of population by combining two parent members
@@ -155,9 +158,9 @@ class GeneticAlgorithm:
         :param parent2: a member
         :return: member made by combining elements of both parents
         """
-        partition = randint(0, len(self.population[0]) - 1)
-        return parent1[0:partition] + parent2[partition:]
+        pass
 
+    @abstractmethod
     def _mutate(self, member):
         """
         Randomly mutates a member
@@ -165,12 +168,9 @@ class GeneticAlgorithm:
         :param member: a member
         :return: mutated member
         """
-        if self.mutation_rate >= random():
-            idx = randint(0, len(member) - 1)
-            member[idx] = 1 if member[idx] == 0 else 1
-        return member
+        pass
 
-    def run(self, verbose=True):
+    def run(self, K,verbose=True):
         """
         Conducts genetic algorithm
 
@@ -178,11 +178,16 @@ class GeneticAlgorithm:
         :return: best state and best objective function value
         """
         self._clear()
-        self.population = self._initial_population()
+        self.population = self._initial_population(K)
         self._populate_fitness()
         self.best_member, self.best_fitness = self._most_fit()
         num_copy = max(int((1 - self.crossover_rate) * len(self.population)), 2)
         num_crossover = len(self.population) - num_copy
+        best_sol_cost_list=[]
+        time_list=[]
+
+        best_sol_cost_list.append(self.best_fitness)
+        time_list.append(time.time())
         for i in range(self.max_steps):
             self.cur_steps += 1
 
@@ -194,18 +199,25 @@ class GeneticAlgorithm:
 
             parents = self._select_n(2)
             for _ in range(num_crossover):
-                self.population.append(self._crossover(*parents))
+                self.population.extend(self._crossover(*parents))
 
-            self.population = list([self._mutate(x) for x in self.population])
+           # new_population=[]
+            #for x in self.population:
+             #   new_population.extend(self._mutate(x))
+            #self.population=copy.deepcopy(new_population)
+            self.population =list([member for x in self.population for member in iter(self._mutate(x))])
+
             self._populate_fitness()
 
             best_member, best_fitness = self._most_fit()
-            if best_fitness > self.best_fitness:
+            if best_fitness < self.best_fitness:
                 self.best_fitness = best_fitness
                 self.best_member = deepcopy(best_member)
+            best_sol_cost_list.append(self.best_fitness)
+            time_list.append(time.time())
 
-            if self.max_fitness is not None and self.best_fitness >= self.max_fitness:
+            if self.min_fitness is not None and self.best_fitness <= self.min_fitness:
                 print("TERMINATING - REACHED MAXIMUM FITNESS")
                 return self.best_member, self.best_fitness
         print("TERMINATING - REACHED MAXIMUM STEPS")
-        return self.best_member, self.best_fitness
+        return self.best_member, self.best_fitness, best_sol_cost_list, time_list
