@@ -299,10 +299,12 @@ class SystemPerformanceEvaluator:
             for h in range(len(j[0]) - 1):
                 # get the data transferred from the partition
                 data_size = S.components[c_idx].partitions[j[0][h]].data_size
-                # compute the network transfer time
-                nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
-                self.logger.log("{} --> {}".format(h, nd), 7)
-                network_delay += nd
+                # check if two partitions are in the same device
+                if not j[1][h] == j[1][h+1]:
+                    # compute the network transfer time
+                    nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
+                    self.logger.log("{} --> {}".format(h, nd), 7)
+                    network_delay += nd
             # update the response time
             perf_evaluation += network_delay
             self.logger.level -= 1
