@@ -9,6 +9,7 @@ from Solid.Solid.TabuSearch import TabuSearch
 from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
 from Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
 import math
+import time
 
 ## Algorithm
 class Algorithm:
@@ -368,6 +369,7 @@ class Algorithm:
     def change_FaaS(self,solution):
         new_sorted_results=None
         new_feasible_results=[]
+        counter_obj_evaluation=0
         # call the method to get all partitions located in FaaS 
         partitions_with_FaaS=self.get_partitions_with_FaaS(solution.Y_hat)
         # loop over list of partitions in partitions_with_FaaS list
@@ -392,6 +394,7 @@ class Algorithm:
                     result=Result()
                     result.solution = new_temp_solution
                     result.cost = result.objective_function(self.system)
+                    counter_obj_evaluation+=1
                     result.performance = performance
                     new_feasible_results.append(result)
         if len(new_feasible_results)>0:
@@ -399,7 +402,7 @@ class Algorithm:
             new_sorted_results = sorted(new_feasible_results, key=lambda x: x.cost)
             #new_sorted_solution=[x.solution for x in new_sorted_results]
         # return the list of neibors
-        return new_sorted_results
+        return new_sorted_results, counter_obj_evaluation
 
 
     ## Method to get active resources and computationallayers
@@ -474,7 +477,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def change_component_placement(self, solution, sorting_method=0):
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -543,6 +546,7 @@ class Algorithm:
                                 new_result = self.reduce_cluster_size(des_node_idx, new_result_1)
                                 # compute the cost
                                 new_result.cost = new_result.objective_function(self.system)
+                                counter_obj_evaluation+=1
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
@@ -563,9 +567,9 @@ class Algorithm:
                 new_sorted_results = None
             j += 1
 
-        if new_sorted_results is None:
-             print("Any neighbors could not be found by changing component placement for the current solution")
-        return new_sorted_results
+       # if new_sorted_results is None:
+        #     print("Any neighbors could not be found by changing component placement for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
 
 
@@ -578,7 +582,7 @@ class Algorithm:
     #   @return A list neigbors (new solutions) sorted by cost   
     def change_resource_type(self, solution, sorting_method=0):
 
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -600,7 +604,8 @@ class Algorithm:
             for part in partitions:
                 alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
             # get the intersection of the alternative nodes of all partitions runing on source node
-            candidate_nodes=alternative_res_idxs_parts[0].intersection(*alternative_res_idxs_parts)
+            candidate=set.intersection(*alternative_res_idxs_parts)
+            candidate_nodes = [i for i in candidate if i < self.system.FaaS_start_index]
 
             if len(candidate_nodes)>0:
                 # get the list of nodes and computational layers in used 
@@ -639,6 +644,7 @@ class Algorithm:
                                     # reduce the cluster size of destination node
                                     new_result = self.reduce_cluster_size(des, result)
                                     new_result.cost = new_result.objective_function(self.system)
+                                    counter_obj_evaluation+=0
                                     new_result.performance = performance
                                     # add the new result to the neigbor list
                                     neighbors.append(new_result)
@@ -653,9 +659,9 @@ class Algorithm:
             # else:
             #     print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
             i+=1
-        if  new_sorted_results==None:
-            print("Any neighbors could not be found by changing resource type for the current solution")
-        return new_sorted_results
+        #if  new_sorted_results==None:
+        #    print("Any neighbors could not be found by changing resource type for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
     ## Method to change the current solution by moveing partitions from edge or cloud toFaaS
     #   @param self The object pointer
@@ -665,7 +671,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_to_FaaS(self, solution, sorting_method=0):
-        #pdb.set_trace()
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -719,6 +725,7 @@ class Algorithm:
                     new_result=Result()
                     new_result.solution = new_temp_solution
                     new_result.cost = new_result.objective_function(self.system)
+                    counter_obj_evaluation+=1
                     new_result.performance = performance
                     # add the new result to the neigbor list
                     neighbors.append(new_result)
@@ -747,6 +754,7 @@ class Algorithm:
                             # reduce the cluster size of destination node
                             new_result = self.reduce_cluster_size(idx_source_node, result)
                             new_result.cost = new_result.objective_function(self.system)
+                            counter_obj_evaluation+=1
                             new_result.performance = performance
                             # add the new result to the neigbor list
                             neighbors.append(new_result)
@@ -756,10 +764,10 @@ class Algorithm:
             # sort neighbor list by cost and return the best one
             new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
             #new_sorted_solutions=[x.solution for x in new_sorted_results]
-        else:
-            print("Any neighbors could not be found by moveing to FaaS for the current solution")
+        #else:
+        #    print("Any neighbors could not be found by moveing to FaaS for the current solution")
 
-        return new_sorted_results
+        return new_sorted_results, counter_obj_evaluation
 
 
     ## Method to move the partitions running on FaaS to the edge/cloud
@@ -770,7 +778,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_from_FaaS(self, solution, sorting_method=0):
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -827,6 +835,7 @@ class Algorithm:
                                 new_result = self.reduce_cluster_size(des_node_idx, result)
                                 # compute the cost
                                 new_result.cost = new_result.objective_function(self.system)
+                                counter_obj_evaluation+=1
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
@@ -836,9 +845,9 @@ class Algorithm:
 
         if len(neighbors) > 0:
             new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
-        if new_sorted_results is None:
-             print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")
-        return new_sorted_results
+       # if new_sorted_results is None:
+        #     print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
     ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
     #   @param self The object pointer
@@ -848,16 +857,17 @@ class Algorithm:
 
         neighborhood=[]
         # get the neighbors by changing FaaS configuration
-        neighborhood1=self.change_FaaS(solution)
+        neighborhood1, counter_obj_evaluation1=self.change_FaaS(solution)
         # get the neighbors by changing resource type
-        neighborhood2=self.change_resource_type(solution)
+        neighborhood2, counter_obj_evaluation2=self.change_resource_type(solution)
         # get the neigbors by changing component placement
-        neighborhood3=self.change_component_placement(solution)
+        neighborhood3, counter_obj_evaluation3=self.change_component_placement(solution)
         # get the neigbors by moveing to FaaS
-        neighborhood4=self.move_to_FaaS(solution)
+        neighborhood4, counter_obj_evaluation4=self.move_to_FaaS(solution)
         # get the neigbors by moveing from FaaS to edge/cloud
-        neighborhood5=self.move_from_FaaS(solution)
-
+        neighborhood5, counter_obj_evaluation5=self.move_from_FaaS(solution)
+        counter_obj_evaluation = counter_obj_evaluation1 + counter_obj_evaluation2 + counter_obj_evaluation3 +\
+                               counter_obj_evaluation4 + counter_obj_evaluation5
         # mixe all neigbors
         if neighborhood1 is not None:
             neighborhood.extend(neighborhood1)
@@ -879,7 +889,7 @@ class Algorithm:
 
                     new_sorted_neighborhood.remove(new_sorted_neighborhood[neighbor_idx])
 
-        return new_sorted_neighborhood
+        return new_sorted_neighborhood, counter_obj_evaluation
 
     ## Method to create the initial solution with largest configuration function (for only FaaS scenario)
     #   @param self The object pointer
@@ -1035,11 +1045,12 @@ class RandomGreedy(Algorithm):
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
     #   @param K Number of elite results to be saved (default: 1)
+    #   @param MaxTime Time duration that random greedy should run (if we set time instead of iteration)
     #   @return (1) Best Solution.Result before cluster update
     #           (2) Solution.EliteResults object storing the given number of 
     #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, MaxIt = 1, K = 1):
+    def random_greedy(self, MaxIt = 1, K = 1, MaxTime=0):
 
         # initialize the elite set, the best result without cluster update 
         # and the lists of random parameters
@@ -1054,7 +1065,10 @@ class RandomGreedy(Algorithm):
         # perform randomized greedy iterations
         self.logger.log("Starting Randomized Greedy procedure", 1)
         self.logger.level += 1
-        for iteration in range(MaxIt):
+        iteration=0
+        start=time.time()
+        while iteration<MaxIt or time.time()-start<MaxTime:
+
             self.logger.log("#iter {}: {}".format(iteration, time.time()), 3)
             # perform a step
             result, new_result, random_param = self.step()
@@ -1065,6 +1079,7 @@ class RandomGreedy(Algorithm):
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
+            iteration += 1
         self.logger.level -= 1
         random_params = [res_parts_random_list, VM_numbers_random_list,
                          CL_res_random_list]
@@ -1080,34 +1095,47 @@ class IteratedLocalSearch(Algorithm):
     pass
 
 
-
+## Tabu Search
+#
+# Specialization of Algorithm that constructs the optimal solution through a
+# Tabu Search approach
 class Tabu_Search(TabuSearch,RandomGreedy):
-    """
-    Tries to get a randomly-generated string to match string "clout"
-    """
+
     ## TabuSearchSolid class constructor
     #   @param self The object pointer
     #   @param seed A seed to generate random values
     #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param max_steps Maximum steps of tabu search
-    #   @param min_score Minimum cost
     #   @param system A System.System object
+    #   @param Max_time_RG Maximum time of running RG
+    #   @param K The number of elite solutions obtained by RG as the starting point of SA
+    #   @param besties_RG A list of starting points
     #   @param log Object of Logger.Logger type
-    def __init__(self,Max_It_RG,seed, tabu_size, max_steps, min_score, system, log = Logger()):
+    def __init__(self,Max_It_RG,seed,  system,Max_time_RG=0,K=1, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
-        initial_state =elite.elite_results[0].solution
-        TabuSearch.__init__(self,initial_state, tabu_size, max_steps, min_score)
+        if besties_RG is None:
+            best_result_no_update, elite, random_params=self.random_greedy(K=K,MaxIt = self.Max_It_RG, MaxTime=self.Max_time_RG)
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
+                self.starting_points.append(elite.elite_results[i].solution)
+        else:
+            self.starting_points=besties_RG
+
 
     ## Method to get a list of neigbors
     #   @param self The object pointer
     #   @return A list of solutions (neighbors)
     def _neighborhood(self ):
 
-        neighborhood=self.union_neighbors(self.current)
+        neighborhood, counter_obj_evaluation =self.union_neighbors(self.current)
+        self.counter_obj_evaluation+=counter_obj_evaluation
         return [x.solution for x in neighborhood]
 
     ## Method to get the cost of current solution
@@ -1115,24 +1143,46 @@ class Tabu_Search(TabuSearch,RandomGreedy):
     #   @param solution The current solution
     #   @return The cost of current solution
     def _score(self, solution):
+        self.counter_obj_evaluation+=1
+        return solution.objective_function(self.system)
 
-        return solution.objective_function(self.system)*(-1)
-
-
-
-    ## Method to create initial solution for tabue search
+        ## Method to run SA
     #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        self.start_time_RG=time.time()
-        GA=RandomGreedy(self.system)
+    #   @param tabu_size Maximum size of tabu list
+    #   @param method The method to select one of neghbors in each iteration ("best" or "random")
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param Max_time Maximum running time of Simulated Annealing in second
+    def run_TS (self,method, tabu_size, min_score, max_steps,Max_time=None):
 
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-        initial_solution=elite.elite_results[0].solution
+        Max_time_starting_point=Max_time/len(self.starting_points)
+        best_best_solution=None
+        best_best_cost=np.inf
+        best_current_cost_list=[]
+        best_best_cost_list=[]
+        best_time_list=[]
+        Starting_point_costs=[]
+        Starting_point_solutions=[]
 
-        #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
-        return initial_solution
+        for starting_point in self.starting_points:
+            TabuSearch.__init__(self,starting_point, tabu_size, max_steps,Max_time_starting_point, min_score)
+            best_solution, best_cost,current_cost_list,best_cost_list, time_list=self.run(method)
+            if best_cost<best_best_cost:
+                best_best_cost=best_cost
+                best_best_solution=copy.deepcopy(best_solution)
+                best_current_cost_list= copy.deepcopy(current_cost_list)
+                best_best_cost_list= copy.deepcopy(best_cost_list)
+                best_time_list= copy.deepcopy(time_list)
+            Starting_point_costs.append(best_cost)
+            Starting_point_solutions.append(best_solution)
+        result = Result()
+        result.solution = Configuration(best_best_solution, self.logger)
+        feasible = result.check_feasibility(self.system)
+        result.objective_function(self.system)
+        return result, [best_current_cost_list, best_best_cost_list, best_time_list], [Starting_point_solutions, Starting_point_costs]
+
+
+
 
 ## Simulated Annealing
 
@@ -1141,36 +1191,86 @@ class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
     #   @param self The object pointer
     #   @param seed A seed to generate random values
     #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param max_steps Maximum steps of tabu search
-    #   @param min_score Minimum cost
     #   @param system A System.System object
+    #   @param Max_time_RG Maximum running time of Random Greedy in second
+    #   @param K The number of elite solutions obtained by RG as the starting point of SA
     #   @param log Object of Logger.Logger type
-    def __init__(self, Max_It_RG ,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+    def __init__(self, Max_It_RG ,seed, system, Max_time_RG=0, K=1, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.starting_points=[]
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
-        initial_state =elite.elite_results[0].solution
-        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+        if besties_RG is None:
+            best_result_no_update, elite, random_params=self.random_greedy(K=K,MaxIt = self.Max_It_RG, MaxTime=self.Max_time_RG)
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
+                self.starting_points.append(elite.elite_results[i].solution)
+        else:
+            self.starting_points=besties_RG
+
 
      ## Method to get a list of neigbors
     #   @param self The object pointer
-    #   @return A list of solutions (neighbors)
+    #   @return A solution (neighbor)
     def _neighbor(self ):
 
-        neighborhood=self.union_neighbors(self.current_state)
-        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
-        return x.solution
+        neighborhood, counter_obj_evaluation = self.union_neighbors(self.current_state)
+        self.counter_obj_evaluation += counter_obj_evaluation
+        if len(neighborhood)>0:
+            x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+            sol=x.solution
+        else:
+            sol=None
+        return sol
 
     ## Method to get the cost of current solution
     #   @param self The object pointer
     #   @param solution The current solution
     #   @return The cost of current solution
     def _energy(self, solution):
-
+        self.counter_obj_evaluation += 1
         return solution.objective_function(self.system)
 
+    ## Method to run SA
+    #   @param self The object pointer
+    #   @param schedule_constant Constant value in annealing schedule function
+    #   @param temp_begin Beginning temperature
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_energy Minimum cost
+    #   @param schedule Temperature decay function ("linear" or "exponential")
+    #   @param Max_time Maximum running time of Simulated Annealing in second
+    def run_SA (self,temp_begin, schedule_constant, max_steps, min_energy, schedule,Max_time=None):
+        Max_time_starting_point=Max_time/len(self.starting_points)
+        best_best_solution=None
+        best_best_cost=np.inf
+        best_current_cost_list=[]
+        best_best_cost_list=[]
+        best_time_list=[]
+        Starting_point_costs=[]
+        Starting_point_solutions=[]
+        for starting_point in self.starting_points:
+            SimulatedAnnealing.__init__(self, starting_point, temp_begin, schedule_constant, max_steps,
+                                        Max_time_starting_point, min_energy, schedule)
+            best_solution, best_cost,current_cost_list,best_cost_list, time_list=self.run()
+            if best_cost<best_best_cost:
+                best_best_cost=best_cost
+                best_best_solution=copy.deepcopy(best_solution)
+                best_current_cost_list= copy.deepcopy(current_cost_list)
+                best_best_cost_list= copy.deepcopy(best_cost_list)
+                best_time_list= copy.deepcopy(time_list)
+            Starting_point_costs.append(best_cost)
+            Starting_point_solutions.append(best_solution)
+        result = Result()
+        result.solution = Configuration(best_best_solution, self.logger)
+        feasible = result.check_feasibility(self.system)
+        result.objective_function(self.system)
+        return result, [best_current_cost_list, best_best_cost_list, best_time_list], [Starting_point_solutions, Starting_point_costs]
 
 
 ## Genetic algorithm
@@ -1184,29 +1284,36 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
     #   @param min_score Minimum cost
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self,Max_It_RG,seed, crossover_rate, mutation_rate, max_steps, system,max_fitness=None, log = Logger()):
+    def __init__(self,Max_It_RG,seed, crossover_rate, mutation_rate, max_steps, system,Max_time_RG=0,Max_time=None,max_fitness=None, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
-
-        GeneticAlgorithm.__init__(self,  crossover_rate, mutation_rate, max_steps, max_fitness)
+        GeneticAlgorithm.__init__(self,  crossover_rate, mutation_rate, max_steps,Max_time, max_fitness)
+        if besties_RG is None:
+            self.besties_RG=None
+        else:
+            self.besties_RG=besties_RG
 
     def _initial_population(self, K):
-        #return list(list([choice([0, 1]) for _ in range(6)]) for _ in range(50))
-        best_result_no_update, elite, random_params = self.random_greedy(MaxIt = self.Max_It_RG, K=K)
-        population=[]
-        if len(elite.elite_results)<K:
-            Len=len(elite.elite_results)
-        else:
-            Len=K
-        for i in range(Len):
+        if self.besties_RG is None:
+            best_result_no_update, elite, random_params = self.random_greedy(MaxIt = self.Max_It_RG, K=K,MaxTime=self.Max_time_RG)
+            population=[]
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
 
-            population.append(elite.elite_results[i].solution)
+                population.append(elite.elite_results[i].solution)
+        else:
+            population=self.besties_RG
         return population
 
     def _fitness(self, member):
-
-
+        
+        self.counter_obj_evaluation += 1
         return member.objective_function(self.system)
 
     def _mutate(self, member):
@@ -1223,9 +1330,12 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
             np.random.shuffle(fns)
             while results is None and len(fns) > 0:
                 fn = fns.pop()
-                results = fn(member)
+                results, counter_obj_evaluation = fn(member)
+                self.counter_obj_evaluation += counter_obj_evaluation
             if results is not None:
-                member = [result.solution for result in results]
+                member = list([result.solution for result in results])
+            else:
+                member=list([member])
         else:
             member=list([member])
         return member
@@ -1272,17 +1382,282 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
                     if not two_child:
                         two_child=True
                         child2=copy.deepcopy(part1+ part2)
+                    # get all partitions of part2 that are running on res_part2
                     partitions2 = self.get_partitions_with_j(part2,res_part2)
+                    # get all partitions that are running on res_part1
                     partitions1 = self.get_partitions_with_j(part1,res_part1)
+                    # to create child1,
                     for part in partitions2:
                         child1[part[0]+partition][part[1]][res_part2]=0
                         child1[part[0]+partition][part[1]][res_part1]=part1[partitions1[0][0]][partitions1[0][1]][res_part1]
                     for part in partitions1:
                         child2[part[0]][part[1]][res_part1]=0
-                        child2[part[0]][part[1]][res_part2]=part2[partitions2[0][0]][partitions1[0][1]][res_part2]
+
+                        child2[part[0]][part[1]][res_part2]=part2[partitions2[0][0]][partitions2[0][1]][res_part2]
+
         children.append(child1)
         if two_child:
             children.append(child2)
 
         return children
 
+    def run_GA(self, K):
+
+         # increase indentation level for logging
+        self.logger.level += 1
+        self.logger.log("Run Genetic Algorithm", 3)
+        best_member, best_fitness, best_sol_cost_list_GA, time_list_GA=self.run(K)
+        # initialize results
+        result = Result()
+        result.solution = best_member
+        self.logger.log("Start check feasibility: {}".format(time.time()), 3)
+        feasible = result.check_feasibility(self.system)
+        self.logger.log("End check feasibility: {}".format(time.time()), 3)
+
+        # if the solution is feasible, compute the corresponding cost
+        # before and after updating the clusters size
+        if feasible:
+            self.logger.log("Solution is feasible", 3)
+            # compute cost
+            self.logger.log("Compute cost", 3)
+            result.objective_function(self.system)
+            self.counter_obj_evaluation += 1
+        else:
+            new_result = copy.deepcopy(result)
+        self.logger.level -= 2
+        return result,  best_sol_cost_list_GA, time_list_GA
+
+
+class PRCPG(Algorithm):
+
+    def __init__(self,system,seed, log = Logger()):
+
+        super().__init__(system,seed, log)
+
+    def get_max_configuration(self):
+         # increase indentation level for logging
+        self.logger.level += 1
+
+        # initialize the assignments
+        self.logger.log("Initialize matrices", 4)
+        CL_res_random = []
+        res_parts_random = []
+        y_hat = []
+        y = []
+
+        # loop over all components
+        I = len(self.system.components)
+        for i in range(I):
+            # get the number of partitions and available resources
+            H, J = self.system.compatibility_matrix[i].shape
+            # create the empty matrices
+            y_hat.append(np.full((H, J), 0, dtype=int))
+            y.append(np.full((H, J), 0, dtype=int))
+
+        # generate the list of candidate nodes, selecting one node per each
+        # computational layer (and all nodes in the FaaS layers)
+        self.logger.log("Generate candidate resources", 4)
+        candidate_nodes = []
+        resource_count = 0
+        # loop over all computational layers
+        for l in self.system.CLs:
+            # select all nodes in FaaS layers
+            if resource_count >= self.system.FaaS_start_index:
+                random_num = l.resources
+                candidate_nodes.extend(random_num)
+            # randomly select a node in other layers
+            else:
+                random_num = np.random.choice(l.resources)
+                CL_res_random.append(l.resources.index(random_num))
+                candidate_nodes.append(random_num)
+            resource_count += len(l.resources)
+
+        # loop over all components
+        self.logger.log("Assign components", 4)
+        for comp in self.system.components:
+
+            # randomly select a deployment for that component
+            random_dep = np.random.choice(comp.deployments)
+            h = 0
+            rand = []
+            # loop over all partitions in the deployment
+            for part_idx in random_dep.partitions_indices:
+                part = comp.partitions[part_idx]
+                # get the indices of the component and the deployment
+                i = self.system.dic_map_part_idx[comp.name][part.name][0]
+                h_idx = self.system.dic_map_part_idx[comp.name][part.name][1]
+                # get the indices of compatible resources and compute the
+                # intersection with the selected resources in each
+                # computational layer
+                idx = np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
+                index = list(set(candidate_nodes).intersection(idx))
+                # randomly extract a resource index in the intersection
+                prob = 1/len(index)
+                step = 0
+                rn = np.random.random()
+                rand.append(rn)
+                for r in np.arange(0, 1, prob):
+                    if rn > r and rn <= r + prob:
+                        j = index[step]
+                    else:
+                        step += 1
+                y[i][h_idx,j] = 1
+                y_hat[i][h_idx,j] = 1
+                # if the partition is the last partition (i.e., its successor
+                # is the successor of the component), update the size of
+                # data transferred between the components
+                if self.system.graph.G.succ[comp.name] != {}:
+                    if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
+                        self.system.graph.G[comp.name][part.Next]["data_size"] = part.data_size
+
+            res_parts_random.append(rand)
+
+        # loop over edge/cloud resources
+        self.logger.log("Set number of resources", 4)
+        VM_numbers = []
+        for j in range(self.system.FaaS_start_index):
+            # randomly generate the number of resources that can be assigned
+            # to the partitions that run on that resource
+            number = np.random.randint(1, self.system.resources[j].number + 1)
+            VM_numbers.append(number - 1)
+            # loop over components
+            for i in range(I):
+                # get the number of partitions
+                H = self.system.compatibility_matrix[i].shape[0]
+                # loop over the partitions
+                for h in range(H):
+                    # if the partition runs on the current resource, update
+                    # the number
+                    if y[i][h][j] > 0:
+                        y_hat[i][h][j] = y[i][h][j] * number
+
+        self.logger.level -= 1
+
+        return  y_hat, res_parts_random, VM_numbers, CL_res_random
+
+    def PRCPG_BCPC(self, rt_constraint, BCR=False, BCRtype="M/RT", BCRthreshold=0.1):
+        '''
+        Probability Refined Critical Path Algorithm - Minimal cost under an end-to-end response time constraint
+        Best cost under performance (end-to-end response time) constraint
+        Args:
+            rt_constraint (float): End-to-end response time constraint
+            BCR (bool): True - use benefit-cost ratio optimization False - not use BCR optimization
+            BCRtype (string): 'M/RT' - Benefit is Mem, Cost is RT. (inverse) Eliminate mem configurations which do not conform to BCR limitations
+                              'C/ERT' - Benefit is the cost reduction, Cost is increased ERT.
+                              'MAX' - Benefit is the cost reduction, Cost is increased ERT. The greedy strategy is to select the config with maximal BCR
+            BCRthreshold (float): The threshold of BCR cut off
+        '''
+        if BCRtype == 'rt-mem':
+            BCRtype = 'M/RT'
+        elif BCRtype == 'e2ert-cost':
+            BCRtype = 'C/ERT'
+        elif BCRtype == 'max':
+            BCRtype = 'MAX'
+        #if (BCR and BCRtype == "M/RT"):
+         #   self.update_available_mem_list(BCR=True, BCRthreshold=BCRthreshold, BCRinverse=True)
+        #else:
+         #   self.update_available_mem_list(BCR=False)
+        self.update_App_workflow_mem_rt(self.App, self.maximal_mem_configuration)
+        current_avg_rt = self.minimal_avg_rt
+        performance_surplus = rt_constraint - current_avg_rt
+        current_cost = self.maximal_cost
+        last_e2ert_cost_BCR = 0
+        order = 0
+        iterations_count = 0
+        while (round(performance_surplus, 4) >= 0):
+            iterations_count += 1
+            cp = self.find_PRCP(leastCritical=True, order=order)
+            max_cost_reduction_of_each_node = {}
+            mem_backup = nx.get_node_attributes(self.App.workflowG, 'mem')
+            for node in cp:
+                cost_reduction_of_each_mem_config = {}
+                for mem in self.App.workflowG.nodes[node][
+                    'available_mem']:
+                    if (mem >= mem_backup[node]):
+                        break
+                    self.update_App_workflow_mem_rt(self.App, {node: mem})
+                    self.App.get_simple_dag()
+                    temp_avg_rt = self.App.get_avg_rt()
+                    increased_rt = temp_avg_rt - current_avg_rt
+                    cost_reduction = current_cost - self.App.get_avg_cost()
+                    if (increased_rt < performance_surplus and cost_reduction > 0):
+                        cost_reduction_of_each_mem_config[mem] = (cost_reduction, increased_rt)
+                self.update_App_workflow_mem_rt(self.App, {node: mem_backup[node]})
+                if (BCR and BCRtype == 'C/ERT'):
+                    cost_reduction_of_each_mem_config = {item: cost_reduction_of_each_mem_config[item] for item in
+                                                         cost_reduction_of_each_mem_config.keys() if
+                                                         cost_reduction_of_each_mem_config[item][0] /
+                                                         cost_reduction_of_each_mem_config[item][
+                                                             1] > last_e2ert_cost_BCR * BCRthreshold}
+                elif (BCR and BCRtype == "MAX"):
+                    cost_reduction_of_each_mem_config = {item: (
+                        cost_reduction_of_each_mem_config[item][0], cost_reduction_of_each_mem_config[item][1],
+                        cost_reduction_of_each_mem_config[item][0] / cost_reduction_of_each_mem_config[item][1]) for
+                        item in
+                        cost_reduction_of_each_mem_config.keys()}
+                if (len(cost_reduction_of_each_mem_config) != 0):
+                    if (BCR and BCRtype == "MAX"):
+                        max_BCR = np.max([item[2] for item in cost_reduction_of_each_mem_config.values()])
+                        max_cost_reduction_under_MAX_BCR = np.max(
+                            [item[0] for item in cost_reduction_of_each_mem_config.values() if
+                             item[2] == max_BCR])
+                        min_increased_rt_under_MAX_rt_reduction_MAX_BCR = np.min(
+                            [item[1] for item in cost_reduction_of_each_mem_config.values() if
+                             item[0] == max_cost_reduction_under_MAX_BCR and item[2] == max_BCR])
+                        reversed_dict = dict(zip(cost_reduction_of_each_mem_config.values(),
+                                                 cost_reduction_of_each_mem_config.keys()))
+                        max_cost_reduction_of_each_node[node] = (reversed_dict[(
+                            max_cost_reduction_under_MAX_BCR, min_increased_rt_under_MAX_rt_reduction_MAX_BCR,
+                            max_BCR)],
+                                                                 max_cost_reduction_under_MAX_BCR,
+                                                                 min_increased_rt_under_MAX_rt_reduction_MAX_BCR,
+                                                                 max_BCR)
+                    else:
+                        max_cost_reduction = np.max([item[0] for item in cost_reduction_of_each_mem_config.values()])
+                        min_increased_rt_under_MAX_cost_reduction = np.min(
+                            [item[1] for item in cost_reduction_of_each_mem_config.values() if
+                             item[0] == max_cost_reduction])
+                        reversed_dict = dict(
+                            zip(cost_reduction_of_each_mem_config.values(), cost_reduction_of_each_mem_config.keys()))
+                        max_cost_reduction_of_each_node[node] = (
+                            reversed_dict[(max_cost_reduction, min_increased_rt_under_MAX_cost_reduction)],
+                            max_cost_reduction,
+                            min_increased_rt_under_MAX_cost_reduction)
+
+            if (BCR and BCRtype == "MAX"):
+                max_BCR = np.max([item[3] for item in max_cost_reduction_of_each_node.values()])
+                max_cost_reduction_under_MAX_BCR = np.max(
+                    [item[1] for item in max_cost_reduction_of_each_node.values() if item[3] == max_BCR])
+                target_node = [key for key in max_cost_reduction_of_each_node if
+                               max_cost_reduction_of_each_node[key][3] == max_BCR and
+                               max_cost_reduction_of_each_node[key][1] == max_cost_reduction_under_MAX_BCR][0]
+                target_mem = max_cost_reduction_of_each_node[target_node][0]
+            else:
+                max_cost_reduction = np.max([item[1] for item in max_cost_reduction_of_each_node.values()])
+                min_increased_rt_under_MAX_cost_reduction = np.min(
+                    [item[2] for item in max_cost_reduction_of_each_node.values() if item[1] == max_cost_reduction])
+                target_mem = np.min([item[0] for item in max_cost_reduction_of_each_node.values() if
+                                     item[1] == max_cost_reduction and item[
+                                         2] == min_increased_rt_under_MAX_cost_reduction])
+                target_node = [key for key in max_cost_reduction_of_each_node if
+                               max_cost_reduction_of_each_node[key] == (
+                                   target_mem, max_cost_reduction, min_increased_rt_under_MAX_cost_reduction)][0]
+            self.update_App_workflow_mem_rt(self.App, {target_node: target_mem})
+            max_cost_reduction = max_cost_reduction_of_each_node[target_node][1]
+            min_increased_rt_under_MAX_cost_reduction = max_cost_reduction_of_each_node[target_node][2]
+            current_cost = current_cost - max_cost_reduction
+            performance_surplus = performance_surplus - min_increased_rt_under_MAX_cost_reduction
+            current_avg_rt = current_avg_rt + min_increased_rt_under_MAX_cost_reduction
+            current_e2ert_cost_BCR = max_cost_reduction / min_increased_rt_under_MAX_cost_reduction
+            if (current_e2ert_cost_BCR == float('Inf')):
+                last_e2ert_cost_BCR = 0
+            else:
+                last_e2ert_cost_BCR = current_e2ert_cost_BCR
+        current_mem_configuration = nx.get_node_attributes(self.App.workflowG, 'mem')
+        del current_mem_configuration['Start']
+        del current_mem_configuration['End']
+        print('Optimized Memory Configuration: {}'.format(current_mem_configuration))
+        print('Average end-to-end response time: {}'.format(current_avg_rt))
+        print('Average Cost: {}'.format(current_cost))
+        print('PRCPG_BCPC Optimization Completed.')
+        return (current_avg_rt, current_cost, current_mem_configuration, iterations_count)
