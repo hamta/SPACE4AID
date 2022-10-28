@@ -24,13 +24,14 @@ class GeneticAlgorithm:
 
     max_steps = None
     min_fitness = None
-
-    def __init__(self, crossover_rate, mutation_rate, max_steps, min_fitness=None):
+    max_time=None
+    def __init__(self, crossover_rate, mutation_rate, max_steps,max_time=None, min_fitness=None):
         """
 
         :param crossover_rate: probability of crossover
         :param mutation_rate: probability of mutation
         :param max_steps: maximum steps to run genetic algorithm for
+        :param max_time: maximum time to run genetic algorithm for
         :param min_fitness: fitness value to stop algorithm once reached
         """
         if isinstance(crossover_rate, float):
@@ -51,8 +52,11 @@ class GeneticAlgorithm:
 
         if isinstance(max_steps, int) and max_steps > 0:
             self.max_steps = max_steps
-        else:
-            raise ValueError('Maximum steps must be a positive integer')
+        if isinstance(max_time, (int,float)) and max_time > 0:
+            self.max_time = max_time
+        elif not self.max_steps > 0:
+            raise ValueError('Maximum time or steps must be positive')
+
 
         if min_fitness is not None:
             if isinstance(min_fitness, (int, float)):
@@ -188,10 +192,11 @@ class GeneticAlgorithm:
 
         best_sol_cost_list.append(self.best_fitness)
         time_list.append(time.time())
-        for i in range(self.max_steps):
+        start=time.time()
+        while self.cur_steps<self.max_steps or time.time()-start<self.max_time:
             self.cur_steps += 1
 
-            if verbose and ((i + 1) % 100 == 0):
+            if verbose and ((self.cur_steps + 1) % 100 == 0):
                 print(self)
 
             self.population = self._select_n(num_copy)
@@ -201,11 +206,11 @@ class GeneticAlgorithm:
             for _ in range(num_crossover):
                 self.population.extend(self._crossover(*parents))
 
-           # new_population=[]
-            #for x in self.population:
-             #   new_population.extend(self._mutate(x))
-            #self.population=copy.deepcopy(new_population)
-            self.population =list([member for x in self.population for member in iter(self._mutate(x))])
+            new_population=[]
+            for x in self.population:
+                new_population.extend(self._mutate(x))
+            self.population=copy.deepcopy(new_population)
+            #self.population =list([member for x in self.population for member in iter(self._mutate(x))])
 
             self._populate_fitness()
 
@@ -220,4 +225,4 @@ class GeneticAlgorithm:
                 print("TERMINATING - REACHED MAXIMUM FITNESS")
                 return self.best_member, self.best_fitness
         print("TERMINATING - REACHED MAXIMUM STEPS")
-        return self.best_member, self.best_fitness, best_sol_cost_list, time_list
+        return self.best_member, self.best_fitness, best_sol_cost_list, time_list, self.population
