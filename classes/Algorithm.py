@@ -4,11 +4,14 @@ from classes.PerformanceEvaluators import SystemPerformanceEvaluator, ServerFarm
 import numpy as np
 import copy
 import sys
-import time
 from Solid.Solid.TabuSearch import TabuSearch
 from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
 from Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
 import math
+import time
+from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL, rand
+from hyperopt.fmin import generate_trials_to_calculate
+import random
 
 ## Algorithm
 class Algorithm:
@@ -179,8 +182,10 @@ class Algorithm:
                 # is the successor of the component), update the size of 
                 # data transferred between the components
                 if self.system.graph.G.succ[comp.name] != {}:
-                    if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
-                        self.system.graph.G[comp.name][part.Next]["data_size"] = part.data_size
+                    #if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
+                    if part.Next == list(self.system.graph.G.succ[comp.name].keys()):
+                        for next_idx in range(len(part.Next)):
+                            self.system.graph.G[comp.name][part.Next[next_idx]]["data_size"] = part.data_size[next_idx]
 
             res_parts_random.append(rand)
 
@@ -199,6 +204,151 @@ class Algorithm:
                 # loop over the partitions
                 for h in range(H):
                     # if the partition runs on the current resource, update 
+                    # the number
+                    if y[i][h][j] > 0:
+                        y_hat[i][h][j] = y[i][h][j] * number
+
+        self.logger.level -= 1
+
+        return  y_hat, res_parts_random, VM_numbers, CL_res_random
+
+
+    ## Method to create the initial random solution
+    #   @param self The object pointer
+    #   @return (1) List of 2D numpy matrices denoting the amount of
+    #           Resources.Resource assigned to each
+    #           Graph.Component.Partition object
+    #           (2) List of lists that store the random numbers used to select
+    #           the resource assigned to each component partition in the chosen
+    #           deployment
+    #           (3) List of randomly selected numbers of each used edge/cloud
+    #           resource
+    #           (4) List of indices of the resource randomly selected in each
+    #           computational layer
+    def create_random_initial_solution_smart(self):
+
+        # increase indentation level for logging
+        self.logger.level += 1
+
+        # initialize the assignments
+        self.logger.log("Initialize matrices", 4)
+        CL_res_random = []
+        res_parts_random = []
+        y_hat = []
+        y = []
+
+        # loop over all components
+        I = len(self.system.components)
+        for i in range(I):
+            # get the number of partitions and available resources
+            H, J = self.system.compatibility_matrix[i].shape
+            # create the empty matrices
+            y_hat.append(np.full((H, J), 0, dtype=int))
+            y.append(np.full((H, J), 0, dtype=int))
+
+        # generate the list of candidate nodes, selecting one node per each
+        # computational layer (and all nodes in the FaaS layers)
+        self.logger.log("Generate candidate resources", 4)
+        candidate_nodes = []
+        resource_count = 0
+        # loop over all computational layers
+        for l in self.system.CLs:
+            # select all nodes in FaaS layers
+            if resource_count >= self.system.FaaS_start_index:
+                random_num = l.resources
+                candidate_nodes.extend(random_num)
+            # randomly select a node in other layers
+            else:
+                random_num = np.random.choice(l.resources)
+                CL_res_random.append(l.resources.index(random_num))
+                candidate_nodes.append(random_num)
+            resource_count += len(l.resources)
+
+        # loop over all components
+        self.logger.log("Assign components", 4)
+        source_nodes= [node[0] for node in self.system.graph.G.in_degree if node[1]==0]
+        visited={node:False for node in self.system.graph.G.nodes}
+        Queue=copy.deepcopy(source_nodes)
+        possible_res=copy.deepcopy(self.system.compatibility_matrix)
+        #for node in Queue:
+         #   visited[node]=True
+        while Queue:
+            pred_is_visited=True
+            current_node=Queue.pop(0)
+            comp_idx=self.system.dic_map_com_idx[current_node]
+            comp=self.system.components[comp_idx]
+            random_dep = np.random.choice(comp.deployments)
+            comp_pred_ist=list(self.system.graph.G.pred[current_node])
+            if len(comp_pred_ist)>0:
+                for comp_pred in comp_pred_ist:
+                    comp_pred_idx=self.system.dic_map_com_idx[comp_pred]
+                    if len(np.nonzero(y_hat[comp_pred_idx])[0])>0:
+                        last_h_idx=np.nonzero(y_hat[comp_pred_idx])[0][-1]
+                        last_h_res = np.nonzero(y_hat[comp_pred_idx][last_h_idx,:])[0][0]
+                        if last_h_res >= self.system.cloud_start_index:
+                            possible_res[comp_idx][:, :self.system.cloud_start_index]=0
+                    else:
+                        pred_is_visited=False
+                        if comp_pred in Queue:
+                            Queue.remove(comp_pred)
+                        Queue.insert(0, comp_pred)
+                        if current_node in Queue:
+                            Queue.remove(current_node)
+                        Queue.insert(1, current_node)
+            if pred_is_visited:
+                last_part_res = -1
+                h = 0
+                rand = []
+                # loop over all partitions in the deployment
+                for part_idx in random_dep.partitions_indices:
+                    part = comp.partitions[part_idx]
+                    # get the indices of the component and the deployment
+                    i = self.system.dic_map_part_idx[comp.name][part.name][0]
+                    h_idx = self.system.dic_map_part_idx[comp.name][part.name][1]
+                    if last_part_res >= self.system.cloud_start_index:
+                        possible_res[comp_idx][:, :self.system.cloud_start_index]=0
+                    idx = np.nonzero(possible_res[i][h_idx,:])[0]
+                    index = list(set(candidate_nodes).intersection(idx))
+                    prob = 1/len(index)
+                    step = 0
+                    rn = np.random.random()
+                    rand.append(rn)
+                    for r in np.arange(0, 1, prob):
+                        if rn > r and rn <= r + prob:
+                            j = index[step]
+                        else:
+                            step += 1
+                    last_part_res=j
+                    y[i][h_idx,j] = 1
+                    y_hat[i][h_idx,j] = 1
+                    if self.system.graph.G.succ[comp.name] != {}:
+                        #if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
+                        if part.Next == list(self.system.graph.G.succ[comp.name].keys()):
+                            for next_idx in range(len(part.Next)):
+                                self.system.graph.G[comp.name][part.Next[next_idx]]["data_size"] = part.data_size[next_idx]
+                visited[current_node]=True
+                for node in self.system.graph.G.neighbors(current_node):
+                    if not visited[node]:
+                        if node not in Queue:
+                            Queue.append(node)
+
+
+
+        # loop over edge/cloud resources
+        self.logger.log("Set number of resources", 4)
+        VM_numbers = []
+        for j in range(self.system.FaaS_start_index):
+            # randomly generate the number of resources that can be assigned
+            # to the partitions that run on that resource
+            number = np.random.randint(1, self.system.resources[j].number + 1)
+            VM_numbers.append(number - 1)
+            # loop over components
+            for i in range(I):
+                # get the number of partitions
+                H = self.system.compatibility_matrix[i].shape[0]
+                # loop over the partitions
+                for h in range(H):
+                    # if the partition runs on the current resource, update
                     # the number
                     if y[i][h][j] > 0:
                         y_hat[i][h][j] = y[i][h][j] * number
@@ -368,6 +518,7 @@ class Algorithm:
     def change_FaaS(self,solution):
         new_sorted_results=None
         new_feasible_results=[]
+        counter_obj_evaluation=0
         # call the method to get all partitions located in FaaS 
         partitions_with_FaaS=self.get_partitions_with_FaaS(solution.Y_hat)
         # loop over list of partitions in partitions_with_FaaS list
@@ -392,6 +543,7 @@ class Algorithm:
                     result=Result()
                     result.solution = new_temp_solution
                     result.cost = result.objective_function(self.system)
+                    counter_obj_evaluation+=1
                     result.performance = performance
                     new_feasible_results.append(result)
         if len(new_feasible_results)>0:
@@ -399,7 +551,7 @@ class Algorithm:
             new_sorted_results = sorted(new_feasible_results, key=lambda x: x.cost)
             #new_sorted_solution=[x.solution for x in new_sorted_results]
         # return the list of neibors
-        return new_sorted_results
+        return new_sorted_results, counter_obj_evaluation
 
 
     ## Method to get active resources and computationallayers
@@ -474,7 +626,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def change_component_placement(self, solution, sorting_method=0):
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -543,6 +695,7 @@ class Algorithm:
                                 new_result = self.reduce_cluster_size(des_node_idx, new_result_1)
                                 # compute the cost
                                 new_result.cost = new_result.objective_function(self.system)
+                                counter_obj_evaluation+=1
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
@@ -563,9 +716,9 @@ class Algorithm:
                 new_sorted_results = None
             j += 1
 
-        if new_sorted_results is None:
-             print("Any neighbors could not be found by changing component placement for the current solution")
-        return new_sorted_results
+       # if new_sorted_results is None:
+        #     print("Any neighbors could not be found by changing component placement for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
 
 
@@ -578,7 +731,7 @@ class Algorithm:
     #   @return A list neigbors (new solutions) sorted by cost   
     def change_resource_type(self, solution, sorting_method=0):
 
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -600,7 +753,8 @@ class Algorithm:
             for part in partitions:
                 alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
             # get the intersection of the alternative nodes of all partitions runing on source node
-            candidate_nodes=alternative_res_idxs_parts[0].intersection(*alternative_res_idxs_parts)
+            candidate=set.intersection(*alternative_res_idxs_parts)
+            candidate_nodes = [i for i in candidate if i < self.system.FaaS_start_index]
 
             if len(candidate_nodes)>0:
                 # get the list of nodes and computational layers in used 
@@ -639,6 +793,7 @@ class Algorithm:
                                     # reduce the cluster size of destination node
                                     new_result = self.reduce_cluster_size(des, result)
                                     new_result.cost = new_result.objective_function(self.system)
+                                    counter_obj_evaluation+=1
                                     new_result.performance = performance
                                     # add the new result to the neigbor list
                                     neighbors.append(new_result)
@@ -653,9 +808,9 @@ class Algorithm:
             # else:
             #     print("No neighbor could be find by changing resource "+str(idx_source_node)+" because no shared compatiblie node exists")
             i+=1
-        if  new_sorted_results==None:
-            print("Any neighbors could not be found by changing resource type for the current solution")
-        return new_sorted_results
+        #if  new_sorted_results==None:
+        #    print("Any neighbors could not be found by changing resource type for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
     ## Method to change the current solution by moveing partitions from edge or cloud toFaaS
     #   @param self The object pointer
@@ -665,7 +820,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_to_FaaS(self, solution, sorting_method=0):
-        #pdb.set_trace()
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -719,6 +874,7 @@ class Algorithm:
                     new_result=Result()
                     new_result.solution = new_temp_solution
                     new_result.cost = new_result.objective_function(self.system)
+                    counter_obj_evaluation+=1
                     new_result.performance = performance
                     # add the new result to the neigbor list
                     neighbors.append(new_result)
@@ -747,6 +903,7 @@ class Algorithm:
                             # reduce the cluster size of destination node
                             new_result = self.reduce_cluster_size(idx_source_node, result)
                             new_result.cost = new_result.objective_function(self.system)
+                            counter_obj_evaluation+=1
                             new_result.performance = performance
                             # add the new result to the neigbor list
                             neighbors.append(new_result)
@@ -756,10 +913,10 @@ class Algorithm:
             # sort neighbor list by cost and return the best one
             new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
             #new_sorted_solutions=[x.solution for x in new_sorted_results]
-        else:
-            print("Any neighbors could not be found by moveing to FaaS for the current solution")
+        #else:
+        #    print("Any neighbors could not be found by moveing to FaaS for the current solution")
 
-        return new_sorted_results
+        return new_sorted_results, counter_obj_evaluation
 
 
     ## Method to move the partitions running on FaaS to the edge/cloud
@@ -770,7 +927,7 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def move_from_FaaS(self, solution, sorting_method=0):
-
+        counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
@@ -827,6 +984,7 @@ class Algorithm:
                                 new_result = self.reduce_cluster_size(des_node_idx, result)
                                 # compute the cost
                                 new_result.cost = new_result.objective_function(self.system)
+                                counter_obj_evaluation+=1
                                 new_result.performance = performance
                                 # add new result in neigbor list
                                 neighbors.append(new_result)
@@ -836,9 +994,9 @@ class Algorithm:
 
         if len(neighbors) > 0:
             new_sorted_results = sorted(neighbors, key=lambda x: x.cost)
-        if new_sorted_results is None:
-             print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")
-        return new_sorted_results
+       # if new_sorted_results is None:
+        #     print("Any neighbors could not be found by moving from FaaS to edge/cloud for the current solution")
+        return new_sorted_results, counter_obj_evaluation
 
     ## Method to union and sort the set of neighbors came from three methods: change_resource_type, change_component_placement, change_FaaS
     #   @param self The object pointer
@@ -848,16 +1006,17 @@ class Algorithm:
 
         neighborhood=[]
         # get the neighbors by changing FaaS configuration
-        neighborhood1=self.change_FaaS(solution)
+        neighborhood1, counter_obj_evaluation1=self.change_FaaS(solution)
         # get the neighbors by changing resource type
-        neighborhood2=self.change_resource_type(solution)
+        neighborhood2, counter_obj_evaluation2=self.change_resource_type(solution)
         # get the neigbors by changing component placement
-        neighborhood3=self.change_component_placement(solution)
+        neighborhood3, counter_obj_evaluation3=self.change_component_placement(solution)
         # get the neigbors by moveing to FaaS
-        neighborhood4=self.move_to_FaaS(solution)
+        neighborhood4, counter_obj_evaluation4=self.move_to_FaaS(solution)
         # get the neigbors by moveing from FaaS to edge/cloud
-        neighborhood5=self.move_from_FaaS(solution)
-
+        neighborhood5, counter_obj_evaluation5=self.move_from_FaaS(solution)
+        counter_obj_evaluation = counter_obj_evaluation1 + counter_obj_evaluation2 + counter_obj_evaluation3 +\
+                               counter_obj_evaluation4 + counter_obj_evaluation5
         # mixe all neigbors
         if neighborhood1 is not None:
             neighborhood.extend(neighborhood1)
@@ -879,7 +1038,7 @@ class Algorithm:
 
                     new_sorted_neighborhood.remove(new_sorted_neighborhood[neighbor_idx])
 
-        return new_sorted_neighborhood
+        return new_sorted_neighborhood, counter_obj_evaluation
 
     ## Method to create the initial solution with largest configuration function (for only FaaS scenario)
     #   @param self The object pointer
@@ -1035,11 +1194,12 @@ class RandomGreedy(Algorithm):
     #   @param MaxIt Number of iterations, i.e., number of candidate 
     #                solutions to be generated (default: 1)
     #   @param K Number of elite results to be saved (default: 1)
+    #   @param MaxTime Time duration that random greedy should run (if we set time instead of iteration)
     #   @return (1) Best Solution.Result before cluster update
     #           (2) Solution.EliteResults object storing the given number of 
     #           Solution.Result objects sorted by minimum cost
     #           (4) List of the random parameters
-    def random_greedy(self, MaxIt = 1, K = 1):
+    def random_greedy(self, MaxIt = 1, K = 1, MaxTime=0):
 
         # initialize the elite set, the best result without cluster update 
         # and the lists of random parameters
@@ -1054,7 +1214,10 @@ class RandomGreedy(Algorithm):
         # perform randomized greedy iterations
         self.logger.log("Starting Randomized Greedy procedure", 1)
         self.logger.level += 1
-        for iteration in range(MaxIt):
+        iteration=0
+        start=time.time()
+        while iteration<MaxIt or time.time()-start<MaxTime:
+
             self.logger.log("#iter {}: {}".format(iteration, time.time()), 3)
             # perform a step
             result, new_result, random_param = self.step()
@@ -1065,6 +1228,7 @@ class RandomGreedy(Algorithm):
             res_parts_random_list.append(random_param[0])
             VM_numbers_random_list.append(random_param[1])
             CL_res_random_list.append(random_param[2])
+            iteration += 1
         self.logger.level -= 1
         random_params = [res_parts_random_list, VM_numbers_random_list,
                          CL_res_random_list]
@@ -1080,34 +1244,47 @@ class IteratedLocalSearch(Algorithm):
     pass
 
 
-
+## Tabu Search
+#
+# Specialization of Algorithm that constructs the optimal solution through a
+# Tabu Search approach
 class Tabu_Search(TabuSearch,RandomGreedy):
-    """
-    Tries to get a randomly-generated string to match string "clout"
-    """
+
     ## TabuSearchSolid class constructor
     #   @param self The object pointer
     #   @param seed A seed to generate random values
     #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param max_steps Maximum steps of tabu search
-    #   @param min_score Minimum cost
     #   @param system A System.System object
+    #   @param Max_time_RG Maximum time of running RG
+    #   @param K The number of elite solutions obtained by RG as the starting point of SA
+    #   @param besties_RG A list of starting points
     #   @param log Object of Logger.Logger type
-    def __init__(self,Max_It_RG,seed, tabu_size, max_steps, min_score, system, log = Logger()):
+    def __init__(self,Max_It_RG,seed,  system,Max_time_RG=0,K=1, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
-        initial_state =elite.elite_results[0].solution
-        TabuSearch.__init__(self,initial_state, tabu_size, max_steps, min_score)
+        if besties_RG is None:
+            best_result_no_update, elite, random_params=self.random_greedy(K=K,MaxIt = self.Max_It_RG, MaxTime=self.Max_time_RG)
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
+                self.starting_points.append(elite.elite_results[i].solution)
+        else:
+            self.starting_points=besties_RG
+
 
     ## Method to get a list of neigbors
     #   @param self The object pointer
     #   @return A list of solutions (neighbors)
     def _neighborhood(self ):
 
-        neighborhood=self.union_neighbors(self.current)
+        neighborhood, counter_obj_evaluation =self.union_neighbors(self.current)
+        self.counter_obj_evaluation += counter_obj_evaluation
         return [x.solution for x in neighborhood]
 
     ## Method to get the cost of current solution
@@ -1115,24 +1292,58 @@ class Tabu_Search(TabuSearch,RandomGreedy):
     #   @param solution The current solution
     #   @return The cost of current solution
     def _score(self, solution):
+        self.counter_obj_evaluation += 1
+        return solution.objective_function(self.system)
 
-        return solution.objective_function(self.system)*(-1)
-
-
-
-    ## Method to create initial solution for tabue search
+        ## Method to run SA
     #   @param self The object pointer
-    #   @return A solution
-    def creat_initial_solution(self):
-        # create a RandomGreedy object and run random gready method
-        self.start_time_RG=time.time()
-        GA=RandomGreedy(self.system)
+    #   @param tabu_size Maximum size of tabu list
+    #   @param method The method to select one of neghbors in each iteration ("best" or "random")
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_score Minimum cost
+    #   @param Max_time Maximum running time of Simulated Annealing in second
+    def run_TS (self,method, tabu_size, min_score, max_steps,Max_time=None):
 
-        best_result_no_update, elite, random_params=GA.random_greedy(self.seed,MaxIt = self.Max_It_RG)
-        initial_solution=elite.elite_results[0].solution
+        Max_time_starting_point=Max_time/len(self.starting_points)
+        best_best_solution=None
+        best_best_cost=np.inf
+        best_current_cost_list=[]
+        best_best_cost_list=[]
+        best_time_list=[]
+        Starting_point_best_costs=[]
+        Starting_point_solutions=[]
+        Starting_point_current_cost_list=[]
+        Starting_point_best_cost_list=[]
+        Starting_point_time_list=[]
 
-        #initial_solution=self.creat_initial_solution_with_largest_conf_fun()
-        return initial_solution
+
+        for starting_point in self.starting_points:
+            TabuSearch.__init__(self,starting_point, tabu_size, max_steps,Max_time_starting_point, min_score)
+            best_solution, best_cost,current_cost_list,best_cost_list, time_list=self.run(method)
+            if best_cost<np.inf:
+                Starting_point_best_costs.append(best_cost)
+                Starting_point_solutions.append(best_solution)
+                Starting_point_current_cost_list.append(current_cost_list)
+                Starting_point_best_cost_list.append(best_cost_list)
+                Starting_point_time_list.append(time_list)
+                if best_cost<best_best_cost:
+                    best_best_cost=best_cost
+                    best_best_solution=copy.deepcopy(best_solution)
+                    best_current_cost_list= copy.deepcopy(current_cost_list)
+                    best_best_cost_list= copy.deepcopy(best_cost_list)
+                    best_time_list= copy.deepcopy(time_list)
+        result = Result()
+        result.solution = best_best_solution
+        feasible = result.check_feasibility(self.system)
+        if feasible:
+            result.objective_function(self.system)
+
+        best_sol_info = [best_best_cost, best_best_solution, best_current_cost_list, best_best_cost_list, best_time_list]
+        Starting_points_info=[Starting_point_solutions, Starting_point_best_costs, Starting_point_current_cost_list, Starting_point_best_cost_list, Starting_point_time_list]
+        return result, best_sol_info, Starting_points_info
+
+
+
 
 ## Simulated Annealing
 
@@ -1141,37 +1352,98 @@ class Simulated_Annealing(SimulatedAnnealing, RandomGreedy):
     #   @param self The object pointer
     #   @param seed A seed to generate random values
     #   @param Max_It_RG Maximum iterations of random greedy
-    #   @param max_steps Maximum steps of tabu search
-    #   @param min_score Minimum cost
     #   @param system A System.System object
+    #   @param Max_time_RG Maximum running time of Random Greedy in second
+    #   @param K The number of elite solutions obtained by RG as the starting point of SA
     #   @param log Object of Logger.Logger type
-    def __init__(self, Max_It_RG ,seed, temp_begin, schedule_constant, max_steps, min_energy, schedule, system, log = Logger()):
+    def __init__(self, Max_It_RG ,seed, system, Max_time_RG=0, K=1, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.starting_points=[]
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
         # compute initial solution
-        best_result_no_update, elite, random_params=self.random_greedy(MaxIt = self.Max_It_RG)
-        initial_state =elite.elite_results[0].solution
-        SimulatedAnnealing.__init__(self, initial_state, temp_begin, schedule_constant, max_steps, min_energy, schedule)
+        if besties_RG is None:
+            best_result_no_update, elite, random_params=self.random_greedy(K=K,MaxIt = self.Max_It_RG, MaxTime=self.Max_time_RG)
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
+                self.starting_points.append(elite.elite_results[i].solution)
+        else:
+            self.starting_points=besties_RG
+
 
      ## Method to get a list of neigbors
     #   @param self The object pointer
-    #   @return A list of solutions (neighbors)
+    #   @return A solution (neighbor)
     def _neighbor(self ):
 
-        neighborhood=self.union_neighbors(self.current_state)
-        x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
-        return x.solution
+        neighborhood, counter_obj_evaluation = self.union_neighbors(self.current_state)
+        self.counter_obj_evaluation += counter_obj_evaluation
+        if len(neighborhood)>0:
+            x=neighborhood[np.argmin([self._energy(x) for x in neighborhood])]
+            sol=x.solution
+        else:
+            sol=None
+        return sol
 
     ## Method to get the cost of current solution
     #   @param self The object pointer
     #   @param solution The current solution
     #   @return The cost of current solution
     def _energy(self, solution):
-
+        self.counter_obj_evaluation += 1
         return solution.objective_function(self.system)
 
+    ## Method to run SA
+    #   @param self The object pointer
+    #   @param schedule_constant Constant value in annealing schedule function
+    #   @param temp_begin Beginning temperature
+    #   @param max_steps Maximum steps of tabu search
+    #   @param min_energy Minimum cost
+    #   @param schedule Temperature decay function ("linear" or "exponential")
+    #   @param Max_time Maximum running time of Simulated Annealing in second
+    def run_SA (self,temp_begin, schedule_constant, max_steps, min_energy, schedule,Max_time=None):
+        Max_time_starting_point=Max_time/len(self.starting_points)
+        best_best_solution=None
+        best_best_cost=np.inf
+        best_current_cost_list=[]
+        best_best_cost_list=[]
+        best_time_list=[]
+        Starting_point_best_costs=[]
+        Starting_point_solutions=[]
+        Starting_point_current_cost_list=[]
+        Starting_point_best_cost_list=[]
+        Starting_point_time_list=[]
 
+        for starting_point in self.starting_points:
+            SimulatedAnnealing.__init__(self, starting_point, temp_begin, schedule_constant, max_steps,
+                                        Max_time_starting_point, min_energy, schedule)
+            best_solution, best_cost,current_cost_list,best_cost_list, time_list=self.run()
+            if best_cost<np.inf:
+                Starting_point_best_costs.append(best_cost)
+                Starting_point_solutions.append(best_solution)
+                Starting_point_current_cost_list.append(current_cost_list)
+                Starting_point_best_cost_list.append(best_cost_list)
+                Starting_point_time_list.append(time_list)
+                if best_cost<best_best_cost:
+                    best_best_cost=best_cost
+                    best_best_solution=copy.deepcopy(best_solution)
+                    best_current_cost_list= copy.deepcopy(current_cost_list)
+                    best_best_cost_list= copy.deepcopy(best_cost_list)
+                    best_time_list= copy.deepcopy(time_list)
+        result = Result()
+        result.solution = best_best_solution
+        feasible = result.check_feasibility(self.system)
+        if feasible:
+            result.objective_function(self.system)
+
+        best_sol_info = [best_best_cost, best_best_solution, best_current_cost_list, best_best_cost_list, best_time_list]
+        Starting_points_info=[Starting_point_solutions, Starting_point_best_costs, Starting_point_current_cost_list, Starting_point_best_cost_list, Starting_point_time_list]
+        return result, best_sol_info, Starting_points_info
 
 ## Genetic algorithm
 
@@ -1184,29 +1456,36 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
     #   @param min_score Minimum cost
     #   @param system A System.System object
     #   @param log Object of Logger.Logger type
-    def __init__(self,Max_It_RG,seed, crossover_rate, mutation_rate, max_steps, system,max_fitness=None, log = Logger()):
+    def __init__(self,Max_It_RG,seed, crossover_rate, mutation_rate, max_steps, system,Max_time_RG=0,Max_time=None,max_fitness=None, besties_RG=None, log = Logger()):
 
         self.Max_It_RG=Max_It_RG
+        self.Max_time_RG=Max_time_RG
+        self.counter_obj_evaluation=0
         RandomGreedy.__init__(self,system,seed, log)
-
-        GeneticAlgorithm.__init__(self,  crossover_rate, mutation_rate, max_steps, max_fitness)
+        GeneticAlgorithm.__init__(self,  crossover_rate, mutation_rate, max_steps,Max_time, max_fitness)
+        if besties_RG is None:
+            self.besties_RG=None
+        else:
+            self.besties_RG=besties_RG
 
     def _initial_population(self, K):
-        #return list(list([choice([0, 1]) for _ in range(6)]) for _ in range(50))
-        best_result_no_update, elite, random_params = self.random_greedy(MaxIt = self.Max_It_RG, K=K)
-        population=[]
-        if len(elite.elite_results)<K:
-            Len=len(elite.elite_results)
-        else:
-            Len=K
-        for i in range(Len):
+        if self.besties_RG is None:
+            best_result_no_update, elite, random_params = self.random_greedy(MaxIt = self.Max_It_RG, K=K,MaxTime=self.Max_time_RG)
+            population=[]
+            if len(elite.elite_results)<K:
+                Len=len(elite.elite_results)
+            else:
+                Len=K
+            for i in range(Len):
 
-            population.append(elite.elite_results[i].solution)
+                population.append(elite.elite_results[i].solution)
+        else:
+            population=self.besties_RG
         return population
 
     def _fitness(self, member):
-
-
+        
+        self.counter_obj_evaluation += 1
         return member.objective_function(self.system)
 
     def _mutate(self, member):
@@ -1223,9 +1502,12 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
             np.random.shuffle(fns)
             while results is None and len(fns) > 0:
                 fn = fns.pop()
-                results = fn(member)
+                results, counter_obj_evaluation = fn(member)
+                self.counter_obj_evaluation += counter_obj_evaluation
             if results is not None:
-                member = [result.solution for result in results]
+                member = list([result.solution for result in results])
+            else:
+                member=list([member])
         else:
             member=list([member])
         return member
@@ -1272,17 +1554,927 @@ class Genetic_algorithm(GeneticAlgorithm, RandomGreedy):
                     if not two_child:
                         two_child=True
                         child2=copy.deepcopy(part1+ part2)
+                    # get all partitions of part2 that are running on res_part2
                     partitions2 = self.get_partitions_with_j(part2,res_part2)
+                    # get all partitions that are running on res_part1
                     partitions1 = self.get_partitions_with_j(part1,res_part1)
+                    # to create child1,
                     for part in partitions2:
                         child1[part[0]+partition][part[1]][res_part2]=0
                         child1[part[0]+partition][part[1]][res_part1]=part1[partitions1[0][0]][partitions1[0][1]][res_part1]
                     for part in partitions1:
                         child2[part[0]][part[1]][res_part1]=0
-                        child2[part[0]][part[1]][res_part2]=part2[partitions2[0][0]][partitions1[0][1]][res_part2]
+
+                        child2[part[0]][part[1]][res_part2]=part2[partitions2[0][0]][partitions2[0][1]][res_part2]
+
         children.append(child1)
         if two_child:
             children.append(child2)
 
         return children
+
+    def run_GA(self, K):
+
+         # increase indentation level for logging
+        self.logger.level += 1
+        self.logger.log("Run Genetic Algorithm", 3)
+        best_member, best_fitness, best_sol_cost_list_GA, time_list_GA, population=self.run(K)
+        # initialize results
+        result = Result()
+        result.solution = best_member
+        self.logger.log("Start check feasibility: {}".format(time.time()), 3)
+        feasible = result.check_feasibility(self.system)
+        self.logger.log("End check feasibility: {}".format(time.time()), 3)
+
+        # if the solution is feasible, compute the corresponding cost
+        # before and after updating the clusters size
+        if feasible:
+            self.logger.log("Solution is feasible", 3)
+            # compute cost
+            self.logger.log("Compute cost", 3)
+            result.objective_function(self.system)
+            self.counter_obj_evaluation += 1
+        else:
+            new_result = copy.deepcopy(result)
+        self.logger.level -= 2
+        return result,  best_sol_cost_list_GA, time_list_GA, population
+
+class HyperOpt():
+
+
+    ## HyperOpt class constructor
+    #   @param self The object pointer
+    #   @param system A System.System object
+   def __init__(self, system):
+        self.system=system
+
+   ## The objective function of HyperOpt
+    #   @param self The object pointer
+    #   @param args All arguments with their search space
+    #   @return a solution found by HyperOpt
+   def objective(self,args):
+
+       # get the search space of all parameters
+        resource_random_list, deployment_random_list, VM_number_random_list, prob_res_selection_dep_list= args
+
+        # start to create Y_hat from the search space of parameters
+        I=len(self.system.components)
+        J=len(self.system.resources)
+        y_hat=[]
+        y=[]
+        for i in range(I):
+            H,J=self.system.compatibility_matrix[i].shape
+            # initialize Y_hat, y
+            y_hat.append(np.full((H, J), 0, dtype=int))
+            y.append(np.full((H, J), 0, dtype=int))
+
+        candidate_nodes=[]
+        resource_count = 0
+        # loop over all computational layers
+
+        for idx,l in enumerate( self.system.CLs):
+            # select all nodes in FaaS layers
+            if resource_count >= self.system.FaaS_start_index:
+                random_num = l.resources
+                candidate_nodes.extend(random_num)
+            # set a node in other layers based on what HypetOpt selected
+            else:
+                if resource_random_list[idx] != np.inf :
+                    candidate_nodes.append(l.resources[resource_random_list[idx]])
+            resource_count += len(l.resources)
+
+        for comp_idx, comp in enumerate(self.system.components):
+            # set a deployment for each component based on what HypetOpt selected
+            random_dep=comp.deployments[deployment_random_list[comp_idx]]
+
+            h=0
+
+            #for part_idx, part in enumerate(random_dep.partitions_indices):
+            for part_idx in random_dep.partitions_indices:
+                part = comp.partitions[part_idx]
+                 # get the indices of the component and the deployment selected by HypetOpt
+                i=self.system.dic_map_part_idx[comp.name][part.name][0]
+                # get the indices of compatible resources and compute the
+                # intersection with the selected resources in each
+                # computational layer
+
+
+                h_idx=self.system.dic_map_part_idx[comp.name][part.name][1]
+                if  max(max(prob_res_selection_dep_list))<=1:
+                    idx=np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
+                    # extract a resource index in the intersection
+                    index=list(set(candidate_nodes).intersection(idx))
+                    prob=1/len(index)
+                    step=0
+                    h= random_dep.partitions_indices.index(h_idx)
+                    rn=prob_res_selection_dep_list[comp_idx][h]
+
+                    for r in np.arange(0,1,prob):
+                        if rn>r and rn<=r+prob:
+                            j= index[step]
+
+                        else:
+                            step+=1
+                else:
+                    h= random_dep.partitions_indices.index(h_idx)
+                    j=int(prob_res_selection_dep_list[comp_idx][h])
+                y[i][h_idx][j]=1
+                y_hat[i][h_idx][j]=1
+                # if the partition is the last partition (i.e., its successor
+                # is the successor of the component), update the size of
+                # data transferred between the components
+                if self.system.graph.G.succ[comp.name] != {}:
+
+                    #if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
+                    if part.Next == list(self.system.graph.G.succ[comp.name].keys()):
+                        for next_idx in range(len(part.Next)):
+                            self.system.graph.G[comp.name][part.Next[next_idx]]["data_size"] = part.data_size[next_idx]
+
+
+        # check if the system dosent have FaaS
+        if self.system.FaaS_start_index!=float("inf"):
+            edge_VM=self.system.FaaS_start_index
+        else:
+            edge_VM=J
+        # randomly generate the number of resources that can be assigned
+        # to the partitions that run on that resource
+        for j in range(edge_VM):
+
+            # loop over components
+            for i in range(I):
+                 H=self.system.compatibility_matrix[i].shape[0]
+                 for h in range(H):
+                    if y[i][h][j]>0:
+                        if max(max(prob_res_selection_dep_list))<=1:
+                             y_hat[i][h][j] = y[i][h][j]*(VM_number_random_list[j]+1)
+                        else:
+                             y_hat[i][h][j] = y[i][h][j]*(VM_number_random_list[j])
+        solution=Configuration(y_hat)
+
+        flag, primary_paths_performance, primary_components_performance =solution.check_feasibility(self.system)
+
+
+        if flag:
+            costs=solution.objective_function(self.system)
+            return {'loss': costs,
+                'time': time.time(),
+                'status': STATUS_OK }
+        else:
+
+            return {'status': STATUS_FAIL,
+                    'time': time.time(),
+                    'exception': "inf"}
+
+
+
+    ## Random optimization function by HyperOpt
+    #   @param self The object pointer
+    #   @param seed Seed for random number generation
+    #   @param iteration_number The iteration number for HyperOpt
+    #   @param vals_list The list of value to feed the result of RandomGreedy to HyperOpt
+    #   @return the best cost and the best solution found by HyperOpt
+   def random_hyperopt(self,seed, max_time,vals_list=[]):
+        #np.random.seed(int(time.time()))
+        # set the seed for replicability
+        #os.environ['HYPEROPT_FMIN_SEED'] = "1"#str(np.random.randint(1,1000))
+        # Create search spaces for all random variable by defining a dictionary for each of them
+        resource_random_list=[]
+        for idx, l in enumerate(self.system.CLs):
+            # Create search spaces for all computational layer except the last one with FaaS
+            if l != list(self.system.CLs)[-1]:
+
+                resource_random_list.append(hp.randint("res"+str(idx),len(l.resources)))
+
+
+        deployment_random_list=[]
+        prob_res_selection_dep_list=[]
+         # Create search spaces for all random variable which is needed for components
+        for idx, comp in enumerate(self.system.components):
+            max_part=0
+            res_random=[]
+             # Create search spaces for deployments
+            deployment_random_list.append(hp.randint("dep"+str(idx),len(comp.deployments)))
+            #random_dep=comp.deployments[random_num]
+            for  dep in comp.deployments:
+                if max_part<len(list(dep.partitions_indices)):
+                    max_part=len(list(dep.partitions_indices))
+             # Create search spaces for resources of partitions
+            for i in range( max_part):
+                res_random.append( hp.uniform("com_res"+str(idx)+str(i),0,1))
+            prob_res_selection_dep_list.append(res_random)
+        VM_number_random_list=[]
+         # Create search spaces for determining VM number
+        for j in range(self.system.FaaS_start_index):
+
+            VM_number_random_list.append( hp.randint("VM"+str(j),self.system.resources[j].number))
+
+
+        # creat a list of search space including all variables
+        space1 = resource_random_list
+        space2 = deployment_random_list
+        space3 = VM_number_random_list
+        space4 = prob_res_selection_dep_list
+
+        space=[space1,space2,space3,space4]
+        # create trails to search in search spaces
+        trials = Trials()
+        best_cost=0
+        # if we need to use Spark for parallelisation
+        #trials = SparkTrials(parallelism=4)
+
+        # if there is some result from RandomGreedy to feed to HyperOpt
+        if len(vals_list)>0:
+            trials=generate_trials_to_calculate(vals_list)
+
+       # set seed
+        rstate = np.random.default_rng(seed)
+        try:
+             # run fmin method to search and find the best solution
+            best = fmin(fn=self.objective, space=space, algo=rand.suggest, trials=trials,  timeout=max_time,rstate=rstate)
+
+        except:
+
+            best_cost= float("inf")
+
+        # check if HyperOpt could find solution
+        if best_cost== float("inf"):
+            # if HyperOpt cannot find any feasible solution
+             solution=None
+        else:
+             # if HyperOp find a feasible solution extract the solution from fmin output
+            best_cost=trials.best_trial["result"]["loss"]
+            cost, solution=self.extract_HyperOpt_result(best)
+
+        return best_cost, solution
+
+   ## Method to extract the best solution of HperOpt and converting it to Y_hat
+    #   @param self The object pointer
+    #   @param best The output of fmin method
+    #   @return the best cost and the best solution found by HyperOpt
+   def extract_HyperOpt_result(self,best ):
+
+            I=len(self.system.components)
+            J=len(self.system.resources)
+            y_hat=[]
+            y=[]
+            # initialize Y_hat and y by 0
+            for i in range(I):
+                H,J=self.system.compatibility_matrix[i].shape
+                y_hat.append(np.full((H, J), 0, dtype=int))
+                y.append(np.full((H, J), 0, dtype=int))
+
+            # initialize the list of selected resources by best solution of HyperOpt
+            resource_random_list=[]
+            # extract the selected resources by best solution of HyperOpt in CLs
+            candidate_nodes=[]
+            for idx, l in enumerate(self.system.CLs):
+                if l == list(self.system.CLs)[-1]:
+                    random_num=l.resources
+                    candidate_nodes.extend(random_num)
+                else:
+                    if str(best["res"+str(idx)]).isdigit():
+                         candidate_nodes.append(l.resources[best["res"+str(idx)]])
+                         resource_random_list.append( best["res"+str(idx)])
+
+            resources=[ v for k,v in best.items() if 'com_res' in k]
+             # extract the selected deployments of components by best solution of HyperOpt
+            for comp_idx, comp in enumerate(self.system.components):
+
+                random_dep=comp.deployments[best["dep"+str(comp_idx)]]
+                #deployment_random_list.append(best["dep"+str(idx)])
+                h=0
+                for part_idx in random_dep.partitions_indices:
+                    part = comp.partitions[part_idx]
+                     # pick the selected compatible resources by the best solution of HperOpt for each partition
+                     #  and set Y_hat according to it
+                    i=self.system.dic_map_part_idx[comp.name][part.name][0]
+                    h_idx=self.system.dic_map_part_idx[comp.name][part.name][1]
+                    if max(resources)<=1:
+                        idx=np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
+                        index=list(set(candidate_nodes).intersection(idx))
+                        prob=1/len(index)
+                        step=0
+                        h= random_dep.partitions_indices.index(h_idx)
+                        rn=best["com_res"+str(comp_idx)+str(h)]
+                        for r in np.arange(0,1,prob):
+                            if rn>r and rn<=r+prob:
+                                j= index[step]
+
+                            else:
+                                step+=1
+                    else:
+                        h= random_dep.partitions_indices.index(h_idx)
+                        j=int(best["com_res"+str(comp_idx)+str(h)])
+                    y[i][h_idx][j]=1
+                    y_hat[i][h_idx][j]=1
+
+                    if  self.system.graph.G.succ[comp.name]!={}:
+                        if part.Next == list(self.system.graph.G.succ[comp.name].keys()):
+
+                            for next_idx in range(len(part.Next)):
+                                self.system.graph.G[comp.name][part.Next[next_idx]]["data_size"] = part.data_size[next_idx]
+            # pick the number of VM selected by best solution of HyperOpt and set it in Y_hat
+            if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+            else:
+                edge_VM=J
+            for j in range(edge_VM):
+                for i in range(I):
+                     H=self.system.compatibility_matrix[i].shape[0]
+                     for h in range(H):
+                        if y[i][h][j]>0:
+                            if max(resources)<=1:
+                                 y_hat[i][h][j] = y[i][h][j]*(best["VM"+str(j)]+1)
+                            else:
+                                 y_hat[i][h][j] = y[i][h][j]*(best["VM"+str(j)])
+
+            # create the solution by new Y_hat extracted by the best solution of HyperOpt
+            solution=Configuration(y_hat)
+            # compute cost
+            cost=solution.objective_function(self.system)
+
+            return cost, solution
+
+   ## Method to create the trials according to solutions of random greedy to feed HyperOpt
+    #   @param self The object pointer
+    #   @param solutions The solutions of random greedy
+    #   @param res_parts_random_list The lists of random parameters needed to select compatible resources assigned to partitions
+    #   @param VM_numbers_random_list The list of random number selected by random greedy
+    #   @param CL_res_random_list The list of randomly selected resources in CLs by random greedy
+    #   @return a list of values to feed HyperOpt
+   def creat_trials_by_RandomGreedy(self, solutions, res_parts_random_list,
+                                    VM_numbers_random_list, CL_res_random_list):
+
+        # Initialize the list of values to feed HyperOpt
+        vals_list=[]
+        # For all solutions found by random greedy, create the parameters that HyperOpt needs to create the same solutions
+        for solution_idx, solution in enumerate(solutions):
+
+           vals={}
+           com_res={}
+           dep={}
+           # initialize the resources assigned to parts by random value,
+           # it is necessary for HyperOpt to has the space of all parameters even if the deployment of the partition
+           # is not selected by random greedy. The deployments selected by random greedy
+           # will assigned to the same resources as random greedy while the others will assign to resources randomly.
+           for idx, comp in enumerate(self.system.components):
+                 max_part=0
+
+                 for  dep in comp.deployments:
+                     if max_part<len(list(dep.partitions_indices)):
+                         max_part=len(list(dep.partitions_indices))
+                 for i in range( max_part):
+                     vals["com_res"+str(idx)+str(i)]=random.random()
+
+           # for each component and deployment, set the random parameters selected by random greedy
+           for comp_idx, y in enumerate(solution.Y_hat):
+
+
+               H,J=y.shape
+               for h in range(H):
+
+                   resource_idx=np.nonzero(y[h,:])[0]
+                   if len(resource_idx)>0:
+                       if solution_idx==2 and comp_idx==2:
+                            x=1
+                       for dep_idx, dep in enumerate(self.system.components[comp_idx].deployments):
+                           if h in dep.partitions_indices:
+
+                               vals["dep"+str(comp_idx)]=dep_idx
+                               try:
+                                     vals["com_res"+str(comp_idx)+str(dep.partitions_indices.index(h))]=res_parts_random_list[solution_idx][comp_idx][dep.partitions_indices.index(h)]
+                               except:
+                                   print("solution_idx: "+ str(solution_idx)+" comp_idx:" + str(comp_idx) + " part_idx:" + str(dep_idx) )
+           # set the selected node selected by random greedy
+           for idx, l in enumerate(CL_res_random_list[solution_idx]):
+
+                        vals["res"+str(idx)]=l
+           # set the number of VM selected by random greedy
+           if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+           else:
+                edge_VM=J
+           for j in range(edge_VM):
+
+                max_number=0
+                for i in range(len(solution.Y_hat)):
+                    if max(solution.Y_hat[i][:,j])>max_number:
+                          max_number=max(solution.Y_hat[i][:,j])
+
+                if max_number>0:
+                    vals["VM"+str(j)]=max_number-1
+                else:
+                    vals["VM"+str(j)]= VM_numbers_random_list[solution_idx][j]
+
+           vals_list.append(vals)
+        return  vals_list
+
+ ## Method to create the trials according to solutions of a heuristic to feed HyperOpt
+    #   @param self The object pointer
+    #   @param solutions The solutions of random greedy
+    #   @param res_parts_random_list The lists of random parameters needed to select compatible resources assigned to partitions
+    #   @param VM_numbers_random_list The list of random number selected by random greedy
+    #   @param CL_res_random_list The list of randomly selected resources in CLs by random greedy
+    #   @return a list of values to feed HyperOpt
+   def creat_trials_by_Heuristic(self, solutions):
+
+        # Initialize the list of values to feed HyperOpt
+        vals_list=[]
+        # For all solutions found by random greedy, create the parameters that HyperOpt needs to create the same solutions
+        for solution_idx, solution in enumerate(solutions):
+
+           vals={}
+           com_res={}
+           dep={}
+           selected_res_list=[]
+           number_of_vms_list=[]
+           y_bar = solution.get_y_bar()
+           for idx, comp in enumerate(self.system.components):
+                 max_part=0
+
+                 for dep in comp.deployments:
+                     if max_part<len(list(dep.partitions_indices)):
+                         max_part=len(list(dep.partitions_indices))
+                 for i in range( max_part):
+                     vals["com_res"+str(idx)+str(i)]=1
+           for comp_idx, y in enumerate(solution.Y_hat):
+               H,J=y.shape
+               for h in range(H):
+
+                   resource_idx=np.nonzero(y[h,:])[0]
+                   if len(resource_idx)>0:
+                       selected_res_list.append(resource_idx[0])
+                       number_of_vms_list.append(y_bar[resource_idx[0]])
+                       for dep_idx, dep in enumerate(self.system.components[comp_idx].deployments):
+                           if h in dep.partitions_indices:
+
+                                vals["dep"+str(comp_idx)]=dep_idx
+                                compatible_res_idx=np.nonzero(self.system.compatibility_matrix[comp_idx][h,:])[0]
+
+                                h_idx= dep.partitions_indices.index(h)
+                                vals["com_res"+str(comp_idx)+str(h_idx)]=resource_idx[0]
+
+           if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+           else:
+                edge_VM=J
+           for j in range(edge_VM):
+
+                vals["VM"+str(j)]=np.random.randint(0, self.system.resources[j].number )
+
+
+
+           for l in range(len(self.system.CLs)):
+                    flag=False
+                    res_list=self.system.CLs[l].resources
+                    for j in res_list:#zip(selected_res_list,number_of_vms_list):
+                        if j in selected_res_list:
+                            flag=True
+                            vals["res"+str(l)]=self.system.CLs[l].resources.index(j)
+                            idx=selected_res_list.index(j)
+                            vals["VM"+str(j)]=number_of_vms_list[idx]
+                            break
+                    if flag==False:
+                        vals["res"+str(l)]= np.inf
+           # initialize the resources assigned to parts by random value,
+           # it is necessary for HyperOpt to has the space of all parameters even if the deployment of the partition
+           # is not selected by random greedy. The deployments selected by random greedy
+           # will assigned to the same resources as random greedy while the others will assign to resources randomly.
+
+
+           vals_list.append(vals)
+        return  vals_list
+
+
+class NewHyperOpt():
+
+
+    ## HyperOpt class constructor
+    #   @param self The object pointer
+    #   @param system A System.System object
+   def __init__(self, system):
+        self.system=system
+
+   ## The objective function of HyperOpt
+    #   @param self The object pointer
+    #   @param args All arguments with their search space
+    #   @return a solution found by HyperOpt
+   def objective(self,args):
+
+       # get the search space of all parameters
+        resource_random_list, deployment_random_list, VM_number_random_list, prob_res_selection_dep_list= args
+
+        # start to create Y_hat from the search space of parameters
+        I=len(self.system.components)
+        J=len(self.system.resources)
+        y_hat=[]
+        y=[]
+        for i in range(I):
+            H,J=self.system.compatibility_matrix[i].shape
+            # initialize Y_hat, y
+            y_hat.append(np.full((H, J), 0, dtype=int))
+            y.append(np.full((H, J), 0, dtype=int))
+
+        candidate_nodes=[]
+        resource_count = 0
+        # loop over all computational layers
+
+        for idx,l in enumerate( self.system.CLs):
+            # select all nodes in FaaS layers
+            if resource_count >= self.system.FaaS_start_index:
+                random_num = l.resources
+                candidate_nodes.extend(random_num)
+            # set a node in other layers based on what HypetOpt selected
+            else:
+                if resource_random_list[idx] != np.inf :
+                    candidate_nodes.append(l.resources[resource_random_list[idx]])
+            resource_count += len(l.resources)
+
+        for comp_idx, comp in enumerate(self.system.components):
+            # set a deployment for each component based on what HypetOpt selected
+            random_dep=comp.deployments[deployment_random_list[comp_idx]]
+
+            h=0
+
+            #for part_idx, part in enumerate(random_dep.partitions_indices):
+            for part_idx in random_dep.partitions_indices:
+                part = comp.partitions[part_idx]
+                 # get the indices of the component and the deployment selected by HypetOpt
+                i=self.system.dic_map_part_idx[comp.name][part.name][0]
+                # get the indices of compatible resources and compute the
+                # intersection with the selected resources in each
+                # computational layer
+
+
+                h_idx=self.system.dic_map_part_idx[comp.name][part.name][1]
+                idx=np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
+                # extract a resource index in the intersection
+                index=list(set(candidate_nodes).intersection(idx))
+                prob=1/len(index)
+                step=0
+                h= random_dep.partitions_indices.index(h_idx)
+                rn=prob_res_selection_dep_list[comp_idx][h]
+
+                for r in np.arange(0,1,prob):
+                    if rn>r and rn<=r+prob:
+                        j= index[step]
+
+                    else:
+                        step+=1
+                y[i][h_idx][j]=1
+                y_hat[i][h_idx][j]=1
+                # if the partition is the last partition (i.e., its successor
+                # is the successor of the component), update the size of
+                # data transferred between the components
+                if self.system.graph.G.succ[comp.name] != {}:
+
+                    #if part.Next == list(self.system.graph.G.succ[comp.name].keys())[0]:
+                    if part.Next == list(self.system.graph.G.succ[comp.name].keys()):
+                        for next_idx in range(len(part.Next)):
+                            self.system.graph.G[comp.name][part.Next[next_idx]]["data_size"] = part.data_size[next_idx]
+
+
+        # check if the system dosent have FaaS
+        if self.system.FaaS_start_index!=float("inf"):
+            edge_VM=self.system.FaaS_start_index
+        else:
+            edge_VM=J
+        # randomly generate the number of resources that can be assigned
+        # to the partitions that run on that resource
+        for j in range(edge_VM):
+
+            # loop over components
+            for i in range(I):
+                 H=self.system.compatibility_matrix[i].shape[0]
+                 for h in range(H):
+                    if y[i][h][j]>0:
+                        y_hat[i][h][j] = y[i][h][j]*(VM_number_random_list[j]+1)
+
+        solution=Configuration(y_hat)
+
+        flag, primary_paths_performance, primary_components_performance =solution.check_feasibility(self.system)
+
+
+        if flag:
+            costs=solution.objective_function(self.system)
+            return {'loss': costs,
+                'time': time.time(),
+                'status': STATUS_OK }
+        else:
+
+            return {'status': STATUS_FAIL,
+                    'time': time.time(),
+                    'exception': "inf"}
+
+
+
+    ## Random optimization function by HyperOpt
+    #   @param self The object pointer
+    #   @param seed Seed for random number generation
+    #   @param iteration_number The iteration number for HyperOpt
+    #   @param vals_list The list of value to feed the result of RandomGreedy to HyperOpt
+    #   @return the best cost and the best solution found by HyperOpt
+   def random_hyperopt(self,seed, iteration_number,vals_list=[]):
+        #np.random.seed(int(time.time()))
+        # set the seed for replicability
+        #os.environ['HYPEROPT_FMIN_SEED'] = "1"#str(np.random.randint(1,1000))
+        # Create search spaces for all random variable by defining a dictionary for each of them
+        resource_random_list=[]
+        for idx, l in enumerate(self.system.CLs):
+            # Create search spaces for all computational layer except the last one with FaaS
+            if l != list(self.system.CLs)[-1]:
+
+                resource_random_list.append(hp.randint("res"+str(idx),len(l.resources)))
+
+
+        deployment_random_list=[]
+        prob_res_selection_dep_list=[]
+         # Create search spaces for all random variable which is needed for components
+        for idx, comp in enumerate(self.system.components):
+            max_part=0
+            res_random=[]
+             # Create search spaces for deployments
+            deployment_random_list.append(hp.randint("dep"+str(idx),len(comp.deployments)))
+            #random_dep=comp.deployments[random_num]
+            for  dep in comp.deployments:
+                if max_part<len(list(dep.partitions_indices)):
+                    max_part=len(list(dep.partitions_indices))
+             # Create search spaces for resources of partitions
+            for i in range( max_part):
+                res_random.append( hp.choice("com_res"+str(idx)+str(i),0,1))
+            prob_res_selection_dep_list.append(res_random)
+        VM_number_random_list=[]
+         # Create search spaces for determining VM number
+        for j in range(self.system.FaaS_start_index):
+
+            VM_number_random_list.append( hp.randint("VM"+str(j),self.system.resources[j].number))
+
+
+        # creat a list of search space including all variables
+        space1 = resource_random_list
+        space2 = deployment_random_list
+        space3 = VM_number_random_list
+        space4 = prob_res_selection_dep_list
+        space=[space1,space2,space3,space4]
+        # create trails to search in search spaces
+        trials = Trials()
+        best_cost=0
+        # if we need to use Spark for parallelisation
+        #trials = SparkTrials(parallelism=4)
+
+        # if there is some result from RandomGreedy to feed to HyperOpt
+        if len(vals_list)>0:
+            trials=generate_trials_to_calculate(vals_list)
+
+
+
+       # set seed
+        rstate = np.random.RandomState(seed)
+        try:
+             # run fmin method to search and find the best solution
+            best = fmin(fn=self.objective, space=space, algo=tpe.suggest, trials=trials,timeout = 7200,  rstate=rstate)
+        except:
+
+            best_cost= float("inf")
+
+        # check if HyperOpt could find solution
+        if best_cost== float("inf"):
+            # if HyperOpt cannot find any feasible solution
+             solution=None
+        else:
+             # if HyperOp find a feasible solution extract the solution from fmin output
+            best_cost=trials.best_trial["result"]["loss"]
+            cost, solution=self.extract_HyperOpt_result(best)
+
+        return best_cost, solution
+
+   ## Method to extract the best solution of HperOpt and converting it to Y_hat
+    #   @param self The object pointer
+    #   @param best The output of fmin method
+    #   @return the best cost and the best solution found by HyperOpt
+   def extract_HyperOpt_result(self,best ):
+
+            I=len(self.system.components)
+            J=len(self.system.resources)
+            y_hat=[]
+            y=[]
+            # initialize Y_hat and y by 0
+            for i in range(I):
+                H,J=self.system.compatibility_matrix[i].shape
+                y_hat.append(np.full((H, J), 0, dtype=int))
+                y.append(np.full((H, J), 0, dtype=int))
+
+            # initialize the list of selected resources by best solution of HyperOpt
+            resource_random_list=[]
+            # extract the selected resources by best solution of HyperOpt in CLs
+            candidate_nodes=[]
+            for idx, l in enumerate(self.system.CLs):
+                if l == list(self.system.CLs)[-1]:
+                    random_num=l.resources
+                    candidate_nodes.extend(random_num)
+                else:
+                    candidate_nodes.append(l.resources[best["res"+str(idx)]])
+                    resource_random_list.append( best["res"+str(idx)])
+
+
+             # extract the selected deployments of components by best solution of HyperOpt
+            for comp_idx, comp in enumerate(self.system.components):
+
+                random_dep=comp.deployments[best["dep"+str(comp_idx)]]
+                #deployment_random_list.append(best["dep"+str(idx)])
+                h=0
+                for part_idx, part in enumerate(random_dep.partitions_indices):
+
+                     # pick the selected compatible resources by the best solution of HperOpt for each partition
+                     #  and set Y_hat according to it
+                    i=self.system.dic_map_part_idx[comp.name][comp.partitions[part].name][0]
+                    h_idx=self.system.dic_map_part_idx[comp.name][comp.partitions[part].name][1]
+                    idx=np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
+                    index=list(set(candidate_nodes).intersection(idx))
+                    prob=1/len(index)
+                    step=0
+                    rn=best["com_res"+str(comp_idx)+str(part_idx)]
+                    for r in np.arange(0,1,prob):
+                        if rn>r and rn<=r+prob:
+                            j= index[step]
+
+                        else:
+                            step+=1
+                    y[i][h_idx][j]=1
+                    y_hat[i][h_idx][j]=1
+
+                    if  self.system.graph.G.succ[comp.name]!={}:
+                        if comp.partitions[part].Next==list(self.system.graph.G.succ[comp.name].keys())[0]:
+
+                            self.system.graph.G[comp.name][comp.partitions[part].Next]["data_size"]=comp.partitions[part].data_size
+
+            # pick the number of VM selected by best solution of HyperOpt and set it in Y_hat
+            if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+            else:
+                edge_VM=J
+            for j in range(edge_VM):
+                for i in range(I):
+                     H=self.system.compatibility_matrix[i].shape[0]
+                     for h in range(H):
+                        if y[i][h][j]>0:
+                            y_hat[i][h][j] = y[i][h][j]*(best["VM"+str(j)]+1)
+
+            # create the solution by new Y_hat extracted by the best solution of HyperOpt
+            solution=Configuration(y_hat)
+            # compute cost
+            cost=solution.objective_function(self.system)
+
+            return cost, solution
+
+   ## Method to create the trials according to solutions of random greedy to feed HyperOpt
+    #   @param self The object pointer
+    #   @param solutions The solutions of random greedy
+    #   @param res_parts_random_list The lists of random parameters needed to select compatible resources assigned to partitions
+    #   @param VM_numbers_random_list The list of random number selected by random greedy
+    #   @param CL_res_random_list The list of randomly selected resources in CLs by random greedy
+    #   @return a list of values to feed HyperOpt
+   def creat_trials_by_RandomGreedy(self, solutions, res_parts_random_list,
+                                    VM_numbers_random_list, CL_res_random_list):
+
+        # Initialize the list of values to feed HyperOpt
+        vals_list=[]
+        # For all solutions found by random greedy, create the parameters that HyperOpt needs to create the same solutions
+        for solution_idx, solution in enumerate(solutions):
+
+           vals={}
+           com_res={}
+           dep={}
+           # initialize the resources assigned to parts by random value,
+           # it is necessary for HyperOpt to has the space of all parameters even if the deployment of the partition
+           # is not selected by random greedy. The deployments selected by random greedy
+           # will assigned to the same resources as random greedy while the others will assign to resources randomly.
+           for idx, comp in enumerate(self.system.components):
+                 max_part=0
+
+                 for  dep in comp.deployments:
+                     if max_part<len(list(dep.partitions_indices)):
+                         max_part=len(list(dep.partitions_indices))
+                 for i in range( max_part):
+                     vals["com_res"+str(idx)+str(i)]=random.random()
+
+           # for each component and deployment, set the random parameters selected by random greedy
+           for comp_idx, y in enumerate(solution.Y_hat):
+
+
+               H,J=y.shape
+               for h in range(H):
+
+                   resource_idx=np.nonzero(y[h,:])[0]
+                   if len(resource_idx)>0:
+                       if solution_idx==2 and comp_idx==2:
+                            x=1
+                       for dep_idx, dep in enumerate(self.system.components[comp_idx].deployments):
+                           if h in dep.partitions_indices:
+
+                               vals["dep"+str(comp_idx)]=dep_idx
+                               try:
+                                     vals["com_res"+str(comp_idx)+str(dep.partitions_indices.index(h))]=res_parts_random_list[solution_idx][comp_idx][dep.partitions_indices.index(h)]
+                               except:
+                                   print("solution_idx: "+ str(solution_idx)+" comp_idx:" + str(comp_idx) + " part_idx:" + str(dep_idx) )
+           # set the selected node selected by random greedy
+           for idx, l in enumerate(CL_res_random_list[solution_idx]):
+
+                        vals["res"+str(idx)]=l
+           # set the number of VM selected by random greedy
+           if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+           else:
+                edge_VM=J
+           for j in range(edge_VM):
+
+                max_number=0
+                for i in range(len(solution.Y_hat)):
+                    if max(solution.Y_hat[i][:,j])>max_number:
+                          max_number=max(solution.Y_hat[i][:,j])
+
+                if max_number>0:
+                    vals["VM"+str(j)]=max_number-1
+                else:
+                    vals["VM"+str(j)]= VM_numbers_random_list[solution_idx][j]
+
+           vals_list.append(vals)
+        return  vals_list
+
+ ## Method to create the trials according to solutions of a heuristic to feed HyperOpt
+    #   @param self The object pointer
+    #   @param solutions The solutions of random greedy
+    #   @param res_parts_random_list The lists of random parameters needed to select compatible resources assigned to partitions
+    #   @param VM_numbers_random_list The list of random number selected by random greedy
+    #   @param CL_res_random_list The list of randomly selected resources in CLs by random greedy
+    #   @return a list of values to feed HyperOpt
+   def creat_trials_by_Heuristic(self, solutions):
+
+        # Initialize the list of values to feed HyperOpt
+        vals_list=[]
+        # For all solutions found by random greedy, create the parameters that HyperOpt needs to create the same solutions
+        for solution_idx, solution in enumerate(solutions):
+
+           vals={}
+           com_res={}
+           dep={}
+           selected_res_list=[]
+           number_of_vms_list=[]
+           y_bar = solution.get_y_bar()
+           for comp_idx, y in enumerate(solution.Y_hat):
+               H,J=y.shape
+               for h in range(H):
+
+                   resource_idx=np.nonzero(y[h,:])[0]
+                   if len(resource_idx)>0:
+                       selected_res_list.append(resource_idx[0])
+                       number_of_vms_list.append(y_bar[resource_idx[0]])
+                       for dep_idx, dep in enumerate(self.system.components[comp_idx].deployments):
+                           if h in dep.partitions_indices:
+
+                                vals["dep"+str(comp_idx)]=dep_idx
+                                compatible_res_idx=np.nonzero(self.system.compatibility_matrix[comp_idx][h,:])[0]
+                                index=list(set(selected_res_list).intersection(compatible_res_idx))
+                                h_idx= dep.partitions_indices.index(h)
+                                vals["com_res"+str(comp_idx)+str(h_idx)]=1
+           if self.system.FaaS_start_index!=float("inf"):
+                edge_VM=self.system.FaaS_start_index
+           else:
+                edge_VM=J
+           for j in range(edge_VM):
+
+                vals["VM"+str(j)]=np.random.randint(1, self.system.resources[j].number + 1)-1
+
+
+
+           for l in range(len(self.system.CLs)):
+                    flag=False
+                    res_list=self.system.CLs[l].resources
+                    for j in res_list:#zip(selected_res_list,number_of_vms_list):
+                        if j in selected_res_list:
+                            flag=True
+                            vals["res"+str(l)]=self.system.CLs[l].resources.index(j)
+                            idx=selected_res_list.index(j)
+                            vals["VM"+str(j)]=number_of_vms_list[idx]
+                            break
+                    if flag==False:
+                        vals["res"+str(l)]= np.inf
+           # initialize the resources assigned to parts by random value,
+           # it is necessary for HyperOpt to has the space of all parameters even if the deployment of the partition
+           # is not selected by random greedy. The deployments selected by random greedy
+           # will assigned to the same resources as random greedy while the others will assign to resources randomly.
+           for idx, comp in enumerate(self.system.components):
+                 max_part=0
+
+                 for dep in comp.deployments:
+                     if max_part<len(list(dep.partitions_indices)):
+                         max_part=len(list(dep.partitions_indices))
+                 for i in range( max_part):
+                     vals["com_res"+str(idx)+str(i)]=1
+
+           vals_list.append(vals)
+        return  vals_list
+
+
+
 
