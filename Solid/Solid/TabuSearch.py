@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 from collections import deque
-from numpy import argmax
+from numpy import argmin
 import numpy as np
 import time
 
@@ -22,15 +22,16 @@ class TabuSearch:
     best = None
 
     max_steps = None
-    min_score = None
+    max_score = None
+    max_time=None
 
-    def __init__(self, initial_state, tabu_size, max_steps, min_score=None):
+    def __init__(self, initial_state, tabu_size, max_steps,max_time=None, max_score=None):
         """
 
         :param initial_state: initial state, should implement __eq__ or __cmp__
         :param tabu_size: number of states to keep in tabu list
         :param max_steps: maximum number of steps to run algorithm for
-        :param min_score: score to stop algorithm once reached
+        :param max_score: score to stop algorithm once reached
         """
         self.initial_state = initial_state
 
@@ -41,12 +42,13 @@ class TabuSearch:
 
         if isinstance(max_steps, int) and max_steps > 0:
             self.max_steps = max_steps
-        else:
-            raise TypeError('Maximum steps must be a positive integer')
-
-        if min_score is not None:
-            if isinstance(min_score, (int, float)):
-                self.min_score = float(min_score)
+        if isinstance(max_time, (int, float)) and max_time > 0:
+            self.max_time = max_time
+        elif not self.max_steps > 0:
+            raise ValueError('Maximum time or steps must be positive')
+        if max_score is not None:
+            if isinstance(max_score, (int, float)):
+                self.max_score = float(max_score)
             else:
                 raise TypeError('Maximum score must be a numeric type')
 
@@ -99,7 +101,7 @@ class TabuSearch:
         
         """
         if method=="best":
-            neighbor=neighborhood[argmax([self._score(x) for x in neighborhood])]
+            neighbor=neighborhood[argmin([self._score(x) for x in neighborhood])]
         else:
             idx=np.random.randint(0,len(neighborhood))
             neighbor=neighborhood[idx]
@@ -115,10 +117,6 @@ class TabuSearch:
             i+=1
        
         return find
-        
-            
-            
-
     def run(self, verbose=True,method="best"):
         """
         Conducts tabu search
@@ -131,13 +129,14 @@ class TabuSearch:
         time_list=[]
 
         self._clear()
-        best_sol_cost_list.append(-1*self._score(self.best))
-        current_solution_cost_list.append(-1*self._score(self.current))
+        best_sol_cost_list.append(self._score(self.best))
+        current_solution_cost_list.append(self._score(self.current))
         time_list.append(time.time())
-        for i in range(self.max_steps):
+        start=time.time()
+        while self.cur_steps<self.max_steps or time.time()-start<self.max_time:
             self.cur_steps += 1
 
-            if ((i + 1) % 100 == 0) and verbose:
+            if ((self.cur_steps + 1) % 100 == 0) and verbose:
                 print(self)
 
             neighborhood = self._neighborhood()
@@ -146,8 +145,8 @@ class TabuSearch:
             neighborhood_best = self._best(neighborhood,method)
             
             while True:
-                best_sol_cost_list.append(-1*self._score(self.best))
-                current_solution_cost_list.append(-1*self._score(self.current))
+                best_sol_cost_list.append(self._score(self.best))
+                current_solution_cost_list.append(self._score(self.current))
                 time_list.append(time.time())
                 #  if all([x in self.tabu_list for x in neighborhood]):
                 if all([self.check_in_tabu_list(x) for x in neighborhood] ):
@@ -156,7 +155,7 @@ class TabuSearch:
                
                 if self.check_in_tabu_list(neighborhood_best):
                 # if neighborhood_best in self.tabu_list:
-                    if self._score(neighborhood_best) > self._score(self.best):
+                    if self._score(neighborhood_best) < self._score(self.best):
                         self.tabu_list.append(neighborhood_best)
                         self.best = deepcopy(neighborhood_best)
                        
@@ -170,12 +169,12 @@ class TabuSearch:
                     self.current = deepcopy(neighborhood_best)
                     
                    
-                    if self._score(self.current) > self._score(self.best):
+                    if self._score(self.current) < self._score(self.best):
                         self.best = deepcopy(self.current)
                       
                     break
            
-            if self.min_score is not None and self._score(self.best) > self.min_score:
+            if self.max_score is not None and self._score(self.best) < self.max_score:
                 print("TERMINATING - REACHED MAXIMUM SCORE")
                 return self.best, self._score(self.best)
         print("TERMINATING - REACHED MAXIMUM STEPS")
