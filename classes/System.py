@@ -158,7 +158,7 @@ class System:
         if "DirectedAcyclicGraph" in data.keys():
             self.logger.log("Initializing DAG", 2)
             DAG_dict = data["DirectedAcyclicGraph"]
-            self.graph = DAG(graph_dict=DAG_dict, 
+            self.graph = DAG(graph_dict=DAG_dict,
                              log=Logger(stream=self.logger.stream,
                                         verbose=self.logger.verbose,
                                         level=self.logger.level+1))
@@ -251,7 +251,8 @@ class System:
             for c in performance_dict:
                 for p in performance_dict[c]:
                     for r in performance_dict[c][p].keys():
-                        if not r in self.compatibility_dict[c][p]:
+                        compatible_res_list=[res["resource"] for res in self.compatibility_dict[c][p]]
+                        if not r in compatible_res_list:
                             is_compatible = False
                             self.error.log("Performance dictionary and compatibility matrix are not consistent")
                             sys.exit(1)
@@ -304,6 +305,8 @@ class System:
                 # check if the node c has any input edge
                 if self.graph.G.in_edges(c):
                     Sum = 0
+                    # The component is not verified yet
+                    component_verified=False
                     # if the node c has some input edges, its Lambda is equal 
                     # to the sum of products of lambda and weight of its 
                     # input edges.
@@ -312,25 +315,26 @@ class System:
                         ll = self.components[self.dic_map_com_idx[n]].comp_Lambda
                         Sum += prob * ll
                         # loop over all candidate deployments
-                        for s in C[c]:
-                            part_Lambda = -1
-                            part_idx_list = []
-                            if len(C[c][s]) > 0:
-                                # loop over all partitions
-                                for h in C[c][s]:
-                                    if part_Lambda > -1:
-                                        prob = float(C[c][s][h]["early_exit_probability"])
-                                        part_Lambda *= (1 - prob)
-                                    else:
-                                        part_Lambda = copy.deepcopy(Sum)
-                                    temp[h] = (comp_idx, part_idx)
-                                    partitions.append(Component.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
-                                                                          float(C[c][s][h]["early_exit_probability"]),
-                                                                          C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
-                                    part_idx_list.append(part_idx)
-                                    part_idx += 1
-                            deployments.append(Component.Deployment(s, part_idx_list))    
-                        self.dic_map_part_idx[c] = temp
+                    for s in C[c]:
+                        part_Lambda = -1
+                        part_idx_list = []
+                        if len(C[c][s]) > 0:
+                            # loop over all partitions
+                            for h in C[c][s]:
+                                if part_Lambda > -1:
+                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
+                                    part_Lambda *= (1 - prob)
+                                else:
+                                    part_Lambda = copy.deepcopy(Sum)
+                                temp[h] = (comp_idx, part_idx)
+                                partitions.append(Component.Partition(h,part_Lambda,
+                                                                      float(C[c][s][h]["early_exit_probability"]),
+                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
+                                part_idx_list.append(part_idx)
+                                part_idx += 1
+                                prev_part = h
+                        deployments.append(Component.Deployment(s, part_idx_list))
+                    self.dic_map_part_idx[c] = temp
                     comp = Component(c, deployments,partitions, Sum)
                     self.components.append(comp)
                 else:
@@ -346,16 +350,18 @@ class System:
                             # loop over all partitions
                             for h in C[c][s]:
                                 if part_Lambda > -1:
-                                    prob = float(C[c][s][h]["early_exit_probability"])
+
+                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
                                     part_Lambda *= (1 - prob)
                                 else:
                                     part_Lambda = copy.deepcopy(self.Lambda)
                                 temp[h] = (comp_idx, part_idx)
-                                partitions.append(Component.Partition(h,float(C[c][s][h]["memory"]),part_Lambda,
+                                partitions.append(Component.Partition(h,part_Lambda,
                                                                       float(C[c][s][h]["early_exit_probability"]),
-                                                                      C[c][s][h]["next"],float(C[c][s][h]["data_size"])))
+                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
                                 part_idx_list.append(part_idx)
                                 part_idx += 1
+                                prev_part = h
                         deployments.append(Component.Deployment(s, part_idx_list))    
                     self.dic_map_part_idx[c] = temp
                     self.components.append(Component(c, deployments,partitions, self.Lambda))
@@ -536,6 +542,7 @@ class System:
     #    @param performance_dict Dictionary of performance-related information
     def convert_dic_to_matrix(self, performance_dict):
         self.compatibility_matrix = []
+        self.compatibility_matrix_memory = []
         self.demand_matrix = []
         self.performance_models = []
         self.faas_service_times = recursivedict()
@@ -547,16 +554,20 @@ class System:
             p = len(comp.partitions)
             # define and initialize the matrices to zero
             self.compatibility_matrix.append(np.full((p, r), 0, dtype = int))
+            self.compatibility_matrix_memory.append(np.full((p, r), 0, dtype = int))
             self.demand_matrix.append(np.full((p, r), 0, dtype=float))
             # define and initialize the performance models to None
             self.performance_models.append([[None] * r] * p)
             # loop over partitions
             for part_idx, part in enumerate(comp.partitions):
                 # loop over resources
-                for res in self.compatibility_dict[comp.name][part.name]:
+                compatible_res_list=[res["resource"] for res in self.compatibility_dict[comp.name][part.name]]
+                for res in compatible_res_list:
                     res_idx = self.dic_map_res_idx[res]
                     # set to 1 the element in the compatibility matrix
                     self.compatibility_matrix[comp_idx][part_idx][res_idx] = 1
+                    memory=next(item["memory"] for item in self.compatibility_dict[comp.name][part.name] if item["resource"] == res)
+                    self.compatibility_matrix_memory[comp_idx][part_idx][res_idx] = memory
                     # set the performance model
                     perf_data = performance_dict[comp.name][part.name][res]
                     if "model" in perf_data.keys():
@@ -611,7 +622,8 @@ class System:
             # loop over partitions
             for h, part in enumerate(c.partitions):
                 # loop over all FaaS
-                for res in self.compatibility_dict[c.name][part.name]:
+                compatible_res_list=[res["resource"] for res in self.compatibility_dict[c.name][part.name]]
+                for res in compatible_res_list:
                     j = self.dic_map_res_idx[res]
                     if j >= self.FaaS_start_index:
                         # add the information of node to the list includes node index, memory and cost
@@ -674,7 +686,8 @@ class System:
             component_string = '"' + c.name + '": {'
             for h, p in enumerate(c.partitions):
                 component_string += ('"' + p.name + '": {')
-                for res in self.compatibility_dict[c.name][p.name]:
+                compatible_res_list=[res["resource"] for res in self.compatibility_dict[c.name][p.name]]
+                for res in compatible_res_list:
                     component_string += ('"' + res + '": {')
                     j = self.dic_map_res_idx[res]
                     component_string += str(self.performance_models[i][h][j])
