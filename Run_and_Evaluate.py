@@ -341,9 +341,5 @@ if __name__ == '__main__':
     result.print_result(S, solution_file=solution_file)'''
 
 
-
-
-
-
     main(dic, args.log_directory)
 
