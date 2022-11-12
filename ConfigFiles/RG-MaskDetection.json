@@ -119,7 +119,11 @@
     }
   },
    "Lambda": 0.00000002,
-   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":110}
+    
+   "LobalConstraints":{ "c1":{ "local_res_time": 5},
+                        "c2":{ "local_res_time": 5}
+                        },
+   "GlobalConstraints":{ "p1":{ "components":["c1","c2"], "global_res_time":10}
                         },
    "NetworkTechnology":{ "ND2":{ "computationallayers":["computationallayer1","computationallayer2"], "AccessDelay":0.00000277, "Bandwidth":10000}
                         },
