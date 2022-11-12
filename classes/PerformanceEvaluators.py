@@ -268,12 +268,14 @@ class SystemPerformanceEvaluator:
         
         # loop over all partitions
         self.logger.level += 1
-        self.logger.log("Evaluating partition response times", 6)
-        self.logger.level += 1
+
+        prev_parts_idx = []
         for h in range(len(j[0])):
             # evaluate the response time
             p_idx = j[0][h]
             r_idx = j[1][h]
+            self.logger.log("Evaluating partition response times", 6)
+            self.logger.level += 1
             if r_idx < S.FaaS_start_index:
                 PM = S.performance_models[c_idx][p_idx][r_idx]
                 features = PM.get_features(c_idx=c_idx, p_idx=p_idx,
@@ -283,35 +285,32 @@ class SystemPerformanceEvaluator:
             else:
                 p = S.demand_matrix[c_idx][p_idx,r_idx]
             self.logger.log("(h:{}, j:{}) --> {}".format(h, r_idx, p), 7)
-            perf_evaluation += p
-            # check that the response time is not negative
-            if perf_evaluation < 0:
-                return float("inf")
-        self.logger.level -= 1
-        self.logger.log("time --> {}".format(perf_evaluation), 6)
-        
-        # compute the network transfer time among partitions
-        self.logger.log("Evaluating network delay", 6)
-        if len(j[0]) > 1:
-            self.logger.level += 1
-            network_delay = 0
-            # loop over all partitions
-            for h in range(len(j[0]) - 1):
-                # get the data transferred from the partition
-                data_size = S.components[c_idx].partitions[j[0][h]].data_size
-                # check if two partitions are in the same device
-                if not j[1][h] == j[1][h+1]:
-                    # compute the network transfer time
-                    nd = self.get_network_delay(j[1][h], j[1][h+1], S, data_size)
-                    self.logger.log("{} --> {}".format(h, nd), 7)
-                    network_delay += nd
-            # update the response time
-            perf_evaluation += network_delay
             self.logger.level -= 1
-            self.logger.log("time --> {}".format(network_delay), 6)
-        
+            self.logger.log("time --> {}".format(p), 6)
+            if len(prev_parts_idx) == 0:
+                perf_evaluation += p
+                prev_parts_idx.append(p_idx)
+            else:
+                early_exit_prob=1
+                for part_idx in prev_parts_idx:
+                    early_exit_prob *= (1-S.components[c_idx].partitions[part_idx].early_exit_probability)
+                prev_parts_idx.append(p_idx)
+                network_delay = 0
+                # check if two partitions are in the same device
+                self.logger.log("Evaluating network delay", 6)
+                self.logger.level += 1
+                if not j[1][h-1] == j[1][h]:
+                    # get the data transferred from the partition
+                    data_size = S.components[c_idx].partitions[j[0][h-1]].data_size[0]
+                    # compute the network transfer time
+                    network_delay = self.get_network_delay(j[1][h-1], j[1][h], S, data_size)
+                    self.logger.log("{} --> {}".format(h, network_delay), 7)
+                self.logger.level -= 1
+                self.logger.log("time --> {}".format(network_delay), 6)
+                perf_evaluation += early_exit_prob * (p + network_delay)
         self.logger.level -= 1
         self.logger.log("time --> {}".format(perf_evaluation), 5)
+
         
         return perf_evaluation
 
