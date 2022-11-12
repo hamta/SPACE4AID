@@ -141,8 +141,9 @@ class Configuration:
         j = 0
         while j < J and feasible:
             memory = 0
-            for i, c in zip(y, S.components):
-                memory += (i[:,j] * np.array(list(h.memory for h in c.partitions))).sum(axis=0)
+            for i, c in zip(y, S.compatibility_matrix_memory):
+                memory += (i[:,j] * np.array(c[:,j])).sum(axis=0)
+                #memory += (i[:,j] * np.array(list(h.memory for h in c.partitions))).sum(axis=0)
                 if memory > S.resources[j].memory:
                     feasible = False
             j += 1
@@ -158,26 +159,39 @@ class Configuration:
     #   @param S A System.System object
     #   @return True if the constraint is satisfied
     def move_backward_check(self, S):
-        
         feasible = True
-        last_part_res = -1
+        source_nodes= [node[0] for node in S.graph.G.in_degree if node[1]==0]
+        visited={node:False for node in S.graph.G.nodes}
+        Queue=source_nodes
+        while Queue:
+            last_part_res=-1
+            current_node=Queue.pop(0)
+            comp_idx=S.dic_map_com_idx[current_node]
+            comp_pred_list=list(S.graph.G.pred[current_node])
+            if len(comp_pred_list)>0:
+                for comp_pred in comp_pred_list:
+                    comp_pred_idx=S.dic_map_com_idx[comp_pred]
+                    if len(np.nonzero(self.Y_hat[comp_pred_idx])[0])>0:
+                        last_h_idx=np.nonzero(self.Y_hat[comp_pred_idx])[0][-1]
+                        last_h_res = np.nonzero(self.Y_hat[comp_pred_idx][last_h_idx,:])[0][0]
+                        if last_h_res >= S.cloud_start_index:
+                            last_part_res=last_h_res
 
-        # loop over all components
-        for node in S.graph.G:
-            # get the component index
-            i = S.dic_map_com_idx[node]
-            # get the indices of resources where the component partitions are 
-            # executed
-            for y in self.Y_hat[i]:
+            # loop over all partitions in the deployment
+            for y in self.Y_hat[comp_idx]:
                 h = np.nonzero(y)
                 if np.size(h) > 0:
-                    # if the last partition was executed on cloud, check 
-                    # that the current is not executed on edge
                     if last_part_res >= S.cloud_start_index:
                         if h[0][0] < S.cloud_start_index:
                             feasible = False
                     last_part_res = h[0][0]
-        
+
+            visited[current_node]=True
+            for node in S.graph.G.neighbors(current_node):
+                if not visited[node]:
+                    if node not in Queue:
+                        Queue.append(node)
+
         return feasible
     
     
@@ -384,7 +398,7 @@ class Configuration:
         costs = []
         # compute cost of edge
         for j in range(S.cloud_start_index):
-            costs.append(S.resources[j].cost * x[j])
+            costs.append(S.resources[j].cost * y_bar[j])
         #
         # compute cost of VMs
         for j in range(S.cloud_start_index, S.FaaS_start_index):
@@ -398,7 +412,8 @@ class Configuration:
             val_list_res = list(S.dic_map_res_idx.values())
             for j in range(S.FaaS_start_index, J):
                 for i in range(len(self.Y_hat)):
-                    part_indexes = np.nonzero(S.compatibility_matrix[i][:,j])[0]
+                    #part_indexes = np.nonzero(S.compatibility_matrix[i][:,j])[0]
+                    part_indexes = np.nonzero(self.Y_hat[i][:,j])[0]
                     # get the name of component by its index
                     comp=key_list_comp[val_list_comp.index(i)]
                     for part_idx in part_indexes:
