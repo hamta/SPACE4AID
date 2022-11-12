@@ -1,3 +1,5 @@
+import sys
+
 from classes.PerformanceEvaluators import SystemPerformanceEvaluator
 from abc import ABC, abstractmethod
 import numpy as np
@@ -150,29 +152,32 @@ class GlobalConstraint(PerformanceConstraint):
             # get the indices of the current and the next component
             comp_index = self.path[idx]
             next_index = self.path[idx + 1]
-            
-            # get the indices of the resources where all partitions of the 
-            # current and the next component are executed
-            j = np.nonzero(solution.Y_hat[comp_index])
-            j1 = np.nonzero(solution.Y_hat[next_index])
-            
-            # resource index of the last partition
-            part1_resource = j[1][-1]
-            part2_resource = j1[1][0]
-            
-            # check if the two resources are different
-            if not part1_resource == part2_resource:
-                # get the names of the two components
-                comp1_key = S.components[comp_index].name
-                comp2_key = S.components[next_index].name
-                # get the amount of transferred data
-                data_size = S.graph.G.get_edge_data(comp1_key, comp2_key)["data_size"]
-                # compute the network delay
-                network_delay = PE.get_network_delay(part1_resource,
-                                                     part2_resource,
-                                                     S, data_size)
-                # update the total response time of the path                   
-                Sum += network_delay
+            if S.components[next_index].name in list(S.graph.G.succ[S.components[comp_index].name].keys()):
+                # get the indices of the resources where all partitions of the
+                # current and the next component are executed
+                j = np.nonzero(solution.Y_hat[comp_index])
+                j1 = np.nonzero(solution.Y_hat[next_index])
+
+                # resource index of the last partition
+                part1_resource = j[1][-1]
+                part2_resource = j1[1][0]
+
+                # check if the two resources are different
+                if not part1_resource == part2_resource:
+                    # get the names of the two components
+                    comp1_key = S.components[comp_index].name
+                    comp2_key = S.components[next_index].name
+                    # get the amount of transferred data
+                    data_size = S.graph.G.get_edge_data(comp1_key, comp2_key)["data_size"]
+                    # compute the network delay
+                    network_delay = PE.get_network_delay(part1_resource,
+                                                         part2_resource,
+                                                         S, data_size)
+                    # update the total response time of the path
+                    Sum += network_delay
+            else:
+                S.error.log("Components global constraints path error: component {} is not successor of component {} in the DAG.".format(S.components[next_index].name,S.components[comp_index].name))
+                sys.exit(1)
                 
         # compute the slack value of the current solution
         solution.global_slack_value = self.max_res_time - Sum
