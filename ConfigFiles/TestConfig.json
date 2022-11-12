@@ -1,9 +1,9 @@
 {
   "LambdaBound":
   {
-    "start": 0.00000002, 
-    "end": 0.00000003, 
-    "step": 0.00000001
+    "start": 0.5, 
+    "end": 0.6, 
+    "step": 0.1
   },
   "BandwidthScenario": 
   {
