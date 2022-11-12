@@ -732,10 +732,10 @@
       }
     }
   },
-  "Lambda": 0.14,
+  "Lambda": 0.000003,
   "LocalConstraints": {
     "c5": {
-      "local_res_time": 2.5
+      "local_res_time": 5000
     }
   },
   "GlobalConstraints": {
@@ -746,7 +746,7 @@
         "c3",
         "c4"
       ],
-      "global_res_time": 2
+      "global_res_time": 200
     }
   },
   "NetworkTechnology": {
