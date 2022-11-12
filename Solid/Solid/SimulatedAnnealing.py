@@ -16,6 +16,7 @@ class SimulatedAnnealing:
 
     cur_steps = 0
     max_steps = None
+    max_time=None
 
     current_energy = None
     best_energy = None
@@ -43,7 +44,7 @@ class SimulatedAnnealing:
         else:
             raise ValueError('Annealing schedule must be either "exponential" or "linear"')
 
-    def __init__(self, initial_state, temp_begin, schedule_constant, max_steps,
+    def __init__(self, initial_state, temp_begin, schedule_constant, max_steps,max_time=None,
                  min_energy=None, schedule='exponential'):
         """
 
@@ -58,9 +59,10 @@ class SimulatedAnnealing:
 
         if isinstance(max_steps, int) and max_steps > 0:
             self.max_steps = max_steps
-        else:
-            raise ValueError('Max steps must be a positive integer')
-
+        if isinstance(max_time, (int,float)) and max_time > 0:
+            self.max_time = max_time
+        elif not self.max_steps > 0:
+            raise ValueError('Maximum time or steps must be positive')
         if min_energy is not None:
             if isinstance(min_energy, (float, int)):
                 self.min_energy = float(min_energy)
@@ -92,10 +94,10 @@ class SimulatedAnnealing:
         :return: None
         """
         self.cur_steps = 0
-        self.current_state = None
-        self.best_state = None
-        self.current_energy = None
-        self.best_energy = None
+        self.current_state = deepcopy(self.initial_state)
+        self.best_state = deepcopy(self.initial_state)
+        self.current_energy = self._energy(self.current_state)
+        self.best_energy = self._energy(self.best_state)
 
     @abstractmethod
     def _neighbor(self):
@@ -148,14 +150,16 @@ class SimulatedAnnealing:
         best_sol_cost_list.append(self.best_energy)
         current_solution_cost_list.append(self.current_energy)
         time_list.append(time.time())
-        for i in range(self.max_steps):
+        start=time.time()
+        while self.cur_steps<self.max_steps or time.time()-start<self.max_time:
             self.cur_steps += 1
 
-            if verbose and ((i + 1) % 100 == 0):
+            if verbose and ((self.cur_steps + 1) % 100 == 0):
                 print(self)
 
             neighbor = self._neighbor()
-
+            if neighbor is None:
+                break
             if self._accept_neighbor(neighbor):
                 self.current_state = neighbor
             self.current_energy = self._energy(self.current_state)
