@@ -2,7 +2,6 @@ from classes.Logger import Logger
 import networkx as nx
 import matplotlib.pyplot as plt
 import sys
-import pdb
 
 
 ## DAG
@@ -115,7 +114,7 @@ class DAG:
                         self.error.log("ERROR: there is not any component in DAG", 1)
                         sys.exit(1)
     
-    
+
     ## Method to write the graph object onto a gml file
     #   @param self The object pointer
     #   @param graph_file File where to print the graph (gml format)
@@ -291,10 +290,7 @@ class Component():
             
             ## @var name
             # Partition name (used to uniquely identify it)
-            
-            ## @var memory
-            # Memory requirement of the partitions
-            
+
             ## @var part_Lambda
             # Load factor
             
@@ -309,16 +305,14 @@ class Component():
             
             ## Partition class constructor
             #   @param name Partition name (used to uniquely identify it)
-            #   @param memory Memory requirement of the partitions
             #   @param part_Lambda Load factor
             #   @param early_exit_probability Probability of early stopping
             #   @param Next Name of subsequent partition
             #   @param data_size Amount of data transferred to the subsequent 
             #                    partition
-            def __init__(self, name, memory, part_Lambda, 
+            def __init__(self, name, part_Lambda,
                          early_exit_probability, Next, data_size):
                 self.name = name
-                self.memory = memory
                 self.part_Lambda = part_Lambda
                 self.early_exit_probability = early_exit_probability
                 self.Next = Next
@@ -328,8 +322,8 @@ class Component():
             # object into a string
             #   @param self The object pointer
             def __str__(self):
-                s = '"{}": {{"memory":{}, "next":{}, "early_exit_probability":{}, "data_size":{}}}'.\
-                    format(self.name, self.memory, '"'+self.Next+'"', 
+                s = '"{}": {{ "next":{}, "early_exit_probability":{}, "data_size":{}}}'.\
+                    format(self.name, '"'+self.Next+'"',
                            self.early_exit_probability, self.data_size)
                 return s
 
