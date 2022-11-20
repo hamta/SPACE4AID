@@ -204,8 +204,11 @@ class EdgePE(QTPerformanceEvaluator):
             # loop over all partitions in the component
             for h, p in enumerate(c.partitions):
                 # compute the utilization
-                utilization += S.demand_matrix[i][h,j] * \
-                                Y_hat[i][h,j] * p.part_Lambda
+                if Y_hat[i][h,j] > 0:
+                    utilization += S.demand_matrix[i][h,j] * \
+                                    p.part_Lambda / Y_hat[i][h,j]
+                #utilization += S.demand_matrix[i][h,j] * \
+                 #               Y_hat[i][h,j] * p.part_Lambda
         return utilization
     
     ## Method to evaluate the performance of a specific 
@@ -222,9 +225,13 @@ class EdgePE(QTPerformanceEvaluator):
     #   @return Response time
     def predict(self, *, i, h, j, Y_hat, S, **kwargs):
         # compute utilization
-        utilization = self.compute_utilization(j, Y_hat, S)
+         utilization = self.compute_utilization(j, Y_hat, S)
         # compute response time
-        return S.demand_matrix[i][h,j] * Y_hat[i][h,j] / (1 - utilization)
+         r = 0.
+         if Y_hat[i][h,j] > 0:
+            r = S.demand_matrix[i][h,j] / (1 - utilization)
+         return r
+        #return S.demand_matrix[i][h,j] * Y_hat[i][h,j] / (1 - utilization)
 
 
 
