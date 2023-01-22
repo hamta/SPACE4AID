@@ -26,23 +26,23 @@ def generate_system(directory,seed, component_number):
     # Number of drone
     Drone_number=1
     # Number of edge node
-    Edge_number=5
+    Edge_number=1
     # Number of total VM types in the system
-    VM_number=5
+    VM_number=4
     # Number of layers in cloud
-    cloud_layers_number=3
+    cloud_layers_number=2
     # Number of layers in edge including one layer of drones
-    edge_layers_number=3
+    edge_layers_number=2
     # Number of different function configuration in FaaS
-    FaaS_number=5
+    FaaS_number=1
     # Number of components which can run only on drone
-    only_drone_components_number=2
+    only_drone_components_number=1
      # Number of components which can run  both on edge and drone
-    edge_drone_components_number=3
+    edge_drone_components_number=1
     # Number of components which can run only on edge
-    only_edge_components_number=3
+    only_edge_components_number=0
     # Number of components which can run on both edge and cloud
-    edge_cloud_components_number=4
+    edge_cloud_components_number=2
     # Number of components which can run only on cloud
     only_cloud_components_number=3
 
@@ -52,7 +52,7 @@ def generate_system(directory,seed, component_number):
     max_data_size=8
 
     # Enter the components with the list of their compatible FaaS
-    components_FaaS_list=[(12,[1,2]), (13,[2,3]), (14,[3,4]), (15,[4,5])]
+    components_FaaS_list=[(3,[1]), (4,[1]), (5,[1]),(6,[1]), (7,[1])]
 
     LC_number=5
     GC_number=5
@@ -60,7 +60,7 @@ def generate_system(directory,seed, component_number):
     path_threshold_range=(20, 25)
     # a list of network domain as thriple. The first item of thriple is a list of computational layer,
     # the second item is access delay and the third item is bandwidth
-    network_technology=[([1, 2],0.001, 2000), ([3,4],0.001, 1500),([1,2,3,4,5,6,7],0.001,1000)]
+    network_technology=[([1, 2],0.001, 2000), ([3,4],0.001, 1500),([1,2,3,4,5],0.001,1000)]
 
 
     Dict={}
@@ -310,7 +310,7 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
                  if s_idx == 0:
                      model["demand"]= base_demand[dron_idx]
                  else:
-                     model["demand"]= base_demand[dron_idx]/len(S[s]) + np.random.uniform(0.05,0.1)
+                     model["demand"]= base_demand[dron_idx]/len(S[s]) + np.random.uniform(0.005,0.008)
                  d1[node]=model
                  dron_idx += 1
              d[h]=d1
@@ -349,12 +349,20 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
              m[h]=dic_list
              edge_dron_idx=0
              for node in drone_edge_list:
+                 cost=None
+                 for layer in range(1, edge_layers_number):
+                     l="computationallayer" + str(layer+1)
+                     if node in Dict["EdgeResources"][l]:
+                        cost=Dict["EdgeResources"][l][node]["cost"]
+                        break
+                 if cost is None:
+                     cost=1
                  model={}
                  model["model"]="QTedge"
                  if s_idx == 0:
-                     model["demand"] = base_demand[edge_dron_idx]
+                     model["demand"] = base_demand[edge_dron_idx]/cost
                  else:
-                     model["demand"] = base_demand[edge_dron_idx]/len(S[s]) + np.random.uniform(0.05,0.1)
+                     model["demand"] = base_demand[edge_dron_idx]/(len(S[s])*cost) + np.random.uniform(0.005,0.008)
                  d1[node]=model
                  edge_dron_idx += 1
 
@@ -391,12 +399,20 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
              m[h]=dic_list
              edge_idx=0
              for node in edge_list:
+                 cost=None
+                 for layer in range(1,edge_layers_number):
+                     l="computationallayer" + str(layer+1)
+                     if node in Dict["EdgeResources"][l]:
+                        cost=Dict["EdgeResources"][l][node]["cost"]
+                        break
+                 if cost is None:
+                     cost=1
                  model={}
                  model["model"]="QTedge"
                  if s_idx == 0:
-                     model["demand"]=base_demand[edge_idx]
+                     model["demand"]=base_demand[edge_idx]/cost
                  else:
-                     model["demand"]=base_demand[edge_idx]/len(S[s]) + np.random.uniform(0.05,0.1)
+                     model["demand"]=base_demand[edge_idx]/(len(S[s])*cost) + np.random.uniform(0.005,0.008)
                  d1[node]=model
                  edge_idx += 1
 
@@ -418,7 +434,7 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
                  for node in edge_list:
                     base_demand.append(np.random.uniform(0.6,1.1))
                  for node in cloud_list:
-                    base_demand.append(np.random.uniform(0.2,0.7))
+                    base_demand.append(np.random.uniform(0.5,0.7))
             for h in S[s]:
                  d1={}
                  dic_list=[]
@@ -435,12 +451,26 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
                  m[h]=dic_list
                  edge_cloud_idx=0
                  for node in cloud_edge_list:
+                     cost=None
+                     for layer in range(1,edge_layers_number):
+                         l="computationallayer" + str(layer+1)
+                         if node in Dict["EdgeResources"][l]:
+                            cost=Dict["EdgeResources"][l][node]["cost"]
+                            break
+                     if cost is None:
+                         for layer in range(edge_layers_number, edge_layers_number+cloud_layers_number):
+                             l="computationallayer" + str(layer+1)
+                             if node in Dict["CloudResources"][l]:
+                                cost=Dict["CloudResources"][l][node]["cost"]
+                                break
+                     if cost is None:
+                         cost=1
                      model={}
                      model["model"]="QTedge"
                      if s_idx == 0:
-                         model["demand"]=base_demand[edge_cloud_idx]
+                         model["demand"]=base_demand[edge_cloud_idx]/cost
                      else:
-                         model["demand"]=base_demand[edge_cloud_idx]/len(S[s]) + np.random.uniform(0.05,0.1)
+                         model["demand"]=base_demand[edge_cloud_idx]/(len(S[s])*cost) + np.random.uniform(0.005,0.008)
                      d1[node]=model
                      edge_cloud_idx += 1
 
@@ -462,7 +492,7 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
          if s_idx==0:
                  base_demand=[]
                  for node in cloud_list:
-                    base_demand.append(np.random.uniform(0.2,0.7))
+                    base_demand.append(np.random.uniform(0.5,0.7))
          for h in S[s]:
              d1={}
              dic_list=[]
@@ -474,12 +504,26 @@ def compatibility_demand_matrix(Dict,only_drone, drone_edge,only_edge,edge_cloud
              m[h]=dic_list
              cloud_idx = 0
              for node in cloud_list:
+                 cost=None
+                 for layer in range(1,edge_layers_number):
+                     l="computationallayer" + str(layer+1)
+                     if node in Dict["EdgeResources"][l]:
+                        cost=Dict["EdgeResources"][l][node]["cost"]
+                        break
+                 if cost is None:
+                         for layer in range(edge_layers_number, edge_layers_number+cloud_layers_number):
+                             l="computationallayer" + str(layer+1)
+                             if node in Dict["CloudResources"][l]:
+                                cost=Dict["CloudResources"][l][node]["cost"]
+                                break
+                 if cost is None:
+                     cost=1
                  model={}
                  model["model"]="QTedge"
                  if s_idx == 0:
-                     model["demand"]=base_demand[cloud_idx]
+                     model["demand"]=base_demand[cloud_idx]/cost
                  else:
-                     model["demand"]=base_demand[cloud_idx]/len(S[s]) + np.random.uniform(0.05,0.1)
+                     model["demand"]=base_demand[cloud_idx]/(len(S[s])*cost) + np.random.uniform(0.005,0.008)
                  d1[node]=model
                  cloud_idx += 1
              d[h]=d1
@@ -682,16 +726,16 @@ def Directed_Acyclic_Graph(component_number,Seed):
         n["c"+str(node+1)]=m
     return n, DAG
 def main():
-     '''comp_number=15
-     dir="/Users/hamtasedghani/space4ai-d/Output_Files/large_scale/"
+     comp_number=7
+     dir="/Users/hamtasedghani/space4ai-d/Output_Files/usecase/test/"
      #dir="/Users/hamtasedghani/Desktop/ServerlessAppPerfCostMdlOpt/Output_Files/large_scale/"
      for seed in range(1,11):
         directory = dir + str(comp_number)+"Components/Ins" + str(seed)
         if not os.path.exists(directory):
             os.makedirs(directory)
-        generate_system(directory,seed,comp_number )'''
+        generate_system(directory,seed,comp_number )
      dir="/Users/hamtasedghani/space4ai-d/Output_Files/large_scale_light_constraints/"
-     for N in [5, 7, 10, 15 ]:
+     for N in [7]:#[5, 7, 10, 15 ]:
          for ins in range(10):
              system_file= dir + str(N) + "Components/Ins" + str(ins+1) + "/system_description.json"
 
