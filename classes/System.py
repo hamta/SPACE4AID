@@ -613,9 +613,7 @@ class System:
     #   @return 1) The sorted list of resources by memory and cost, respectively. 
     #           Each item of list includes the index, memory and cost of the resource.
     #           The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
-    #           2) The sorted list of resources by cost and memory, respectively.  
-    #           Each item of list includes the index, utilization and cost of the resource.
-    #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+    #
     def sort_FaaS_nodes(self):
         idx_min_memory_node=[]
         for i, c in enumerate(self.components):
@@ -638,9 +636,7 @@ class System:
         # Each item of list includes the index, utilization and cost of the resource.
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
 
-        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))  
-
-        self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
+        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
        
     def read_solution_file(self,solution_file):
          with open(solution_file) as f:
