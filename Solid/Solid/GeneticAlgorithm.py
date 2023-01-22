@@ -202,8 +202,8 @@ class GeneticAlgorithm:
             self.population = self._select_n(num_copy)
             self._populate_fitness()
 
-            parents = self._select_n(2)
             for _ in range(num_crossover):
+                parents = self._select_n(2)
                 self.population.extend(self._crossover(*parents))
 
             new_population=[]
