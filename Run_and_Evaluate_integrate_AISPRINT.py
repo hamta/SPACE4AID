@@ -85,14 +85,14 @@ def generate_output_json(Lambda, result, S, onFile = True):
 #   @param S An instance of System.System class including system description
 #   @param verbose Verbosity level
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(core_params, S, verbose):
+def fun_greedy(core_params, S, verbose, K=1):
     core_logger = Logger(verbose=verbose)
-    if core_params[2] != "":
-        log_file = open(core_params[2], "a")
+    if core_params[3] != "":
+        log_file = open(core_params[3], "a")
         core_logger.stream = log_file
-    GA = RandomGreedy(S,seed=core_params[1], log=core_logger)
-    result = GA.random_greedy( MaxIt=core_params[0], K=2)
-    if core_params[2] != "":
+    GA = RandomGreedy(S, seed=core_params[2], log=core_logger)
+    result = GA.random_greedy( MaxIt=core_params[0], K=K, MaxTime=core_params[1])
+    if core_params[3] != "":
         log_file.close()
     return result
 
@@ -106,10 +106,12 @@ def fun_greedy(core_params, S, verbose):
 #   @param logger Current logger
 #   @return The list of parameters required by each core (number of
 #           iterations, seed and logger)
-def get_core_params(iteration, seed, cpuCore, logger):
+def get_core_params(iteration, Max_time, seed, cpuCore, logger):
     core_params = []
-    local = int(iteration / cpuCore)
-    remainder = iteration % cpuCore
+    local_itr = int(iteration / cpuCore)
+    remainder_itr = iteration % cpuCore
+    local_Max_time = int(Max_time / cpuCore)
+    remainder_Max_time = iteration % cpuCore
     for r in range(cpuCore):
         if logger.stream != sys.stdout:
             if cpuCore > 1 and logger.verbose > 0:
@@ -120,33 +122,50 @@ def get_core_params(iteration, seed, cpuCore, logger):
         else:
             log_file = ""
         r_seed = r * r * cpuCore * cpuCore * seed
-        if r < remainder:
-            core_params.append((local + 1, r_seed, log_file))
-        else:
-            core_params.append((local, r_seed, log_file))
+        current_local_itr = local_itr
+        current_local_Max_time = local_Max_time
+        if r < remainder_itr:
+            current_local_itr = local_itr + 1
+        if r < remainder_Max_time:
+            current_local_Max_time = local_Max_time + 1
+
+        core_params.append((current_local_itr, current_local_Max_time, r_seed, log_file))
     return core_params
 
-def Random_Greedy_run(system_file,iteration_number_RG,seed,Max_time_RG,Lambda,K=1):
+def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPointsNumber):
 
-    with open(system_file, "r") as a_file:
-         json_object = json.load(a_file)
+    cpuCore = int(mpp.cpu_count())
+    core_params = get_core_params(iteration_number_RG, Max_time_RG, seed, cpuCore, logger)
 
-    json_object["Lambda"] = Lambda
-    S = System(system_json=json_object)
-    RG=RandomGreedy(S,seed)
-    best_result_no_update, elite, random_params=RG.random_greedy(K=K,MaxIt = iteration_number_RG, MaxTime= Max_time_RG)
+    if __name__ == '__main__':
+            start=time.time()
+            with Pool(processes=cpuCore) as pool:
 
-    RG_cost=elite.elite_results[0].solution.objective_function(S)
-    RG_solution=elite.elite_results[0].solution
-   # np.save(output_folder + "/random_greedy_" + str(round(float(Lambda), 5))+".npy",Max_time_RG)
-   # np.save(output_folder + "/random_greedy_cost_" +str(round(float(Lambda), 5))+".npy",RG_cost)
-   # np.save(output_folder + "/random_greedy_solution_" + str(round(float(Lambda), 5))+".npy",RG_solution ,allow_pickle=True)
-    elite_sol=[]
-    if len(elite.elite_results)<K:
-        K=len(elite.elite_results)
-    for i in range(K):
-        elite_sol.append(elite.elite_results[i].solution)
-    return elite_sol
+                partial_gp = functools.partial(fun_greedy, S=S,
+                                               verbose=logger.verbose, K=startingPointsNumber)
+
+                full_result = pool.map(partial_gp, core_params)
+
+            end = time.time()
+            exec=end -start
+            # get final list combining the results of all threads
+            elite_sol = full_result[0][1]
+            for tid in range(1, cpuCore):
+                elite_sol.merge(full_result[tid][1])
+
+
+                #if len(elite_sol.elite_results)<K:
+                #    K=len(elite_sol.elite_results)
+            solutions=[]
+            for sol in elite_sol.elite_results:
+                solutions.append(sol.solution)
+            # compute elapsed time
+
+   # RG_cost=elite.elite_results[0].solution.objective_function(S)
+   # RG_solution=elite.elite_results[0].solution
+
+
+    return solutions
 
 def TabuSearch_run(S,iteration_number_RG, max_iterations,
                  seed,Max_time_RG, Max_time, method,tabu_memory,  K=1, besties_RG=None):
@@ -177,10 +196,15 @@ def GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number,seed,
     return result
 
 def main(input_dir,output_dir):
-    error = Logger(stream = sys.stderr, verbose=1, error=True)
+
     input_json_dir=Input_json_generator.make_input_json(input_dir)
     with open(input_json_dir, "r") as a_file:
         input_json = json.load(a_file)
+    if "VerboseLevel" in input_json.keys():
+        logger = Logger(stream = sys.stderr, verbose=input_json["VerboseLevel"])
+    else:
+        error.log("{} does not exist.".format("VerboseLevel"))
+        sys.exit(1)
     if "Methods" in input_json.keys():
         Methods=input_json["Methods"]
         if "method1" in Methods.keys():
@@ -211,12 +235,12 @@ def main(input_dir,output_dir):
     if "Seed" in input_json.keys():
         seed=input_json["Seed"]
     else:
-        error.log("{} does not exist".format("Seed"))
+        logger.log("{} does not exist".format("Seed"))
         sys.exit(1)
     #seed=1
     print("\nStart parsing YAML files... ")
     system_file=system_file_json_generator.make_system_file(input_dir)
-    #system_file = input_dir+"/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
+    #system_file = input_dir+ "/system_description.json"#/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
 
     system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
@@ -224,10 +248,10 @@ def main(input_dir,output_dir):
     #json_object["Lambda"] = Lambda
 
     print("\n Start parsing config files... ")
-    S = System(system_json=json_object)#, log=Logger(verbose=2))
+    S = System(system_json=json_object, log=logger)
     print("\n Start searching by  Random Greedy ... ")
-    starting_points=Random_Greedy_run(system_file,iteration_number_RG,seed,Max_time_RG,S.Lambda,startingPointNumber)
-    if len(starting_points)<1:
+    starting_points=Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
+    if len(starting_points) < 1:
         error.log("No feasible solution is found by RG")
         sys.exit(1)
     if "method2" in Methods.keys():
@@ -237,7 +261,7 @@ def main(input_dir,output_dir):
                 if "tabuSize" in Methods["method2"]["specialParameters"].keys():
                     tabu_size= Methods["method2"]["specialParameters"]["tabuSize"]
                 else:
-                    error.log("{} does not exist".format("Tabue memory"))
+                    error.log("{} does not exist".format("Tabu memory"))
                     sys.exit(1)
             else:
                 error.log("{} does not exist".format("specialParameters"))
