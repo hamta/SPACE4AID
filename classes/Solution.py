@@ -892,8 +892,14 @@ class EliteResults:
     def add(self, result):
         
         # check if the new result improves any elite result
-        if len(self.elite_results) == 0 or result.cost < self.elite_results[-1].cost:
-            
+        #if len(self.elite_results) == 0 or result.cost < self.elite_results[-1].cost:
+        if len(self.elite_results) != 0:
+            already_exist = False
+            for res in self.elite_results:
+                if result.solution == res.solution:
+                     already_exist = True
+
+        if len(self.elite_results) == 0 or (not already_exist and result.cost < self.elite_results[-1].cost):
             # add the new result to the list
             self.elite_results.add(result)
             
@@ -914,10 +920,12 @@ class EliteResults:
     def merge(self, other):
         
         # add all elements from the other list
-        self.elite_results.update(other.elite_results)
-        
+        #self.elite_results.update(other.elite_results)
+
         # remove elements to keep the correct number of solutions
-        while len(self.elite_results) > self.K:
-            self.elite_results.pop()
+        #while len(self.elite_results) > self.K:
+           # self.elite_results.pop()
+        for result in other.elite_results:
+            self.add(result)
 
 
