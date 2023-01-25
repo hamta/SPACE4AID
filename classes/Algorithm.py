@@ -415,7 +415,6 @@ class Algorithm:
     def reduce_cluster_size(self, resource_idx, result):
 
         self.logger.level += 1
-
         # initialize the new result
         new_result = copy.deepcopy(result)
 
@@ -463,7 +462,6 @@ class Algorithm:
                         self.logger.log("feasible", 7)
 
         self.logger.level -= 1
-
         return new_result
 
     ## Method to get all partitions that can be run on FaaS
@@ -1150,7 +1148,6 @@ class RandomGreedy(Algorithm):
 
         # initialize results
         result = Result()
-        new_result = Result()
 
         # generate random solution and check its feasibility
         self.logger.level += 1
@@ -1170,8 +1167,9 @@ class RandomGreedy(Algorithm):
             result.objective_function(self.system)
             # update the cluster size of cloud resources
             self.logger.log("Update cluster size", 3)
+            new_result= copy.deepcopy(result)
             for j in range(self.system.FaaS_start_index):
-                new_result = self.reduce_cluster_size(j, result)
+                new_result = self.reduce_cluster_size(j, new_result)
             # compute the updated cost
             self.logger.log("Compute new cost", 3)
             new_result.objective_function(self.system)
