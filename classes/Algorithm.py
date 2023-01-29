@@ -1155,12 +1155,12 @@ class RandomGreedy(Algorithm):
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Start check feasibility: {}".format(time.time()), 3)
-        feasible = result.check_feasibility(self.system)
+        performance = result.check_feasibility(self.system)
         self.logger.log("End check feasibility: {}".format(time.time()), 3)
 
         # if the solution is feasible, compute the corresponding cost 
         # before and after updating the clusters size
-        if feasible:
+        if performance[0]:
             self.logger.log("Solution is feasible", 3)
             # compute cost
             self.logger.log("Compute cost", 3)
@@ -1205,6 +1205,8 @@ class RandomGreedy(Algorithm):
                                        self.logger.verbose,
                                        self.logger.level+1))
         best_result_no_update = Result()
+        # add initial unfeasible sol with inf cost and violation ratio
+        elite.elite_results.add(best_result_no_update)
         res_parts_random_list = []
         VM_numbers_random_list = []
         CL_res_random_list = []
@@ -1212,22 +1214,39 @@ class RandomGreedy(Algorithm):
         # perform randomized greedy iterations
         self.logger.log("Starting Randomized Greedy procedure", 1)
         self.logger.level += 1
+        feasible_sol_found=False
         iteration=0
         start=time.time()
+        lowest_violation = np.inf
         while iteration<MaxIt or time.time()-start<MaxTime:
 
             self.logger.log("#iter {}: {}".format(iteration, time.time()), 3)
             # perform a step
             result, new_result, random_param = self.step()
+
+            if not feasible_sol_found and not new_result.performance[0]:
+                if new_result.violation_rate < lowest_violation:
+                    lowest_violation = new_result.violation_rate
+
+            else:
+                if not feasible_sol_found:
+                    feasible_sol_found = True
+                    elite = EliteResults(K, Logger(self.logger.stream,
+                                           self.logger.verbose,
+                                           self.logger.level+1))
+                    best_result_no_update = Result()
+                    elite.elite_results.add(best_result_no_update)
             # update the results and the lists of random parameters
-            elite.add(new_result)
+            elite.add(new_result, feasible_sol_found)
             if result < best_result_no_update:
                 best_result_no_update = copy.deepcopy(result)
+
             #res_parts_random_list.append(random_param[0])
             #VM_numbers_random_list.append(random_param[1])
             #CL_res_random_list.append(random_param[2])
             iteration += 1
         self.logger.level -= 1
+
         random_params = [res_parts_random_list, VM_numbers_random_list,
                          CL_res_random_list]
 
