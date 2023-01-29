@@ -9,6 +9,8 @@ from sortedcontainers import SortedList
 import sys
 import math
 import pathlib
+from operator import attrgetter
+
 
 ## Configuration
 class Configuration:
@@ -474,9 +476,9 @@ class Configuration:
     #                              (default: None)
     #   @param cost Cost of the Solution (default: None)
     #   @return Json object storing the solution description
-    def to_json(self, S, response_times = None, path_response_times = None, cost = None):
+    def to_json(self, S,feasible, response_times = None, path_response_times = None, cost = None):
       
-        total_evaluation=self.evaluation( S)
+        total_evaluation=self.evaluation(S)
         # compute response times of all components
        
         if not response_times:
@@ -586,9 +588,13 @@ class Configuration:
         # write total cost
         solution_string = solution_string[:-1] + '},  "total_cost": "'
         if cost:
-            solution_string += (str(cost) + '"}')
+            solution_string += (str(cost) + '"')
         else:
-            solution_string += (str(self.objective_function(S)) + '"}')
+            solution_string += (str(self.objective_function(S)) + '"')
+        if feasible:
+            solution_string +=', "feasible": true}'
+        else:
+            solution_string +=', "feasible": false}'
         
         # load string as json
         solution_string = solution_string.replace('0.,', '0.0,')
@@ -753,7 +759,8 @@ class Configuration:
                        cost = None, solution_file = "", feasible=True):
 
         # get solution description in json format
-        total_evaluation, jj = self.to_json(S, response_times, path_response_times, cost)
+        total_evaluation, jj = self.to_json(S,feasible, response_times, path_response_times, cost)
+
         if solution_file:
             with open(solution_file, "w") as f:
                 f.write(jj)
@@ -799,6 +806,7 @@ class Result:
         self.solution = None
         self.cost = np.infty
         self.performance = [False, None, None]
+        self.violation_rate = np.infty
         
     
     ## Method to create a (cost, ID) pair to be used for comparison
@@ -830,10 +838,22 @@ class Result:
     ## Method to check the feasibility of the current Configuration
     #   @param self The object pointer
     #   @param S A System.System object
-    #   @return True if the solution is feasible
+    #   @return performance
     def check_feasibility(self, S):
         self.performance = self.solution.check_feasibility(S)
-        return self.performance[0]
+        if not self.performance[0]:
+            violation_ratio = 0
+            if len(self.performance[1])>0:
+                for path_idx in range(len(S.global_constraints)):
+                    if not self.performance[1][path_idx][0] or self.performance[1][path_idx][1] is np.inf:
+                        violation_ratio += (self.performance[1][path_idx][1] - S.global_constraints[path_idx].max_res_time)/S.global_constraints[path_idx].max_res_time
+
+            for LC in S.local_constraints:
+                if not self.performance[2][LC.component_idx][0] or self.performance[2][LC.component_idx][1] is np.inf:
+                    violation_ratio += (self.performance[2][LC.component_idx][1] - LC.max_res_time)/LC.max_res_time
+            if 0 < violation_ratio < np.inf:
+                self.violation_rate = violation_ratio
+        return self.performance
     
     ## Method to compute the cost of the current Configuration
     #   @param self The object pointer
@@ -881,7 +901,7 @@ class EliteResults:
     #   @param log Object of Logger type
     def __init__(self, K, log=Logger()):
         self.K = K
-        self.elite_results = SortedList()
+        self.elite_results = SortedList(key= attrgetter('cost','violation_rate'))#SortedList(key=lambda result: (result.cost, result.violation_rate))
         self.logger = log
         
     
@@ -889,35 +909,50 @@ class EliteResults:
     # keeping its length under control
     #   @param self The object pointer
     #   @param result Solution.Result object to be added to the list
-    def add(self, result):
+    #   @param feasible_sol_found True if at least one feasible solution is found so far
+    def add(self, result, feasible_sol_found = True):
         
         # check if the new result improves any elite result
         #if len(self.elite_results) == 0 or result.cost < self.elite_results[-1].cost:
-        if len(self.elite_results) != 0:
-            already_exist = False
-            for res in self.elite_results:
-                if result.solution == res.solution:
-                     already_exist = True
+        already_exist = False
 
-        if len(self.elite_results) == 0 or (not already_exist and result.cost < self.elite_results[-1].cost):
+        for res in self.elite_results:
+            if (res.solution is not None) and (result.solution is not None) :
+                if result.solution == res.solution:
+                    already_exist = True
+        if feasible_sol_found:
+            if not already_exist and result.cost < self.elite_results[-1].cost:
+                # add the new result to the list
+                self.elite_results.add(result)
+
+                # check if the total length exceeds than the maximum; if so,
+                # remove the last element
+                if len(self.elite_results) > self.K:
+                    self.elite_results.pop()
+
+                self.logger.log("Result improved - range: [{},{}]".\
+                                format(self.elite_results[0].cost,
+                                       self.elite_results[-1].cost), 2)
+        else:
+            if not already_exist and result.violation_rate < self.elite_results[-1].violation_rate:
             # add the new result to the list
-            self.elite_results.add(result)
-            
-            # check if the total length exceeds than the maximum; if so, 
-            # remove the last element
-            if len(self.elite_results) > self.K:
-                self.elite_results.pop()
-            
-            self.logger.log("Result improved - range: [{},{}]".\
-                            format(self.elite_results[0].cost, 
-                                   self.elite_results[-1].cost), 2)
+                self.elite_results.add(result)
+
+                # check if the total length exceeds than the maximum; if so,
+                # remove the last element
+                if len(self.elite_results) > self.K:
+                    self.elite_results.pop()
+
+                self.logger.log("Unfeasible result improved - range: [{},{}]".\
+                                format(self.elite_results[0].violation_rate,
+                                       self.elite_results[-1].violation_rate), 2)
     
     
     ## Method to merge two lists of elite results (inplace)
     #   @param self The object pointer
     #   @param other The EliteResults object to be merged (it remains 
     #                unchanged)
-    def merge(self, other):
+    def merge(self, other, feasible):
         
         # add all elements from the other list
         #self.elite_results.update(other.elite_results)
@@ -926,6 +961,4 @@ class EliteResults:
         #while len(self.elite_results) > self.K:
            # self.elite_results.pop()
         for result in other.elite_results:
-            self.add(result)
-
-
+            self.add(result, feasible)
