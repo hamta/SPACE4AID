@@ -136,7 +136,17 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
 
     cpuCore = int(mpp.cpu_count())
     core_params = get_core_params(iteration_number_RG, Max_time_RG, seed, cpuCore, logger)
+    '''GA = RandomGreedy(S, seed, log=logger)
+    result = GA.random_greedy( MaxIt=iteration_number_RG, K=startingPointsNumber, MaxTime=Max_time_RG)
+    for res in result[1].elite_results:
+        if res.solution is not None:
+            print(res.performance)
+            print(res.solution.Y_hat)
+            print(res.cost)'''
 
+    solutions=[]
+    feasible_found = False
+    elite_sol = []
     if __name__ == '__main__':
             start=time.time()
             with Pool(processes=cpuCore) as pool:
@@ -148,24 +158,42 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
 
             end = time.time()
             exec=end -start
+            first_unfeasible = False
             # get final list combining the results of all threads
-            elite_sol = full_result[0][1]
-            for tid in range(1, cpuCore):
-                elite_sol.merge(full_result[tid][1])
-
-
+            for tid in range(cpuCore):
+                if feasible_found:
+                    if full_result[tid][1].elite_results[0].performance[0]:
+                        elite_sol.merge(full_result[tid][1], True)
+                else:
+                    if full_result[tid][1].elite_results[0].performance[0]:
+                        feasible_found = True
+                        elite_sol = full_result[tid][1]
+                    else:
+                        if not first_unfeasible:
+                            elite_sol = full_result[tid][1]
+                            first_unfeasible = True
+                        else:
+                            elite_sol.merge(full_result[tid][1], False)
                 #if len(elite_sol.elite_results)<K:
                 #    K=len(elite_sol.elite_results)
-            solutions=[]
-            for sol in elite_sol.elite_results:
-                solutions.append(sol.solution)
-            # compute elapsed time
 
-   # RG_cost=elite.elite_results[0].solution.objective_function(S)
-   # RG_solution=elite.elite_results[0].solution
+            if feasible_found:
+                for sol in elite_sol.elite_results:
+                    if sol.cost < np.inf:
+                        solutions.append(sol.solution)
+            else:
+                for sol in elite_sol.elite_results:
+                    if sol.violation_rate < np.inf:
+                        solutions.append(sol.solution)
 
 
-    return solutions
+    '''for res in elite_sol.elite_results:
+        if res.solution is not None:
+            print(res.performance)
+            print(res.solution.Y_hat)
+            print(res.cost)'''
+    print("RG cost: " + str(elite_sol.elite_results[0].cost))
+    return feasible_found, solutions, elite_sol.elite_results[0]
 
 def TabuSearch_run(S,iteration_number_RG, max_iterations,
                  seed,Max_time_RG, Max_time, method,tabu_memory,  K=1, besties_RG=None):
@@ -189,15 +217,15 @@ def GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number,seed,
 
     #mutation_rate = 0.7
     #crossover_rate = 0.5
-    GA = Genetic_algorithm(iteration_number_RG,seed, crossover_rate, mutation_rate, max_iteration_number, S,Max_time_RG=Max_time_RG,Max_time=Max_time, besties_RG=besties_RG)
+    GA = Genetic_algorithm(iteration_number_RG,seed, crossover_rate, mutation_rate, max_iteration_number, S, Max_time_RG=Max_time_RG,Max_time=Max_time, besties_RG=besties_RG)
 
     result, best_sol_cost_list_GA, time_list_GA, population=GA.run_GA(K_init_population)
 
     return result
 
-def main(input_dir,output_dir):
+def main(application_dir):
 
-    input_json_dir=Input_json_generator.make_input_json(input_dir)
+    input_json_dir=Input_json_generator.make_input_json(application_dir)
     with open(input_json_dir, "r") as a_file:
         input_json = json.load(a_file)
     if "VerboseLevel" in input_json.keys():
@@ -237,10 +265,9 @@ def main(input_dir,output_dir):
     else:
         logger.log("{} does not exist".format("Seed"))
         sys.exit(1)
-    #seed=1
     print("\nStart parsing YAML files... ")
-    system_file=system_file_json_generator.make_system_file(input_dir)
-    #system_file = input_dir+ "/system_description.json"#/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
+    system_file=system_file_json_generator.make_system_file(application_dir)
+    #system_file = application_dir+ "/space4ai-d/system_description.json"#/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
 
     system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
@@ -250,68 +277,69 @@ def main(input_dir,output_dir):
     print("\n Start parsing config files... ")
     S = System(system_json=json_object, log=logger)
     print("\n Start searching by  Random Greedy ... ")
-    starting_points=Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
-    if len(starting_points) < 1:
+    feasibility, starting_points, result = Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
+    if not feasibility:
         error.log("No feasible solution is found by RG")
-        sys.exit(1)
-    if "method2" in Methods.keys():
-        print("\n Start searching by heuristic method ... ")
-        if "tabu" in method_name.lower():
-            if "specialParameters" in Methods["method2"].keys():
-                if "tabuSize" in Methods["method2"]["specialParameters"].keys():
-                    tabu_size= Methods["method2"]["specialParameters"]["tabuSize"]
-                else:
-                    error.log("{} does not exist".format("Tabu memory"))
-                    sys.exit(1)
-            else:
-                error.log("{} does not exist".format("specialParameters"))
-                sys.exit(1)
-
-            result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"random",tabu_size,K=1, besties_RG=starting_points)
-        elif "local" in method_name.lower():
-            result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"best",1, K=1, besties_RG=starting_points)
-        elif "simulated" in method_name.lower():
-            if "specialParameters" in Methods["method2"].keys():
-                if "temperature" in Methods["method2"]["specialParameters"].keys():
-                    temp_begin= Methods["method2"]["specialParameters"]["temperature"]
-                else:
-                    error.log("{} does not exist".format("initial temperature"))
-                    sys.exit(1)
-                if "scheduleConstant" in Methods["method2"]["specialParameters"].keys():
-                    schedule_constant= Methods["method2"]["specialParameters"]["scheduleConstant"]
-                    result = SimulatedAnealing_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,temp_begin,schedule_constant,K=1, besties_RG=starting_points)
-                else:
-                    error.log("{} does not exist".format("temperature"))
-                    sys.exit(1)
-            else:
-                error.log("{} does not exist".format("specialParameters"))
-                sys.exit(1)
-        elif "genetic" in method_name.lower():
-            if "specialParameters" in Methods["method2"].keys():
-                if "mutationRate" in Methods["method2"]["specialParameters"].keys():
-                    mutation_rate= Methods["method2"]["specialParameters"]["mutationRate"]
-                else:
-                    error.log("{} does not exist".format("mutation rate"))
-                    sys.exit(1)
-                if "crossoverRate" in Methods["method2"]["specialParameters"].keys():
-                    crossover_rate = Methods["method2"]["specialParameters"]["crossoverRate"]
-                    result = GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number, seed, startingPointNumber,Max_time_RG, Max_time,mutation_rate,crossover_rate, besties_RG=starting_points)
-                else:
-                    error.log("{} does not exist".format("crossover rate"))
-                    sys.exit(1)
-
-            else:
-                error.log("{} does not exist".format("specialParameters"))
-                sys.exit(1)
     else:
-        result = Result()
-        result.solution = starting_points[0]
-        result.objective_function(S)
+        if "method2" in Methods.keys():
+            print("\n Start searching by heuristic method ... ")
+            if "tabu" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "tabuSize" in Methods["method2"]["specialParameters"].keys():
+                        tabu_size= Methods["method2"]["specialParameters"]["tabuSize"]
+                    else:
+                        error.log("{} does not exist".format("Tabu memory"))
+                        sys.exit(1)
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
+
+                result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"random",tabu_size,K=1, besties_RG=starting_points)
+            elif "local" in method_name.lower():
+                result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"best",1, K=1, besties_RG=starting_points)
+            elif "simulated" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "temperature" in Methods["method2"]["specialParameters"].keys():
+                        temp_begin= Methods["method2"]["specialParameters"]["temperature"]
+                    else:
+                        error.log("{} does not exist".format("initial temperature"))
+                        sys.exit(1)
+                    if "scheduleConstant" in Methods["method2"]["specialParameters"].keys():
+                        schedule_constant= Methods["method2"]["specialParameters"]["scheduleConstant"]
+                        result = SimulatedAnealing_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,temp_begin,schedule_constant,K=1, besties_RG=starting_points)
+                    else:
+                        error.log("{} does not exist".format("temperature"))
+                        sys.exit(1)
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
+            elif "genetic" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "mutationRate" in Methods["method2"]["specialParameters"].keys():
+                        mutation_rate= Methods["method2"]["specialParameters"]["mutationRate"]
+                    else:
+                        error.log("{} does not exist".format("mutation rate"))
+                        sys.exit(1)
+                    if "crossoverRate" in Methods["method2"]["specialParameters"].keys():
+                        crossover_rate = Methods["method2"]["specialParameters"]["crossoverRate"]
+                        result = GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number, seed, startingPointNumber,Max_time_RG, Max_time,mutation_rate,crossover_rate, besties_RG=starting_points)
+                    else:
+                        error.log("{} does not exist".format("crossover rate"))
+                        sys.exit(1)
+
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
+        else:
+            result = Result()
+            result.solution = starting_points[0]
+            result.objective_function(S)
 
 
-    output_json=output_dir+"/Output.json"
+    output_json=application_dir+"/space4ai-d/Output.json"
+
     result.print_result(S,output_json)
-    output_yaml_generator.main(input_dir,output_dir)
+    output_yaml_generator.main(application_dir+"/")
 
 
 
@@ -319,10 +347,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="SPACE4AI-D")
 
-    parser.add_argument("-C", "--config_file",
-                        help="System configuration file")
-    parser.add_argument('-O', "--output_file",
-                        help="Output folder")
+    parser.add_argument("-C", "--application_dir",
+                        help="Application directory")
+    #parser.add_argument('-O', "--output_file",
+   #                     help="Output folder")
 
 
     args = parser.parse_args()
@@ -331,17 +359,19 @@ if __name__ == '__main__':
     error = Logger(stream = sys.stderr, verbose=1, error=True)
     dic={}
     # check if the system configuration file exists
-    if not os.path.exists(args.config_file):
-        error.log("{} does not exist".format(args.config_file))
+    if not os.path.exists(args.application_dir):
+        error.log("{} does not exist".format(args.application_dir))
         sys.exit(1)
     else:
-        input_dir=args.config_file
+        application_dir=args.application_dir
 
-    if not os.path.exists(args.output_file):
-        error.log("{} does not exist".format(args.output_file))
-        sys.exit(1)
-    else:
-        output_dir=args.output_file
+   # if not os.path.exists(args.output_file):
+     #   error.log("{} does not exist".format(args.output_file))
+     #   sys.exit(1)
+  #  else:
+     #   output_dir=args.output_file
     #output_dir="OutputFiles_demo"
-    #input_dir="ConfigFiles_demo"
-    main(input_dir,output_dir)
+
+    #application_dir="ConfigFiles_demo"
+    #error = Logger(stream = sys.stderr, verbose=1, error=True)
+    main(application_dir)
