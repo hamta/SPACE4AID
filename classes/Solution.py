@@ -551,7 +551,7 @@ class Configuration:
            
             component_string = component_string[:-1] + '},'
             # get response time and corresponding threshold
-            if response_times[i] == np.infty:
+            if response_times[i] == np.infty or response_times[i]<0:
                 component_string += ' "response_time": "inf"'
             else:
                 component_string += ' "response_time": ' + str(response_times[i])
