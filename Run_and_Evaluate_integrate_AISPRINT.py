@@ -341,9 +341,11 @@ def main(application_dir):
 
 
     output_json=application_dir+"/space4ai-d/Output.json"
-
-    result.print_result(S,output_json)
-    output_yaml_generator.main(application_dir+"/")
+    if result.solution is None:
+        print("No solution is found.")
+    else:
+        result.print_result(S,output_json)
+        output_yaml_generator.main(application_dir+"/")
 
 
 
