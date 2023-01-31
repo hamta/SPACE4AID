@@ -167,10 +167,14 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
                 else:
                     if full_result[tid][1].elite_results[0].performance[0]:
                         feasible_found = True
-                        elite_sol = full_result[tid][1]
+                        elite_sol = EliteResults(full_result[tid][1].K)
+                        elite_sol.elite_results.add(Result())
+                        elite_sol.add(full_result[tid][1].elite_results[0])
                     else:
                         if not first_unfeasible:
-                            elite_sol = full_result[tid][1]
+                            elite_sol = EliteResults(full_result[tid][1].K)
+                            elite_sol.elite_results.add(Result())
+                            elite_sol.add(full_result[tid][1].elite_results[0], feasible_found)
                             first_unfeasible = True
                         else:
                             elite_sol.merge(full_result[tid][1], False)
