@@ -1,6 +1,7 @@
 from classes.Logger import Logger
 from classes.System import System
 from classes.Algorithm import Algorithm, RandomGreedy, Tabu_Search, Simulated_Annealing, Genetic_algorithm
+from classes.Solution import Configuration, Result, EliteResults
 import time
 import sys
 import os
@@ -11,6 +12,7 @@ from multiprocessing import Pool
 import functools
 import argparse
 from difflib import SequenceMatcher
+import pathlib
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
@@ -82,13 +84,13 @@ def generate_output_json(Lambda, result, S, onFile = True):
 #   @param S An instance of System.System class including system description
 #   @param verbose Verbosity level
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
-def fun_greedy(core_params, S, verbose):
+def fun_greedy(core_params, S, verbose, K=1):
     core_logger = Logger(verbose=verbose)
     if core_params[3] != "":
         log_file = open(core_params[3], "a")
         core_logger.stream = log_file
     GA = RandomGreedy(S,seed=core_params[2], log=core_logger)
-    result = GA.random_greedy( MaxIt=core_params[0], K=1, MaxTime=core_params[1])
+    result = GA.random_greedy(MaxIt=core_params[0], K=K, MaxTime=core_params[1])
     if core_params[3] != "":
         log_file.close()
     return result
@@ -129,14 +131,109 @@ def get_core_params(iteration, Max_time, seed, cpuCore, logger):
         core_params.append((current_local_itr, current_local_Max_time, r_seed, log_file))
     return core_params
 
+def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPointsNumber):
+
+    cpuCore = int(mpp.cpu_count())
+    core_params = get_core_params(iteration_number_RG, Max_time_RG, seed, cpuCore, logger)
+    '''GA = RandomGreedy(S, seed, log=logger)
+    result = GA.random_greedy( MaxIt=iteration_number_RG, K=startingPointsNumber, MaxTime=Max_time_RG)
+    for res in result[1].elite_results:
+        if res.solution is not None:
+            print(res.performance)
+            print(res.solution.Y_hat)
+            print(res.cost)'''
+
+    solutions=[]
+    feasible_found = False
+    elite_sol = []
+    if __name__ == '__main__':
+            start=time.time()
+            with Pool(processes=cpuCore) as pool:
+
+                partial_gp = functools.partial(fun_greedy, S=S,
+                                               verbose=logger.verbose, K=startingPointsNumber)
+
+                full_result = pool.map(partial_gp, core_params)
+
+            end = time.time()
+            exec=end -start
+            first_unfeasible = False
+            # get final list combining the results of all threads
+            for tid in range(cpuCore):
+                if feasible_found:
+                    if full_result[tid][1].elite_results[0].performance[0]:
+                        elite_sol.merge(full_result[tid][1], True)
+                else:
+                    if full_result[tid][1].elite_results[0].performance[0]:
+                        feasible_found = True
+                        elite_sol = EliteResults(full_result[tid][1].K)
+                        elite_sol.elite_results.add(Result())
+                        elite_sol.add(full_result[tid][1].elite_results[0])
+                    else:
+                        if not first_unfeasible:
+                            elite_sol = EliteResults(full_result[tid][1].K)
+                            elite_sol.elite_results.add(Result())
+                            elite_sol.add(full_result[tid][1].elite_results[0], feasible_found)
+                            first_unfeasible = True
+                        else:
+                            elite_sol.merge(full_result[tid][1], feasible_found)
+                #if len(elite_sol.elite_results)<K:
+                #    K=len(elite_sol.elite_results)
+
+            if feasible_found:
+                for sol in elite_sol.elite_results:
+                    if sol.cost < np.inf:
+                        solutions.append(sol.solution)
+            else:
+                for sol in elite_sol.elite_results:
+                    if sol.violation_rate < np.inf:
+                        solutions.append(sol.solution)
+
+
+    '''for res in elite_sol.elite_results:
+        if res.solution is not None:
+            print(res.performance)
+            print(res.solution.Y_hat)
+            print(res.cost)'''
+    print("RG cost: " + str(elite_sol.elite_results[0].cost))
+    return feasible_found, solutions, elite_sol.elite_results[0]
+
+def TabuSearch_run(S,iteration_number_RG, max_iterations,
+                 seed,Max_time_RG, Max_time, method,tabu_memory,  K=1, besties_RG=None):
+
+            TS_Solid= Tabu_Search(iteration_number_RG,seed,system=S,Max_time_RG=Max_time_RG,K=K, besties_RG=besties_RG)
+            result, best_sol_info, Starting_points_info=TS_Solid.run_TS (method, tabu_memory, min_score=None, max_steps=max_iterations,Max_time=Max_time)
+
+            return result
+
+def SimulatedAnealing_run( S,iteration_number_RG, max_iterations,
+                         seed,Max_time_RG, Max_time,temp_begin,schedule_constant,K=1, besties_RG=None):
+                #temp_begin=5
+                #schedule_constant=0.99
+
+                SA_Solid= Simulated_Annealing(iteration_number_RG,seed,system=S,Max_time_RG=Max_time_RG,K=K, besties_RG=besties_RG)
+                result, best_sol_info, Starting_points_info=SA_Solid.run_SA( temp_begin, schedule_constant, max_iterations,  min_energy=None, schedule='exponential',Max_time=Max_time)
+                return result
+
+def GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number,seed,
+                         K_init_population, Max_time_RG, Max_time, mutation_rate,crossover_rate, besties_RG=None):
+
+    #mutation_rate = 0.7
+    #crossover_rate = 0.5
+    GA = Genetic_algorithm(iteration_number_RG,seed, crossover_rate, mutation_rate, max_iteration_number, S, Max_time_RG=Max_time_RG,Max_time=Max_time, besties_RG=besties_RG)
+
+    result, best_sol_cost_list_GA, time_list_GA, population=GA.run_GA(K_init_population)
+
+    return result
+
 
 ## Main function
 #   @param system_file Name of the file storing the system description
 #   @param config Dictionary of configuration parameters
 #   @param log_directory Directory for logging
-def main(dic, log_directory):
+def main_diff_Lambda(dic, log_directory):
     # initialize logger
-    logger = Logger(verbose=args.verbose)
+    logger = Logger(verbose=1)
 
     methods_list=["Random_Greedy", "Local_Search", "Tabu_Search", "Simulated_Annealing", "Genetic_Algorithm"]
 
@@ -240,7 +337,7 @@ def main(dic, log_directory):
                 with Pool(processes=cpuCore) as pool:
 
                     partial_gp = functools.partial(fun_greedy, S=S,
-                                                   verbose=logger_lambda.verbose)
+                                                   verbose=logger_lambda.verbose, K=startingPointsNumber)
 
                     full_result = pool.map(partial_gp, core_params)
 
@@ -293,72 +390,162 @@ def main(dic, log_directory):
     if log_directory != "":
         log_file.close()
 
-def Random_Greedy_run(system_file,iteration_number_RG,output_folder,seed,Max_time_RG,Lambda,K=1):
+def parse_config_file(S, input_json_dir, system_file, logger):
 
+    with open(input_json_dir, "r") as a_file:
+        input_json = json.load(a_file)
+    '''if "VerboseLevel" in input_json.keys():
+        logger = Logger(stream = sys.stderr, verbose=input_json["VerboseLevel"])
+    else:
+        error.log("{} does not exist.".format("VerboseLevel"))
+        sys.exit(1)'''
+    if "Methods" in input_json.keys():
+        Methods=input_json["Methods"]
+        if "method1" in Methods.keys():
+            name=Methods["method1"]["name"]
+            if "random" in name.lower():
+                iteration_number_RG=Methods["method1"]["iterations"]
+                Max_time_RG=Methods["method1"]["duration"]
+            else:
+                error.log("{} should be random greedy.".format("method1"))
+                sys.exit(1)
+        else:
+            error.log("{} does not exist".format("Random greedy parameters"))
+            sys.exit(1)
+    else:
+        error.log("{} does not exist".format("Methods"))
+        sys.exit(1)
+    startingPointNumber = 1
+    if "method2" in Methods.keys():
+        try:
+            method_name=Methods["method2"]["name"]
+            startingPointNumber=Methods["method2"]["startingPointNumber"]
+            max_iteration_number=Methods["method2"]["iterations"]
+            Max_time=Methods["method2"]["duration"]
+        except Exception as e:
+           error.log(" parameter {} does not exist".format(e))
+           sys.exit(1)
+
+    if "Seed" in input_json.keys():
+        seed=input_json["Seed"]
+    else:
+        logger.log("{} does not exist".format("Seed"))
+        sys.exit(1)
+    system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
-         json_object = json.load(a_file)
+        json_object = json.load(a_file)
+    #json_object["Lambda"] = Lambda
 
-    json_object["Lambda"] = Lambda
-    S = System(system_json=json_object)
-    RG=RandomGreedy(S,seed)
-    best_result_no_update, elite, random_params=RG.random_greedy(K=K,MaxIt = iteration_number_RG, MaxTime= Max_time_RG)
+    print("\n Start searching by  Random Greedy ... ")
+    feasibility, starting_points, result = Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
+    if not feasibility:
+        error.log("No feasible solution is found by RG")
+    else:
+        if "method2" in Methods.keys():
+            print("\n Start searching by heuristic method ... ")
+            if "tabu" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "tabuSize" in Methods["method2"]["specialParameters"].keys():
+                        tabu_size= Methods["method2"]["specialParameters"]["tabuSize"]
+                    else:
+                        error.log("{} does not exist".format("Tabu memory"))
+                        sys.exit(1)
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
 
-    RG_cost=elite.elite_results[0].solution.objective_function(S)
-    RG_solution=elite.elite_results[0].solution
-   # np.save(output_folder + "/random_greedy_" + str(round(float(Lambda), 5))+".npy",Max_time_RG)
-   # np.save(output_folder + "/random_greedy_cost_" +str(round(float(Lambda), 5))+".npy",RG_cost)
-   # np.save(output_folder + "/random_greedy_solution_" + str(round(float(Lambda), 5))+".npy",RG_solution ,allow_pickle=True)
-    elite_sol=[]
-    if len(elite.elite_results)<K:
-        K=len(elite.elite_results)
-    for i in range(K):
-        elite_sol.append(elite.elite_results[i].solution)
-    return elite_sol
+                result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"random",tabu_size,K=1, besties_RG=starting_points)
+            elif "local" in method_name.lower():
+                result=TabuSearch_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,"best",1, K=1, besties_RG=starting_points)
+            elif "simulated" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "temperature" in Methods["method2"]["specialParameters"].keys():
+                        temp_begin= Methods["method2"]["specialParameters"]["temperature"]
+                    else:
+                        error.log("{} does not exist".format("initial temperature"))
+                        sys.exit(1)
+                    if "scheduleConstant" in Methods["method2"]["specialParameters"].keys():
+                        schedule_constant= Methods["method2"]["specialParameters"]["scheduleConstant"]
+                        result = SimulatedAnealing_run(S,iteration_number_RG, max_iteration_number, seed,Max_time_RG, Max_time,temp_begin,schedule_constant,K=1, besties_RG=starting_points)
+                    else:
+                        error.log("{} does not exist".format("temperature"))
+                        sys.exit(1)
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
+            elif "genetic" in method_name.lower():
+                if "specialParameters" in Methods["method2"].keys():
+                    if "mutationRate" in Methods["method2"]["specialParameters"].keys():
+                        mutation_rate= Methods["method2"]["specialParameters"]["mutationRate"]
+                    else:
+                        error.log("{} does not exist".format("mutation rate"))
+                        sys.exit(1)
+                    if "crossoverRate" in Methods["method2"]["specialParameters"].keys():
+                        crossover_rate = Methods["method2"]["specialParameters"]["crossoverRate"]
+                        result = GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number, seed, startingPointNumber,Max_time_RG, Max_time,mutation_rate,crossover_rate, besties_RG=starting_points)
+                    else:
+                        error.log("{} does not exist".format("crossover rate"))
+                        sys.exit(1)
 
-def TabuSearch(system_file,iteration_number_RG, max_iterations,
-                        output_folder, seed,Max_time_RG, Max_time, Lambda, K=1, besties_RG=None):
+                else:
+                    error.log("{} does not exist".format("specialParameters"))
+                    sys.exit(1)
 
-
-              with open(system_file, "r") as a_file:
-                 json_object = json.load(a_file)
-              json_object["Lambda"] = Lambda
-              S = System(system_json=json_object)
-              method_list=["best"]# ,"random"
-
-              for method in method_list:
-
-                  #  start=time.time()
-                   # proc = mpp.current_process()
-                   # pid = proc.pid
-                   # seed=seed*pid
-
-                   # GA=RandomGreedy(S,2)
-                    #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
-                    # initial_solution=random_greedy_result[1].elite_results[0].solution
-                    # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
-
-                    #
-                    #x=GA.change_component_placement(initial_solution)
-                    # y=GA.get_partitions_with_j(initial_solution,x[0])
-
-
-
-                    tabu_memory=50
-                    #pdb.set_trace()
-                    start=time.time()
-
-                    TS_Solid= Tabu_Search(iteration_number_RG,seed,system=S,Max_time_RG=Max_time_RG,K=K, besties_RG=besties_RG)
-                    result,result_list, Starting_points_results=TS_Solid.run_TS (method, tabu_memory, min_score=None, max_steps=max_iterations,Max_time=Max_time)
-                    TS_time=time.time()-start
-                    current_cost_list,best_cost_list, time_list=result_list
-                    Starting_point_solutions, Starting_point_costs=Starting_points_results
-                    #print()
-
-              return result
+    return result
 
 
+## Main function
+#   @param system_file Name of the file storing the system description
+#   @param config Dictionary of configuration parameters
+#   @param log_directory Directory for logging
+def main(dic, log_directory):
+    logger = Logger()#verbose=args.verbose)
+
+    if log_directory != "":
+        log_file = open(os.path.join(log_directory, "LOG.log"), "a")
+        logger.stream = log_file
+    system_file=dic["system_file"]
+    # load system description
+   # system_file = create_pure_json(system_file)
+    with open(system_file, "r") as a_file:
+        json_object = json.load(a_file)
+
+    separate_loggers = (logger.verbose > 0 and log_directory != "")
+    if not "config_file" in dic.keys():
+        solution_file=dic["solution_file"]
+        Lambda=dic["Lambda"]
+        json_object["Lambda"] = Lambda
+        print("\n"+str(Lambda))
+        print("\n"+solution_file)
+        if separate_loggers:
+            log_file_lambda = "LOG_" + str(Lambda) + ".log"
+            log_file_lambda = os.path.join(log_directory, log_file_lambda)
+            log_file_lambda = open(log_file_lambda, "a")
+            logger_lambda = Logger(stream=log_file_lambda,
+                                   verbose=logger.verbose)
+        else:
+            logger_lambda = logger
+        S = System(system_json=json_object, log=logger_lambda)
+        A = Algorithm(S)
+        result=A.create_solution_by_file(solution_file)
+       # generate_output_json(Lambda,result, S)
+    else:
+        if "Lambda" in dic.keys():
+            Lambda=dic["Lambda"]
+            #print("Lambda: " + str(Lambda))
+            json_object["Lambda"] = Lambda
+        S = System(system_json=json_object, log=logger)
+        config_file = dic["config_file"]
+        result = parse_config_file(S, config_file, system_file, logger)
+    path=pathlib.Path(system_file).parent.resolve()
+    output_json=str(path) + "/Output.json"
+    if result.solution is None:
+        print("No solution is found.")
+    else:
+        result.print_result(S,output_json)
 
 if __name__ == '__main__':
+    error = Logger(stream = sys.stderr, verbose=1, error=True)
 
     parser = argparse.ArgumentParser(description="SPACE4AI-D")
 
@@ -381,7 +568,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # initialize error stream
-    error = Logger(stream = sys.stderr, verbose=1, error=True)
+    #error = Logger(stream = sys.stderr, verbose=1, error=True)
     dic={}
     # check if the system configuration file exists
     if not os.path.exists(args.system_file):
@@ -401,15 +588,16 @@ if __name__ == '__main__':
             if args.Lambda is not None:
                 dic["Lambda"]=float(args.Lambda)
 
+
     else:
         try:
              Lambda = float(args.evaluation_lambda[0])
              dic["Lambda"]=Lambda
         except ValueError:
-             error.log("{} must be a number".format(args.config))
+             error.log("{} must be a number".format(args.evaluation_lambda[0]))
              sys.exit(1)
         if not os.path.exists(args.evaluation_lambda[1]):
-            error.log("{} does not exist".format(args.config))
+            error.log("{} (solution to evaluate) does not exist".format(args.evaluation_lambda[1]))
             sys.exit(1)
         else:
             solution_file=args.evaluation_lambda[1]
@@ -424,44 +612,12 @@ if __name__ == '__main__':
         else:
             createFolder(args.log_directory)
 
-    # load data from the test configuration file
-    ''' config = {}
-    with open(args.config, "r") as config_file:
-        config = json.load(config_file)
-    
-    system_file = "ConfigFiles/Random_Greedy_Pacsltk.json"
-    system_file = "ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
-    iteration = 1000
-    start_lambda = 0.14
-    end_lambda = 0.15
-    step = 0.01
-    seed = 2
-    Lambda = start_lambda
-    system_file = create_pure_json(system_file)
-    with open(system_file, "r") as a_file:
-        json_object = json.load(a_file)
-
-
-    # set the current Lambda in the system description
-   # json_object["Lambda"] = Lambda
-
-    # initialize system
-    parser = argparse.ArgumentParser(description="SPACE4AI-D")
-    dic={}
-    args = parser.parse_args()
-    S = System(system_json=json_object)#, log=Logger(verbose=2))
-    # best_result_no_update, elite, random_params=fun_greedy(iteration, S, seed)
-    # generate_output_json(S.Lambda, elite.elite_results[0], S)
-
-    solution_file="Output_Files/Lambda_10.0_output_json.json"#"Output_Files/Lambda_0.16_output_json.json"
-    GA = RandomGreedy(S,seed )
-    MD_solution_file="Output_Files/RG-MaskDetection.json"
-    result = GA.random_greedy( MaxIt=10)
-    result[0].print_result(S,MD_solution_file)
-
-    A = Algorithm(S,seed)
-    result=A.create_solution_by_file(solution_file)
-    result.print_result(S, solution_file=solution_file)'''
+    #log_directory = "/Users/hamtasedghani/space4ai-d"
+    #dic={}
+    #dic["system_file"]= "/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/system_description.json"
+    #dic["config_file"]="/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/Input.json"
+    #dic["Lambda"]=1
+    #dic["solution_file"]= "/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/Output.json"
 
     main(dic, args.log_directory)
 
