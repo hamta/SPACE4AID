@@ -378,6 +378,6 @@ if __name__ == '__main__':
      #   output_dir=args.output_file
     #output_dir="OutputFiles_demo"
 
-    #application_dir="ConfigFiles_demo"
+    #application_dir="/Users/hamtasedghani/Downloads/mask_detection_v2"
     #error = Logger(stream = sys.stderr, verbose=1, error=True)
     main(application_dir)
