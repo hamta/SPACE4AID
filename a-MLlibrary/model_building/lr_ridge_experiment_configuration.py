@@ -1,20 +1,19 @@
+
+
 """
 Copyright 2019 Marco Lattuada
 Copyright 2021 Bruno Guindani
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
      http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import numpy as np
 import sklearn.linear_model as lr
 
 import model_building.experiment_configuration as ec
@@ -23,21 +22,16 @@ import model_building.experiment_configuration as ec
 class LRRidgeExperimentConfiguration(ec.ExperimentConfiguration):
     """
     Class representing a single experiment configuration for linear regression
-
     Methods
     -------
     _compute_signature()
         Compute the signature (i.e., an univocal identifier) of this experiment
-
     _train()
         Performs the actual building of the linear model
-
     print_model()
         Print the representation of the generated model
-
     initialize_regressor()
         Initialize the regressor object for the experiments
-
     get_default_parameters()
         Get a dictionary with all technique parameters with default values
     """
@@ -45,13 +39,10 @@ class LRRidgeExperimentConfiguration(ec.ExperimentConfiguration):
         """
         campaign_configuration: dict of str: dict of str: str
             The set of options specified by the user though command line and campaign configuration files
-
         hyperparameters: dict of str: object
             The set of hyperparameters of this experiment configuration
-
         regression_inputs: RegressionInputs
             The input of the regression problem to be solved
-
         prefix: list of str
             The prefix to be added to the signature of this experiment configuration
         """
@@ -62,12 +53,10 @@ class LRRidgeExperimentConfiguration(ec.ExperimentConfiguration):
     def _compute_signature(self, prefix):
         """
         Compute the signature associated with this experiment configuration
-
         Parameters
         ----------
         prefix: list of str
             The signature of this experiment configuration without considering hyperparameters
-
         Returns
         -------
             The signature of the experiment
@@ -96,13 +85,20 @@ class LRRidgeExperimentConfiguration(ec.ExperimentConfiguration):
         initial_string = "LRRidge coefficients:\n"
         ret_string = initial_string
         coefficients = self._regressor.coef_
-        assert len(self._regressor.aml_features) == len(coefficients)
-        for column, coefficient in zip(self._regressor.aml_features, coefficients):
-            if ret_string != initial_string:
-                ret_string = ret_string + " + "
-            coeff = str(round(coefficient, 3))
-            ret_string = ret_string + "(" + str(coeff) + "*" + column + ")"
-        coeff = str(round(self._regressor.intercept_, 3))
+        columns = self.get_x_columns()
+
+        assert len(columns) == len(coefficients)
+
+        # Show coefficients in order of decresing absolute value
+        idxs = np.argsort(np.abs(coefficients))[::-1]
+        signif_digits = 4
+        for i in idxs:
+            column = columns[i]
+            coefficient = coefficients[i]
+            ret_string += " + " if ret_string != initial_string else "   "
+            coeff = str(round(coefficient, signif_digits))
+            ret_string = ret_string + "(" + str(coeff) + " * " + column + ")\n"
+        coeff = str(round(self._regressor.intercept_, signif_digits))
         ret_string = ret_string + " + (" + coeff + ")"
         return ret_string
 
