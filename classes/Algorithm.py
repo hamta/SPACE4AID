@@ -1318,7 +1318,7 @@ class Tabu_Search(TabuSearch,RandomGreedy):
     #   @param method The method to select one of neghbors in each iteration ("best" or "random")
     #   @param max_steps Maximum steps of tabu search
     #   @param min_score Minimum cost
-    #   @param Max_time Maximum running time of Simulated Annealing in second
+    #   @param Max_time Maximum running time of TS in second
     def run_TS (self,method, tabu_size, min_score, max_steps,Max_time=None):
 
         Max_time_starting_point=Max_time/len(self.starting_points)
