@@ -37,7 +37,7 @@ def get_components():
                     # "memory": memory,
                     "next": [next_component],
                     "early_exit_probability": 0,  # todo remove hardcode
-                    "data_size": data_sizes[component_name]  # todo remove hardcode
+                    "data_size": [data_sizes[component_name]]  # todo remove hardcode
                 }}
             else:
                 # splitting "partition1_1" in "partition1_" and "1"
@@ -59,7 +59,7 @@ def get_components():
                     # "memory": memory,
                     "next": [next_component],
                     "early_exit_probability": 0,  # todo remove hardcode
-                    "data_size": data_sizes[next_component_name]  # todo remove hardcode
+                    "data_size": [data_sizes[next_component_name]]  # todo remove hardcode
                 }
 
     return components
