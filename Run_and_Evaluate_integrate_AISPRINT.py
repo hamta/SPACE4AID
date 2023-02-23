@@ -149,13 +149,14 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
     elite_sol = []
     if __name__ == '__main__':
             start=time.time()
+            print("Multiprocessing started...")
             with Pool(processes=cpuCore) as pool:
 
                 partial_gp = functools.partial(fun_greedy, S=S,
                                                verbose=logger.verbose, K=startingPointsNumber)
 
                 full_result = pool.map(partial_gp, core_params)
-
+            print("Multiprocessing ends.")
             end = time.time()
             exec=end -start
             first_unfeasible = False
@@ -270,7 +271,7 @@ def main(application_dir):
         logger.log("{} does not exist".format("Seed"))
         sys.exit(1)
     print("\nStart parsing YAML files... ")
-    system_file=system_file_json_generator.make_system_file(application_dir)
+    system_file = system_file_json_generator.make_system_file(application_dir)
     #system_file = application_dir+ "/space4ai-d/system_description.json"#/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
 
     system_file = create_pure_json(system_file)
