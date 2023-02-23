@@ -205,13 +205,14 @@ def get_compatibility_matrix():
         for partition in sorted(components[component]["partitions"]):
             if partition == "base":
                 resources = get_component_resources(component, "")
+                component_name = component
                 # compatibility_matrix[component][component] = resources
             else:
                 resources = get_component_resources(component, partition)
                 # compatibility_matrix[component][component + "_" + partition] = resources
-
+                component_name = component + "_" + partition
             for resource in resources:
-                memory = get_components_details(component, resource)
+                memory = get_components_details(component_name, resource)
                 c, s, h = names_to_code[component][partition].values()
 
                 if c not in compatibility_matrix.keys():
