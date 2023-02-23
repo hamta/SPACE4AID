@@ -563,7 +563,7 @@ class Configuration:
             else:
                 component_string += '"inf"},'
             solution_string += component_string
-        
+
         # write global constraints
         
         solution_string = solution_string[:-1] + '},  "global_constraints": {'
@@ -584,9 +584,12 @@ class Configuration:
                    
                     solution_string += str(time)
             solution_string += '},'
+
+        if len(S.global_constraints) > 0:
+            solution_string = solution_string[:-1]
         
         # write total cost
-        solution_string = solution_string[:-1] + '},  "total_cost": "'
+        solution_string += '},  "total_cost": "'
         if cost:
             solution_string += (str(cost) + '"')
         else:
