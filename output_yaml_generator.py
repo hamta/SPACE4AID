@@ -247,7 +247,7 @@ def make_output_yaml(feasible, components, resources):
         "Feasible": feasible
     }}
 
-    filename = "production.yaml"
+    filename = "production_deployment.yaml"
     filepath = os.path.join(application_dir, space4aid_path, filename)
     with open(filepath, "w") as file:
         yaml.dump(output, file, sort_keys=False)
