@@ -177,7 +177,7 @@ class FaaSPredictorMLlib(FaaSPredictor):
                                    cold_service_time,
                                    time_out]],
                             columns=columns)
-        return self.predictor.predict_from_df(data, True)
+        return self.predictor.predict_from_df(data, self.regressor_file)
     
     ## Operator to convert a FaaSPredictorMLlib object into a string
     #   @param self The object pointer
@@ -245,7 +245,7 @@ class CoreBasedPredictor(BasePredictor):
         pd = importlib.import_module("pandas")
         columns = "cores,log(cores)".split(",")
         data = pd.DataFrame(data=[[cores, log_cores]], columns=columns)
-        return self.predictor.predict_from_df(data, True)
+        return self.predictor.predict_from_df(data, self.regressor_file)
     
     ## Operator to convert a FaaSPredictorMLlib object into a string
     #   @param self The object pointer
