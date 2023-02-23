@@ -133,16 +133,24 @@ def get_core_params(iteration, Max_time, seed, cpuCore, logger):
     return core_params
 
 def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPointsNumber):
+    GA = RandomGreedy(S, seed, logger)
+    best_result_no_update, elite, random_params = GA.random_greedy( MaxIt=iteration_number_RG, K=startingPointsNumber, MaxTime=Max_time_RG)
+    feasible_found = elite.elite_results[0].performance[0]
+    solutions=[]
+    if feasible_found:
+        for sol in elite.elite_results:
+            if sol.cost < np.inf:
+                solutions.append(sol.solution)
+    else:
+        for sol in elite.elite_results:
+            if sol.violation_rate < np.inf:
+                solutions.append(sol.solution)
 
-    cpuCore = int(mpp.cpu_count())
+
+
+    '''cpuCore = int(mpp.cpu_count())
     core_params = get_core_params(iteration_number_RG, Max_time_RG, seed, cpuCore, logger)
-    '''GA = RandomGreedy(S, seed, log=logger)
-    result = GA.random_greedy( MaxIt=iteration_number_RG, K=startingPointsNumber, MaxTime=Max_time_RG)
-    for res in result[1].elite_results:
-        if res.solution is not None:
-            print(res.performance)
-            print(res.solution.Y_hat)
-            print(res.cost)'''
+
 
     solutions=[]
     feasible_found = False
@@ -192,13 +200,10 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
                         solutions.append(sol.solution)
 
 
-    '''for res in elite_sol.elite_results:
-        if res.solution is not None:
-            print(res.performance)
-            print(res.solution.Y_hat)
-            print(res.cost)'''
+   
     #print("RG cost: " + str(elite_sol.elite_results[0].cost))
-    return feasible_found, solutions, elite_sol.elite_results[0]
+    # return feasible_found, solutions, elite_sol.elite_results[0]'''
+    return feasible_found, solutions, elite.elite_results[0]
 
 def TabuSearch_run(S,iteration_number_RG, max_iterations,
                  seed,Max_time_RG, Max_time, method,tabu_memory,  K=1, besties_RG=None):
