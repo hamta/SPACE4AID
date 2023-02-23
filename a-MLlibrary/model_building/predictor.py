@@ -1,9 +1,12 @@
 """
 Copyright 2021 Bruno Guindani
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
      http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,29 +20,29 @@ import os
 import pickle
 import sys
 import pandas as pd
+from sklearn.metrics import mean_absolute_percentage_error
 
 import custom_logger
 import sequence_data_processing
 import data_preparation.data_loading
-import data_preparation.onehot_encoding
-from model_building.experiment_configuration import mean_absolute_percentage_error
-import model_building.model_building
-import regressor
 
 
 class Predictor(sequence_data_processing.SequenceDataProcessing):
     """
     Class that uses Pickle objects to make predictions on new datasets
     """
-    def __init__(self, regressor_file=None, output_folder="output", debug=False):
+    def __init__(self, regressor_file, output_folder, debug):
         """
         Constructor of the class
+
         Parameters
         ----------
         regressor_file: str
             Pickle binary file that stores the model to be used for prediction
+
         output_folder: str
             The directory where all the outputs will be written; it is created by this library and cannot exist before using this module
+
         debug: bool
             True if debug messages should be printed
         """
@@ -53,63 +56,31 @@ class Predictor(sequence_data_processing.SequenceDataProcessing):
 
         # Initialize flags
         self._output_folder = output_folder
-        self._done_file_flag = os.path.join(output_folder, 'done')
 
-        # Read regressor if given
-        if regressor_file:
-            self.load_regressor(regressor_file)
-
-
-    def load_regressor(self, regressor_file):
-        """
-        Loads the given regressor as a class member
-        """
+        # Read regressor
         with open(regressor_file, "rb") as f:
             self._regressor = pickle.load(f)
 
-
-    def predict(self, config_file, mape_to_file, regressor_file=None):
+    def predict(self, config_file, mape_to_file):
         """
         Performs prediction and computes MAPE
+
         Parameters
         ----------
-        config_file: str or dict
-            The configuration file describing the experimental campaign to be performed,
-            or a dictionary with the same structure
+        config_file: str
+            The configuration file describing the experimental campaign to be performed
+
         mape_to_file: bool
             True if computed MAPE should be written to a text file (file name is mape.txt)
-        regressor_file: str
-            Pickle binary file that stores the model to be used for prediction
         """
-        if regressor_file:
-            self.load_regressor(regressor_file)
-
-        # Read configuration from the file indicated by the argument
-        if not os.path.exists(config_file):
-            self._logger.error("%s does not exist", config_file)
-            sys.exit(-1)
-
         # Check if output path already exist
-        if os.path.exists(self._output_folder) and os.path.exists(self._done_file_flag):
+        if os.path.exists(self._output_folder):
             self._logger.error("%s already exists. Terminating the program...", self._output_folder)
             sys.exit(1)
-        if not os.path.exists(self._output_folder):
-            os.mkdir(self._output_folder)
-        
-        #Check configuration input type
-        if isinstance(config_file,str):
-            # Read configuration from the file indicated by the argument
-            if not os.path.exists(config_file):
-                self._logger.error("%s does not exist", config_file)
-                sys.exit(-1)
-            # Read config file
-            self.load_campaign_configuration(config_file)
-        elif isinstance(config_file,dict):
-            # Read configuration from the dictionary indicated by the argument
-            self._campaign_configuration = config_file
-        else:
-            print('Unrecognized type for configuration file: '+str(type(config_file)))
-            sys.exit(1)
+        os.mkdir(self._output_folder)
+
+        # Read config file
+        self.load_campaign_configuration(config_file)
 
         # Read data
         self._logger.info("-->Executing data load")
@@ -150,29 +121,25 @@ class Predictor(sequence_data_processing.SequenceDataProcessing):
 
         self._logger.info("<--Performed prediction")
 
-        # Create success flag file
-        with open(self._done_file_flag, 'wb') as f:
-            pass
 
-    def predict_from_df(self, xx, regressor_file=None):
+    def predict_from_df(self, xx, disable_logging = False):
         """
         Performs prediction on a dataframe
+
         Parameters
         ----------
         xx: pandas.DataFrame
             The covariate matrix to be used for prediction
-        regressor_file: str
-            Pickle binary file that stores the model to be used for prediction
+
         Returns
         -------
         yy_pred
             The predicted values for the dependent variable
         """
-        if regressor_file:
-            self.load_regressor(regressor_file)
-
-        self._logger.info("-->Performing prediction on dataframe")
+        if not disable_logging:
+          self._logger.info("-->Performing prediction on dataframe")
         yy_pred = self._regressor.predict(xx)
-        self._logger.info("Predicted values are: %s", str(yy_pred))
-        self._logger.info("<--Performed prediction")
+        if not disable_logging:
+          self._logger.info("Predicted values are: %s", str(yy_pred))
+          self._logger.info("<--Performed prediction")
         return yy_pred
