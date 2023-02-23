@@ -1153,14 +1153,17 @@ class RandomGreedy(Algorithm):
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
+        print("Random solution is generated")
         result.solution = Configuration(y_hat, self.logger)
         self.logger.log("Start check feasibility: {}".format(time.time()), 3)
+        print("Start check feasibility...")
         performance = result.check_feasibility(self.system)
         self.logger.log("End check feasibility: {}".format(time.time()), 3)
 
         # if the solution is feasible, compute the corresponding cost 
         # before and after updating the clusters size
         if performance[0]:
+            print("The solution is feasible.")
             self.logger.log("Solution is feasible", 3)
             # compute cost
             self.logger.log("Compute cost", 3)
@@ -1180,6 +1183,7 @@ class RandomGreedy(Algorithm):
                     VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
 
         else:
+            print("The solution is not feasible.")
             new_result = copy.deepcopy(result)
         self.logger.level -= 2
 
