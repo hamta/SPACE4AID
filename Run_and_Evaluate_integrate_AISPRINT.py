@@ -197,7 +197,7 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
             print(res.performance)
             print(res.solution.Y_hat)
             print(res.cost)'''
-    print("RG cost: " + str(elite_sol.elite_results[0].cost))
+    #print("RG cost: " + str(elite_sol.elite_results[0].cost))
     return feasible_found, solutions, elite_sol.elite_results[0]
 
 def TabuSearch_run(S,iteration_number_RG, max_iterations,
