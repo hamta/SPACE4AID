@@ -308,7 +308,7 @@ def main(directory):
 component_partitions_path = "aisprint/designs"
 common_config_path = "common_config"
 space4aid_path = "space4ai-d"
-optimal_deployment_path = "ai-sprint-design/mask_detection_v2/aisprint/deployments/optimal_deployment"
+optimal_deployment_path = "aisprint/deployments/optimal_deployment"
 
 
 if __name__ == '__main__':
