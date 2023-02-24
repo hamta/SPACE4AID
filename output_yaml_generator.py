@@ -252,6 +252,11 @@ def make_output_yaml(feasible, components, resources):
     with open(filepath, "w") as file:
         yaml.dump(output, file, sort_keys=False)
 
+    filepath = os.path.join(application_dir, optimal_deployment_path, filename)
+
+    with open(filepath, "w") as file:
+        yaml.dump(output, file, sort_keys=False)
+
 
 def get_names_to_code():
     filename = "component_partitions.yaml"
@@ -303,6 +308,7 @@ def main(directory):
 component_partitions_path = "aisprint/designs"
 common_config_path = "common_config"
 space4aid_path = "space4ai-d"
+optimal_deployment_path = "ai-sprint-design/mask_detection_v2/aisprint/deployments/optimal_deployment"
 
 
 if __name__ == '__main__':
