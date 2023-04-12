@@ -434,7 +434,7 @@ class ParserYamlToJson(Parser):
 
     def make_input_json(self):
         filename = "SPACE4AI-D.yaml"
-        filepath = os.path.join( "space4ai-d", filename)
+        filepath = os.path.join( self.space4aid_path, filename)
 
         with open(filepath) as file:
             content = yaml.load(file, Loader=yaml.Loader)
@@ -443,7 +443,7 @@ class ParserYamlToJson(Parser):
             verbose_level = content["VerboseLevel"]
 
         filename = "Input.json"
-        filepath = os.path.join( "space4ai-d", filename)
+        filepath = os.path.join( self.space4aid_path, filename)
 
         with open(filepath, "w") as file:
             json.dump({"Methods": methods, "Seed": seed, "VerboseLevel": verbose_level}, file, indent=4)
