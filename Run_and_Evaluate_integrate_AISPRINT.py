@@ -5,6 +5,8 @@ import system_file_json_generator
 import Input_json_generator
 from classes.Logger import Logger
 from classes.System import System
+from parser.YamlGenerator import ParserJsonToYaml
+from parser.JsonGenerator import ParserYamlToJson
 from classes.Algorithm import Algorithm, RandomGreedy, Tabu_Search, Simulated_Annealing, Genetic_algorithm
 import time
 import sys
@@ -25,7 +27,7 @@ def createFolder (directory):
         if not os.path.exists(directory):
             os.makedirs(directory)
     except OSError:
-        print ("Error: Creating directory. " +  directory)
+        print ("Error: Creating directory. " + directory)
 
 
 ## Function to create the pure json file from system description by removing
@@ -276,8 +278,11 @@ def main(application_dir):
         logger.log("{} does not exist".format("Seed"))
         sys.exit(1)
     print("\nStart parsing YAML files... ")
-    system_file = system_file_json_generator.make_system_file(application_dir)
-    #system_file = application_dir+ "/space4ai-d/system_description.json"#/SystemFile-Demo.json"#"ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
+
+    #parser_s4aid = ParserJsonToYaml(application_dir,"s4air","space4ai-r/deployment1")
+    #parser_s4aid.main_function()
+    parser_s4aid = ParserYamlToJson(application_dir, "s4aid")
+    system_file = parser_s4aid.make_system_file()
 
     system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
@@ -351,7 +356,8 @@ def main(application_dir):
         print("No solution is found.")
     else:
         result.print_result(S,output_json)
-        output_yaml_generator.main(application_dir+"/")
+        parser_s4aid = ParserJsonToYaml(application_dir, "s4aid")
+        parser_s4aid.main_function()
 
 
 
@@ -361,10 +367,7 @@ if __name__ == '__main__':
 
     parser.add_argument("-C", "--application_dir",
                         help="Application directory")
-    #parser.add_argument('-O', "--output_file",
-   #                     help="Output folder")
-
-
+   
     args = parser.parse_args()
 
     # initialize error stream
@@ -377,13 +380,7 @@ if __name__ == '__main__':
     else:
         application_dir=args.application_dir
 
-   # if not os.path.exists(args.output_file):
-     #   error.log("{} does not exist".format(args.output_file))
-     #   sys.exit(1)
-  #  else:
-     #   output_dir=args.output_file
-    #output_dir="OutputFiles_demo"
 
-    #application_dir="/Users/hamtasedghani/Downloads/mask_detection_v2"
+    #application_dir="/Users/hamtasedghani/Downloads/filter_classifier_degraded_performance_AFTER_DESIGN" '''
     #error = Logger(stream = sys.stderr, verbose=1, error=True)
     main(application_dir)
