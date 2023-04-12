@@ -168,15 +168,17 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #                   before being killed
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Predicted response time
-    def predict(self, *, arrival_rate, warm_service_time, cold_service_time,
-                time_out, **kwargs):
+    def predict(self, *, arrival_rate, **kwargs):
         pd = importlib.import_module("pandas")
-        columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
+        '''columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
         data = pd.DataFrame(data=[[arrival_rate, 
                                    warm_service_time,
                                    cold_service_time,
                                    time_out]],
-                            columns=columns)
+                            columns=columns)'''
+        columns = ["Lambda"]
+        data = pd.DataFrame(data=[[arrival_rate]], columns=columns)
+
         return self.predictor.predict_from_df(data, self.regressor_file)
     
     ## Operator to convert a FaaSPredictorMLlib object into a string
