@@ -1,8 +1,5 @@
 import pdb
 from classes.Solution import Configuration, Result, EliteResults
-import output_yaml_generator
-import system_file_json_generator
-import Input_json_generator
 from classes.Logger import Logger
 from classes.System import System
 from parser.YamlGenerator import ParserJsonToYaml
