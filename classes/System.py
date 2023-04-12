@@ -10,6 +10,7 @@ import sys
 import numpy as np
 import copy
 import collections
+import networkx as nx
 
 def recursivedict():
     return collections.defaultdict(recursivedict)
@@ -215,11 +216,11 @@ class System:
             NT = data["NetworkTechnology"]
             # load Network Domains
             for ND in NT:
-                if "computationallayers" in NT[ND].keys() \
+                if "computationalLayers" in NT[ND].keys() \
                     and "AccessDelay" in NT[ND].keys() \
                         and "Bandwidth" in NT[ND].keys():
                     network_domain = NetworkDomain(ND,
-                                          list(NT[ND]["computationallayers"]),
+                                          list(NT[ND]["computationalLayers"]),
                                           float(NT[ND]["AccessDelay"]),
                                           float(NT[ND]["Bandwidth"]),
                                           NetworkPerformanceEvaluator())
@@ -293,92 +294,112 @@ class System:
         self.local_constraints = []
         comp_idx = 0
         # loop over components
-       
-        for c in C :
-            # check if the component is in the graph
-            if self.graph.G.has_node(c):
-                if len(C[c]) > 0:
-                    deployments = []
-                    partitions = []
-                    part_idx = 0
-                    temp = {}
-                # check if the node c has any input edge
-                if self.graph.G.in_edges(c):
-                    Sum = 0
-                    # The component is not verified yet
-                    component_verified=False
-                    # if the node c has some input edges, its Lambda is equal 
-                    # to the sum of products of lambda and weight of its 
-                    # input edges.
-                    for n, c, data in self.graph.G.in_edges(c, data=True):
-                        prob = float(data["transition_probability"])
-                        ll = self.components[self.dic_map_com_idx[n]].comp_Lambda
-                        Sum += prob * ll
-                        # loop over all candidate deployments
-                    for s in C[c]:
-                        part_Lambda = -1
-                        part_idx_list = []
-                        if len(C[c][s]) > 0:
-                            # loop over all partitions
-                            for h in C[c][s]:
-                                if part_Lambda > -1:
-                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
-                                    part_Lambda *= (1 - prob)
-                                else:
-                                    part_Lambda = copy.deepcopy(Sum)
-                                temp[h] = (comp_idx, part_idx)
-                                partitions.append(Component.Partition(h,part_Lambda,
-                                                                      float(C[c][s][h]["early_exit_probability"]),
-                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
-                                part_idx_list.append(part_idx)
-                                part_idx += 1
-                                prev_part = h
-                        deployments.append(Component.Deployment(s, part_idx_list))
-                    self.dic_map_part_idx[c] = temp
-                    comp = Component(c, deployments,partitions, Sum)
-                    self.components.append(comp)
-                else:
-                    # if the node c does not have any input edge, it is the 
-                    # first node of a path and its Lambda is equal to input 
-                    # lambda
-                    partitions = []
-                    for s in C[c]:
-                        part_Lambda = -1
-                        part_idx_list=[]
-                        if len(C[c][s]) > 0:
-                            
-                            # loop over all partitions
-                            for h in C[c][s]:
-                                if part_Lambda > -1:
+        first_node = [node for node, in_degree in self.graph.G.in_degree if in_degree == 0]
+        if len(first_node) > 1:
+            self.error.log("The application graph must not have more than one start node")
+            sys.exit(1)
+        elif len(first_node) == 0:
+            self.error.log("The application graph must have one start node")
+            sys.exit(1)
 
-                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
-                                    part_Lambda *= (1 - prob)
-                                else:
-                                    part_Lambda = copy.deepcopy(self.Lambda)
-                                temp[h] = (comp_idx, part_idx)
-                                partitions.append(Component.Partition(h,part_Lambda,
-                                                                      float(C[c][s][h]["early_exit_probability"]),
-                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
-                                part_idx_list.append(part_idx)
-                                part_idx += 1
-                                prev_part = h
-                        deployments.append(Component.Deployment(s, part_idx_list))    
-                    self.dic_map_part_idx[c] = temp
-                    self.components.append(Component(c, deployments,partitions, self.Lambda))
-            else:
-                self.error.log("No match between components in DAG and system input file")
-                sys.exit(1)
-            self.dic_map_com_idx[c] = comp_idx
-    
+        if set(self.graph.G.nodes) != set(C.keys()):
+            self.error.log("No match between components in DAG and system input file")
+            sys.exit(1)
+        for node in nx.dfs_successors(self.graph.G, source=first_node[0]):
+            # check if the component is in the graph
+            self.handel_component(C, node, comp_idx)
             # initialize local constraint
-            if LC and c in LC:
-                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[c],
-                                                              float(LC[c]["local_res_time"])))
-                localconstraints[c] = self.local_constraints[-1]
-            
+            if LC and node in LC:
+                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
+                                                              float(LC[node]["local_res_time"])))
+                localconstraints[node] = self.local_constraints[-1]
             comp_idx += 1
-       
-    
+        successors = nx.dfs_successors(self.graph.G, source=first_node[0])
+        last_level_nodes = set(self.graph.G.nodes) - set(successors)
+
+        for node in last_level_nodes:
+            # check if the component is in the graph
+            self.handel_component(C, node, comp_idx)
+            # initialize local constraint
+            if LC and node in LC:
+                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
+                                                              float(LC[node]["local_res_time"])))
+                localconstraints[node] = self.local_constraints[-1]
+            comp_idx += 1
+
+    def handel_component(self, C, node, comp_idx):
+        if len(C[node]) > 0:
+            deployments = []
+            partitions = []
+            part_idx = 0
+            temp = {}
+        # check if the node c has any input edge
+        if self.graph.G.in_edges(node):
+            Sum = 0
+            # The component is not verified yet
+            component_verified = False
+            # if the node c has some input edges, its Lambda is equal
+            # to the sum of products of lambda and weight of its
+            # input edges.
+            for n, c, data in self.graph.G.in_edges(node, data=True):
+                prob = float(data["transition_probability"])
+                ll = self.components[self.dic_map_com_idx[n]].comp_Lambda
+                Sum += prob * ll
+                # loop over all candidate deployments
+            for s in C[node]:
+                part_Lambda = -1
+                part_idx_list = []
+                if len(C[node][s]) > 0:
+                    # loop over all partitions
+                    for h in C[node][s]:
+                        if part_Lambda > -1:
+                            prob = float(C[node][s][prev_part]["early_exit_probability"])
+                            part_Lambda *= (1 - prob)
+                        else:
+                            part_Lambda = copy.deepcopy(Sum)
+                        temp[h] = (comp_idx, part_idx)
+                        partitions.append(Component.Partition(h, part_Lambda,
+                                                              float(C[node][s][h]["early_exit_probability"]),
+                                                              C[node][s][h]["next"],
+                                                              C[node][s][h]["data_size"]))
+                        part_idx_list.append(part_idx)
+                        part_idx += 1
+                        prev_part = h
+                deployments.append(Component.Deployment(s, part_idx_list))
+            self.dic_map_part_idx[node] = temp
+            comp = Component(node, deployments, partitions, Sum)
+            self.components.append(comp)
+        else:
+            # if the node c does not have any input edge, it is the
+            # first node of a path and its Lambda is equal to input
+            # lambda
+            partitions = []
+            for s in C[node]:
+                part_Lambda = -1
+                part_idx_list = []
+                if len(C[node][s]) > 0:
+
+                    # loop over all partitions
+                    for h in C[node][s]:
+                        if part_Lambda > -1:
+
+                            prob = float(C[node][s][prev_part]["early_exit_probability"])
+                            part_Lambda *= (1 - prob)
+                        else:
+                            part_Lambda = copy.deepcopy(self.Lambda)
+                        temp[h] = (comp_idx, part_idx)
+                        partitions.append(Component.Partition(h, part_Lambda,
+                                                              float(C[node][s][h]["early_exit_probability"]),
+                                                              C[node][s][h]["next"],
+                                                              C[node][s][h]["data_size"]))
+                        part_idx_list.append(part_idx)
+                        part_idx += 1
+                        prev_part = h
+                deployments.append(Component.Deployment(s, part_idx_list))
+            self.dic_map_part_idx[node] = temp
+            self.components.append(Component(node, deployments, partitions, self.Lambda))
+
+        self.dic_map_com_idx[node] = comp_idx
     ## Method to initialize resources, together with their description and the 
     # dictionary that maps their names to their indices, and 
     # computational layers
@@ -471,7 +492,7 @@ class System:
             FR = data["FaaSResources"]
             # loop over computational layers
             for CL in FR:
-                if CL.startswith("computationallayer"):
+                if CL.lower().startswith("computationallayer"):
                     cl = ComputationalLayer(CL)
                     # initialize transition cost
                     if "transition_cost" in FR[CL].keys():
@@ -510,8 +531,7 @@ class System:
 
         # restore indentation level for logging
         self.logger.level -= 1
-    
-    
+
     ## Method to convert the dictionary of global constraints to a list
     # @param self The object pointer   
     # @param GC Dictionary of global constraints
@@ -589,6 +609,7 @@ class System:
                         d = performance_dict[comp.name][part.name][res]["demand"]
                     else:
                         # for FaaS resources, it should be computed accordingly
+                        #
                         if "demandWarm" in perf_data.keys() and \
                             "demandCold" in perf_data.keys():
                             warm_service_time = perf_data["demandWarm"]
