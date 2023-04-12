@@ -236,8 +236,9 @@ def GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number,seed,
     return result
 
 def main(application_dir):
-
-    input_json_dir=Input_json_generator.make_input_json(application_dir)
+    parser_s4aid = ParserYamlToJson(application_dir, "s4aid")
+    input_json_dir=parser_s4aid.make_input_json()
+    system_file = parser_s4aid.make_system_file()
     with open(input_json_dir, "r") as a_file:
         input_json = json.load(a_file)
     if "VerboseLevel" in input_json.keys():
@@ -281,8 +282,7 @@ def main(application_dir):
 
     #parser_s4aid = ParserJsonToYaml(application_dir,"s4air","space4ai-r/deployment1")
     #parser_s4aid.main_function()
-    parser_s4aid = ParserYamlToJson(application_dir, "s4aid")
-    system_file = parser_s4aid.make_system_file()
+
 
     system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
