@@ -11,12 +11,21 @@ import numpy as np
 import copy
 import collections
 import networkx as nx
+from queue import Queue
+from sortedcollections import OrderedSet
 
 def recursivedict():
     return collections.defaultdict(recursivedict)
 
 ## System
 #
+class OrderedSetQueue(Queue):
+    def _init(self, maxsize):
+        self.queue = OrderedSet()
+    def _put(self, item):
+        self.queue.add(item)
+    def _get(self):
+        return self.queue.pop()
 # Class to store the system description with all the relevant information
 class System:
     
@@ -305,27 +314,28 @@ class System:
         if set(self.graph.G.nodes) != set(C.keys()):
             self.error.log("No match between components in DAG and system input file")
             sys.exit(1)
-        for node in nx.dfs_successors(self.graph.G, source=first_node[0]):
-            # check if the component is in the graph
-            self.handel_component(C, node, comp_idx)
+        # Define a queue of component to visit the nodes of application DAG
+        q = OrderedSetQueue(maxsize=len(self.graph.G.nodes))
+        q.put(first_node[0])
+        while not q.empty():
+            node = q.get()
+            can_handel = True
+            for n, c, data in self.graph.G.in_edges(node, data=True):
+                if n not in self.dic_map_com_idx.keys():
+                    q.put(node)
+                    can_handel = False
+                    break
+            if can_handel:
+                self.handel_component(C, node, comp_idx)
+                for n, c, data in self.graph.G.out_edges(node, data=True):
+                    if c not in self.dic_map_com_idx.keys():
+                        q.put(c)
             # initialize local constraint
-            if LC and node in LC:
-                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
-                                                              float(LC[node]["local_res_time"])))
-                localconstraints[node] = self.local_constraints[-1]
-            comp_idx += 1
-        successors = nx.dfs_successors(self.graph.G, source=first_node[0])
-        last_level_nodes = set(self.graph.G.nodes) - set(successors)
-
-        for node in last_level_nodes:
-            # check if the component is in the graph
-            self.handel_component(C, node, comp_idx)
-            # initialize local constraint
-            if LC and node in LC:
-                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
-                                                              float(LC[node]["local_res_time"])))
-                localconstraints[node] = self.local_constraints[-1]
-            comp_idx += 1
+                if LC and node in LC:
+                    self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
+                                                                  float(LC[node]["local_res_time"])))
+                    localconstraints[node] = self.local_constraints[-1]
+                comp_idx += 1
 
     def handel_component(self, C, node, comp_idx):
         if len(C[node]) > 0:
