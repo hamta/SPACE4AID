@@ -11,3 +11,4 @@ pygraphviz
 sortedcontainers
 pacsltk
 solidpy
+sortedcollections
