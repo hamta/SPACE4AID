@@ -236,6 +236,7 @@ def main(application_dir):
     parser_s4aid = ParserYamlToJson(application_dir, "s4aid")
     input_json_dir=parser_s4aid.make_input_json()
     system_file = parser_s4aid.make_system_file()
+    #system_file = "/Users/hamtasedghani/Downloads/Video_search/space4ai-d/SystemFile.json"#"/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/light_cons/Output_Files_1min_hyp_heu/large_scale/15Components/Ins1/system_description.json"
     with open(input_json_dir, "r") as a_file:
         input_json = json.load(a_file)
     if "VerboseLevel" in input_json.keys():
@@ -279,7 +280,6 @@ def main(application_dir):
 
     #parser_s4aid = ParserJsonToYaml(application_dir,"s4air","space4ai-r/deployment1")
     #parser_s4aid.main_function()
-
 
     system_file = create_pure_json(system_file)
     with open(system_file, "r") as a_file:
@@ -378,6 +378,6 @@ if __name__ == '__main__':
         application_dir=args.application_dir
 
 
-    #application_dir="/Users/hamtasedghani/Downloads/filter_classifier_degraded_performance_AFTER_DESIGN" '''
+    #application_dir="/Users/hamtasedghani/Downloads/Video_search"
     #error = Logger(stream = sys.stderr, verbose=1, error=True)
     main(application_dir)
