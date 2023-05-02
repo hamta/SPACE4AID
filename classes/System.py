@@ -320,6 +320,7 @@ class System:
         while not q.empty():
             node = q.get()
             can_handel = True
+            # If the nodes that come to current node are not visited yet, we cannot visit current node, put it on the queue
             for n, c, data in self.graph.G.in_edges(node, data=True):
                 if n not in self.dic_map_com_idx.keys():
                     q.put(node)
@@ -327,6 +328,7 @@ class System:
                     break
             if can_handel:
                 self.handel_component(C, node, comp_idx)
+                # All the nodes that the current node comes to them should be put on the queue if they are not already there
                 for n, c, data in self.graph.G.out_edges(node, data=True):
                     if c not in self.dic_map_com_idx.keys():
                         q.put(c)
@@ -628,6 +630,7 @@ class System:
                             # corresponding dictionary
                             self.faas_service_times[comp.name][part.name][res] = [warm_service_time,
                                                                                  cold_service_time]
+
                             # compute the demand
                             pm = self.performance_models[comp_idx][part_idx][res_idx]
                             features = pm.get_features(c_idx=comp_idx, 
@@ -635,6 +638,8 @@ class System:
                                                        r_idx=res_idx, 
                                                        S=self)
                             d = pm.predict(**features)
+
+
                     # write the demand into the matrix
                     self.demand_matrix[comp_idx][part_idx, res_idx] = d
     
