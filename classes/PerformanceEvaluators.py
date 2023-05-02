@@ -44,7 +44,9 @@ class NetworkPerformanceEvaluator(BasePerformanceModel):
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Network transfer time
     def predict(self, access_delay, bandwidth, data, **kwargs):
-        return access_delay + (data / bandwidth)
+        # Convert MB to Mb by multiplying 8
+        print("\n Network delay: "+str(access_delay + (data * 8 / bandwidth)))
+        return access_delay + (data * 8 / bandwidth)
 
 
 ## QTPerformanceEvaluator
