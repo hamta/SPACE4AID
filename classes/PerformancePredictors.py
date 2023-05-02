@@ -2,7 +2,8 @@ from classes.PerformanceModels import BasePerformanceModel
 from abc import abstractmethod
 import importlib
 from math import log10
-
+import inspect
+import pdb
 
 ## BasePredictor
 #
@@ -27,7 +28,8 @@ class BasePredictor(BasePerformanceModel):
         super().__init__(keyword)
         self.module_name = module_name
         self.predictor = None
-    
+
+
     ## Method to get a dictionary with the features required by the predict 
     # method
     #   @param self The object pointer
@@ -72,13 +74,32 @@ class FaaSPredictor(BasePredictor):
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return The dictionary of the required features
     def get_features(self, *, c_idx, p_idx, r_idx, S, **kwargs):
+        ### New ###
+        flag = False
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame)
+        class_name = caller_frame[2].frame.f_locals["self"].__class__.__name__
+        if len(S.global_constraints) > 0 and class_name == S.global_constraints[0].__class__.__name__:
+            # pdb.set_trace()
+            if c_idx in caller_frame[2].frame.f_locals["self"].path and c_idx != \
+                    caller_frame[2].frame.f_locals["self"].path[-1]:
+                flag = True
+        elif len(S.local_constraints) > 0 and class_name == S.local_constraints[0].__class__.__name__:
+            for LC in S.local_constraints:
+                if c_idx == LC.component_idx:
+                    for dep in S.components[c_idx].deployments:
+                        if p_idx in dep.partitions_indices and len(dep.partitions_indices) > 1:
+                            if p_idx != dep.partitions_indices[-1]:
+                                flag = True
+                                break
         c = S.components[c_idx].name
         p = S.components[c_idx].partitions[p_idx].name
         r = S.resources[r_idx].name
         features = {"arrival_rate": S.components[c_idx].comp_Lambda,
                     "warm_service_time": S.faas_service_times[c][p][r][0],
                     "cold_service_time": S.faas_service_times[c][p][r][1],
-                    "time_out": S.resources[r_idx].idle_time_before_kill}
+                    "time_out": S.resources[r_idx].idle_time_before_kill,
+                    "mean_time_required": flag}
         return features
 
     ## Method to evaluate the object performance through the class predictor
@@ -151,9 +172,10 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #   @param regressor_file Path to the Pickle binary file that stores the 
     #                         model to be used for prediction
     #   @param **kwargs Additional (unused) keyword arguments
-    def __init__(self, regressor_file, **kwargs):
+    def __init__(self, regressor_file, meanTime, **kwargs):
         super().__init__("MLLIBfaas", "aMLLibrary.model_building.predictor")
         self.regressor_file = regressor_file
+        self.mean_time = meanTime
         predictor_module = importlib.import_module(self.module_name)
         self.predictor = predictor_module.Predictor(regressor_file,
                                                     "/tmp", False)
@@ -168,16 +190,21 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #                   before being killed
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Predicted response time
-    def predict(self, *, arrival_rate, **kwargs):
+    def predict(self, *, arrival_rate, mean_time_required, **kwargs):
+        if mean_time_required:
+            return self.mean_time
         pd = importlib.import_module("pandas")
-        '''columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
+        warm_service_time = 2
+        cold_service_time = 3
+        time_out = 600
+        columns = "Lambda,warm_service_time,cold_service_time,expiration_time".split(",")
         data = pd.DataFrame(data=[[arrival_rate, 
                                    warm_service_time,
                                    cold_service_time,
                                    time_out]],
-                            columns=columns)'''
-        columns = ["Lambda"]
-        data = pd.DataFrame(data=[[arrival_rate]], columns=columns)
+                            columns=columns)
+        #columns = ["Lambda"]
+        #data = pd.DataFrame(data=[[arrival_rate]], columns=columns)
 
         return self.predictor.predict_from_df(data, self.regressor_file)
     
@@ -208,10 +235,12 @@ class CoreBasedPredictor(BasePredictor):
     #   @param regressor_file Path to the Pickle binary file that stores the 
     #                         model to be used for prediction
     #   @param **kwargs Additional (unused) keyword arguments
-    def __init__(self, regressor_file, **kwargs):
+    def __init__(self, regressor_file, meanTime, **kwargs):
         super().__init__("CoreBasedPredictor", 
                          "aMLLibrary.model_building.predictor")
         self.regressor_file = regressor_file
+        ### New ###
+        self.mean_time = meanTime
         predictor_module = importlib.import_module(self.module_name)
         self.predictor = predictor_module.Predictor(regressor_file,
                                                     "/tmp", False)
@@ -232,8 +261,30 @@ class CoreBasedPredictor(BasePredictor):
         n_res = Y_hat[c_idx][p_idx, r_idx]
         cores_per_res = S.resources[r_idx].n_cores
         cores = n_res * cores_per_res
+        ### New ###
+        # Check if the component is a part of constraints
+        flag = False
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame)
+        class_name = caller_frame[2].frame.f_locals["self"].__class__.__name__
+        if len(S.global_constraints) > 0 and class_name == S.global_constraints[0].__class__.__name__:
+            #pdb.set_trace()
+            if c_idx in caller_frame[2].frame.f_locals["self"].path and c_idx != \
+                    caller_frame[2].frame.f_locals["self"].path[-1]:
+                flag = True
+
+        elif len(S.local_constraints) > 0 and class_name == S.local_constraints[0].__class__.__name__:
+            for LC in S.local_constraints:
+                if c_idx == LC.component_idx:
+                    for dep in S.components[c_idx].deployments:
+                        if p_idx in dep.partitions_indices and len(dep.partitions_indices) > 1:
+                            if p_idx != dep.partitions_indices[-1]:
+                                flag = True
+                                break
+
         features = {"cores": cores,
-                    "log_cores": log10(cores)}
+                    "log_cores": log10(cores),
+                    "mean_time_required": flag}
         return features
 
     ## Method to evaluate the object performance through the class predictor
@@ -243,9 +294,12 @@ class CoreBasedPredictor(BasePredictor):
     #   @param log_cores Logarithm of the number of cores
     #   @param **kwargs Additional (unused) keyword arguments
     #   @return Predicted response time
-    def predict(self, *, cores, log_cores, **kwargs):
+    def predict(self, *, cores, log_cores, mean_time_required, **kwargs):
+        ### New ###
+        if mean_time_required:
+            return self.mean_time
         pd = importlib.import_module("pandas")
-        columns = "cores,log(cores)".split(",")
+        columns = "Parallelism, log(Parallelism)".split(",")
         data = pd.DataFrame(data=[[cores, log_cores]], columns=columns)
         return self.predictor.predict_from_df(data, self.regressor_file)
     
