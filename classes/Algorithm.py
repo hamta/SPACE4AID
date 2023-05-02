@@ -34,7 +34,20 @@ class Algorithm:
         self.error = Logger(stream=sys.stderr, verbose=1)
         self.system = system
         self.seed = seed
+        self.model = self.find_model_to_sort_res()
         np.random.seed(seed)
+
+    ## Method to find the performance model of whole system
+    #  If at least one of edge or cloud resources is based on queuing model (QT), the sort should be based on utilization and cost
+    # Otherwise, doesn't sort and selects the resources randomly
+    def find_model_to_sort_res(self):
+        for comp in self.system.performance_models:
+            for part in comp:
+                for idx, res in enumerate(part):
+                    if idx < self.system.FaaS_start_index:
+                        if res is not None and not res.keyword.startswith("QT"):
+                            return "ML"
+        return "QT"
 
      ## Method to create a solution from a solution file in output file format
     #   @param self The object pointer
@@ -616,6 +629,16 @@ class Algorithm:
         # return the index of best alternative
         return sorted_node_by_U_cost, sorted_node_by_cost_U
 
+    ## Method to shuffle all nodes randomly except FaaS
+    #   @param self The object pointer
+    #   @return 1) The list of resources in random order
+    #           Each item of list includes the index, utilization and cost of the resource.
+    def shuffle_nodes(self):
+        utilization = 0
+        idx_min_U_node = []
+        for j in range(self.system.FaaS_start_index):
+            idx_min_U_node.append((j, utilization, self.system.resources[j].cost))
+        return random.sample(idx_min_U_node, k=len(idx_min_U_node))
     ## Method to change the current solution by changing component placement
     #   @param self The object pointer
     #   @param solution Current solution 
@@ -624,23 +647,25 @@ class Algorithm:
     #           otherwise the list of nodes are sorted by cost and utilization respectively.
     #   @return A list neigbors (new solutions) sorted by cost
     def change_component_placement(self, solution, sorting_method=0):
-        counter_obj_evaluation=0
+        counter_obj_evaluation = 0
         neighbors=[]
-        new_sorted_results=None
-        # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        if sorting_method==0:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        new_sorted_results = None
+        if self.model == "QT":
+            # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+            if sorting_method == 0:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[0]
+            else:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[1]
         else:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+            nodes_sorted_list = self.shuffle_nodes()
         # get resource with maximum utilization as source node 
         # first while loop is used for the case that if we cannot find any neighbors by starting with last node of the sorted list as a source node,
         # we try to search to find neigbors by starting from second last node in the list and etc. Continue untile finding neigbors
-        selected_node=len(nodes_sorted_list)
         j=1
         # explore nodes_sorted_list until finding at least one neighbor
         while len(neighbors)<1 and j<=len(nodes_sorted_list):
             # get resource with maximum utilization/cost as source node
-            selected_node=len(nodes_sorted_list)-j
+            selected_node = len(nodes_sorted_list)-j
             idx_source_node=nodes_sorted_list[selected_node][0]
             # get all partitions located in higest utilization node
             partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
@@ -700,8 +725,6 @@ class Algorithm:
 
 
                     i+=1
-
-
                 # if not find:
                 #      print("There is no alternative node for partition "+str(part[1]) +" of component "+ str(part[0])+" in current solution." )
             # if some neighbors are founded, sort them by cost and return the list    
@@ -732,27 +755,33 @@ class Algorithm:
         counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
-        # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        if sorting_method==0:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        if self.model == "QT":
+            # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+            if sorting_method == 0:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[0]
+            else:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[1]
         else:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
-        selected_node=len(nodes_sorted_list)
+            # if the model is not based on M/G/1 queue, sort the resources randomly
+            nodes_sorted_list = self.shuffle_nodes()
         i=1
         while len(neighbors)<1 and i<=len(nodes_sorted_list):
             # get resource with maximum utilization/cost as source node
             selected_node=len(nodes_sorted_list)-i
             idx_source_node=nodes_sorted_list[selected_node][0]
 
-            # get all partitions located in higest utilization node
+            # get all partitions located in highest utilization node
             partitions=self.get_partitions_with_j(solution.Y_hat,idx_source_node)
             alternative_res_idxs_parts=[]
             # get a list of set of alternative nodes for partitions runing on source node
             for part in partitions:
                 alternative_res_idxs_parts.append(set(self.alternative_resources(part[0],part[1],solution)))
             # get the intersection of the alternative nodes of all partitions runing on source node
-            candidate=set.intersection(*alternative_res_idxs_parts)
-            candidate_nodes = [i for i in candidate if i < self.system.FaaS_start_index]
+            if len(alternative_res_idxs_parts)>0:
+                candidate=set.intersection(*alternative_res_idxs_parts)
+                candidate_nodes = [i for i in candidate if i < self.system.FaaS_start_index]
+            else:
+                candidate_nodes = []
 
             if len(candidate_nodes)>0:
                 # get the list of nodes and computational layers in used 
@@ -821,12 +850,15 @@ class Algorithm:
         counter_obj_evaluation=0
         neighbors=[]
         new_sorted_results=None
-        # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        if sorting_method==0:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        if self.model == "QT":
+            # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+            if sorting_method == 0:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[0]
+            else:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[1]
         else:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
-        selected_node=len(nodes_sorted_list)
+            # if the model is not based on M/G/1 queue, sort the resources randomly
+            nodes_sorted_list = self.shuffle_nodes()
 
         # sort FaaS by memory and cost respectively
         sorted_FaaS=self.system.sorted_FaaS_by_memory_cost
@@ -850,10 +882,7 @@ class Algorithm:
                     all_FaaS_compatible=False
                 alternative_res_idxs_parts.append(FaaS_alternatives)
 
-
-
-
-            if all_FaaS_compatible:
+            if all_FaaS_compatible and len(alternative_res_idxs_parts)>0:
                 new_temp_Y_hat=copy.deepcopy(solution.Y_hat)
                 for idx, part in enumerate(partitions):
                     idx_alternative=[sorted_FaaS_idx.index(j) for j in alternative_res_idxs_parts[idx]]
@@ -929,10 +958,15 @@ class Algorithm:
         neighbors=[]
         new_sorted_results=None
         # get a sorted list of nodes' index with their utilization and cost (except FaaS)
-        if sorting_method==0:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[0]
+        if self.model == "QT":
+            # get a sorted list of nodes' index with their utilization and cost (except FaaS)
+            if sorting_method == 0:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[0]
+            else:
+                nodes_sorted_list = self.sort_nodes(solution.Y_hat)[1]
         else:
-            nodes_sorted_list= self.sort_nodes(solution.Y_hat)[1]
+            # if the model is not based on M/G/1 queue, sort the resources randomly
+            nodes_sorted_list = self.shuffle_nodes()
         # call the method to get all partitions located in FaaS
         partitions_with_FaaS=self.get_partitions_with_FaaS(solution.Y_hat)
          # get the list of nodes and computational layers in used
