@@ -181,8 +181,6 @@ class Algorithm:
                 index = list(set(candidate_nodes).intersection(idx))
                 # randomly extract a resource index in the intersection
                 if len(index) < 1:
-                    import pdb
-                    pdb.set_trace()
                     y_hat, res_parts_random, VM_numbers, CL_res_random = [None, None, None, None]
                     return y_hat, res_parts_random, VM_numbers, CL_res_random
                 prob = 1/len(index)
