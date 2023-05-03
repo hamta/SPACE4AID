@@ -180,6 +180,11 @@ class Algorithm:
                 idx = np.nonzero(self.system.compatibility_matrix[i][h_idx,:])[0]
                 index = list(set(candidate_nodes).intersection(idx))
                 # randomly extract a resource index in the intersection
+                if len(index) < 1:
+                    import pdb
+                    pdb.set_trace()
+                    y_hat, res_parts_random, VM_numbers, CL_res_random = [None, None, None, None]
+                    return y_hat, res_parts_random, VM_numbers, CL_res_random
                 prob = 1/len(index)
                 step = 0
                 rn = np.random.random()
@@ -223,7 +228,7 @@ class Algorithm:
 
         self.logger.level -= 1
 
-        return  y_hat, res_parts_random, VM_numbers, CL_res_random
+        return y_hat, res_parts_random, VM_numbers, CL_res_random
 
 
     ## Method to create the initial random solution
@@ -1187,39 +1192,43 @@ class RandomGreedy(Algorithm):
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
-        print("Random solution is generated")
-        result.solution = Configuration(y_hat, self.logger)
-        self.logger.log("Start check feasibility: {}".format(time.time()), 3)
-        print("Start check feasibility...")
-        performance = result.check_feasibility(self.system)
-        self.logger.log("End check feasibility: {}".format(time.time()), 3)
-
-        # if the solution is feasible, compute the corresponding cost 
-        # before and after updating the clusters size
-        if performance[0]:
-            print("The solution is feasible.")
-            self.logger.log("Solution is feasible", 3)
-            # compute cost
-            self.logger.log("Compute cost", 3)
-            result.objective_function(self.system)
-            # update the cluster size of cloud resources
-            self.logger.log("Update cluster size", 3)
-            new_result= copy.deepcopy(result)
-            for j in range(self.system.FaaS_start_index):
-                new_result = self.reduce_cluster_size(j, new_result)
-            # compute the updated cost
-            self.logger.log("Compute new cost", 3)
-            new_result.objective_function(self.system)
-            # update the list of VM numbers according to the new solution
-            y_bar = new_result.solution.get_y_bar()
-            for j in range(self.system.FaaS_start_index):
-                if y_bar[j] > 0:
-                    VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
-
-        else:
-            print("The solution is not feasible.")
+        if y_hat == None:
+            print("The random solution is generated")
             new_result = copy.deepcopy(result)
-        self.logger.level -= 2
+        else:
+            print("Random solution is generated")
+            result.solution = Configuration(y_hat, self.logger)
+            self.logger.log("Start check feasibility: {}".format(time.time()), 3)
+            print("Start check feasibility...")
+            performance = result.check_feasibility(self.system)
+            self.logger.log("End check feasibility: {}".format(time.time()), 3)
+
+            # if the solution is feasible, compute the corresponding cost
+            # before and after updating the clusters size
+            if performance[0]:
+                print("The solution is feasible.")
+                self.logger.log("Solution is feasible", 3)
+                # compute cost
+                self.logger.log("Compute cost", 3)
+                result.objective_function(self.system)
+                # update the cluster size of cloud resources
+                self.logger.log("Update cluster size", 3)
+                new_result= copy.deepcopy(result)
+                for j in range(self.system.FaaS_start_index):
+                    new_result = self.reduce_cluster_size(j, new_result)
+                # compute the updated cost
+                self.logger.log("Compute new cost", 3)
+                new_result.objective_function(self.system)
+                # update the list of VM numbers according to the new solution
+                y_bar = new_result.solution.get_y_bar()
+                for j in range(self.system.FaaS_start_index):
+                    if y_bar[j] > 0:
+                        VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
+
+            else:
+                print("The solution is not feasible.")
+                new_result = copy.deepcopy(result)
+            self.logger.level -= 2
 
         return result, new_result, (res_parts_random, VM_numbers_random, CL_res_random)
 
