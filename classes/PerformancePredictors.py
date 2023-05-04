@@ -299,7 +299,7 @@ class CoreBasedPredictor(BasePredictor):
         if mean_time_required:
             return self.mean_time
         pd = importlib.import_module("pandas")
-        columns = "Parallelism, log(Parallelism)".split(",")
+        columns = "Parallelism,log(Parallelism)".split(",")
         data = pd.DataFrame(data=[[cores, log_cores]], columns=columns)
         return self.predictor.predict_from_df(data, self.regressor_file)
     
