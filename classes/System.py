@@ -10,7 +10,6 @@ import sys
 import numpy as np
 import copy
 import collections
-import networkx as nx
 from queue import Queue
 from sortedcollections import OrderedSet
 
@@ -617,13 +616,13 @@ class System:
                     # For Edge and Cloud resources, the demand is taken 
                     # directly from the dictionary
                     if res_idx < self.FaaS_start_index and \
-                        "demand" in perf_data.keys():
+                            "demand" in perf_data.keys():
                         d = performance_dict[comp.name][part.name][res]["demand"]
                     else:
                         # for FaaS resources, it should be computed accordingly
                         #
                         if "demandWarm" in perf_data.keys() and \
-                            "demandCold" in perf_data.keys():
+                                "demandCold" in perf_data.keys():
                             warm_service_time = perf_data["demandWarm"]
                             cold_service_time = perf_data["demandCold"]
                             # add the warm and cold service time to the 
