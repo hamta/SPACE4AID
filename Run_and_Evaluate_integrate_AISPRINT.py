@@ -85,7 +85,7 @@ def generate_output_json(Lambda, result, S, onFile = True):
 #   @param verbose Verbosity level
 #   @return The results returned by Algorithm.RandomGreedy.random_greedy
 def fun_greedy(core_params, S, verbose, K=1):
-    S1 = System(system_json=S)
+    #S1 = System(system_json=S)
 
     print("\n Seed: " + str(core_params[2]))
     print("\n Iteration number: " + str(core_params[0]))
@@ -93,7 +93,7 @@ def fun_greedy(core_params, S, verbose, K=1):
     if core_params[3] != "":
         log_file = open(core_params[3], "a")
         core_logger.stream = log_file
-    GA = RandomGreedy(S1, seed=core_params[2], log=core_logger)
+    GA = RandomGreedy(S, seed=core_params[2], log=core_logger)
     result = GA.random_greedy( MaxIt=core_params[0], K=K, MaxTime=core_params[1])
     #if core_params[3] != "":
      #   log_file.close()
@@ -135,7 +135,7 @@ def get_core_params(iteration, Max_time, seed, cpuCore, logger):
         core_params.append((current_local_itr, current_local_Max_time, r_seed, log_file))
     return core_params
 
-def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPointsNumber):
+def Random_Greedy_run(json_object,iteration_number_RG,seed,Max_time_RG,logger, startingPointsNumber):
     '''GA = RandomGreedy(S, seed, logger)
     best_result_no_update, elite, random_params = GA.random_greedy( MaxIt=iteration_number_RG, K=startingPointsNumber, MaxTime=Max_time_RG)
     feasible_found = elite.elite_results[0].performance[0]
@@ -161,7 +161,7 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
             start=time.time()
             print("Multiprocessing started...")
             with Pool(processes=cpuCore) as pool:
-
+                S = System(system_json=json_object, log=logger)
                 #partial_gp = functools.partial(fun_greedy, verbose=logger.verbose, K=startingPointsNumber)
                 partial_gp = functools.partial(fun_greedy, S=S, verbose=logger.verbose, K=startingPointsNumber)
                 full_result = pool.map(partial_gp, core_params)
@@ -204,7 +204,7 @@ def Random_Greedy_run(S,iteration_number_RG,seed,Max_time_RG,logger, startingPoi
 
    
     #print("RG cost: " + str(elite_sol.elite_results[0].cost))'''
-    return feasible_found, solutions, elite_sol.elite_results[0]
+    return feasible_found, solutions, elite_sol.elite_results[0], S
     #return feasible_found, solutions, elite.elite_results[0]
 
 def TabuSearch_run(S,iteration_number_RG, max_iterations,
@@ -290,9 +290,9 @@ def main(application_dir):
     #json_object["Lambda"] = Lambda
 
     print("\n Start parsing config files... ")
-    S = System(system_json=json_object, log=logger)
     print("\n Start searching by  Random Greedy ... ")
-    feasibility, starting_points, result = Random_Greedy_run(json_object,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
+    feasibility, starting_points, result, S = Random_Greedy_run(json_object,iteration_number_RG,seed,Max_time_RG, logger, startingPointNumber)
+    #S = System(system_json=json_object, log=logger)
     if not feasibility:
         error.log("No feasible solution is found by RG")
     else:
