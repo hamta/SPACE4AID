@@ -1,3 +1,5 @@
+import pdb
+
 from classes.Logger import Logger
 from classes.Graph import DAG, Component
 from classes.Resources import ComputationalLayer, VirtualMachine, EdgeNode, FaaS
@@ -126,9 +128,10 @@ class System:
     #   @param system_file Configuration file describing the system
     #   @param system_json Json object describing the system
     #   @param log Object of Logger.Logger type
-    def __init__(self, system_file = "", system_json = None, log = Logger()):
+    def __init__(self, system_file="", system_json=None, Lambda=None, log=Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1, error=True)
+        self.Lambda = Lambda
         if system_file != "":
             self.logger.log("Loading system from configuration file", 1)
             self.read_configuration_file(system_file)
@@ -162,7 +165,7 @@ class System:
         
         # increase indentation level for logging
         self.logger.level += 1
-        
+        #pdb.set_trace()
         # initialize system DAG
         if "DirectedAcyclicGraph" in data.keys():
             self.logger.log("Initializing DAG", 2)
@@ -176,12 +179,13 @@ class System:
             sys.exit(1)
         
         # initialize lambda
-        if "Lambda" in data.keys():
-            self.logger.log("Initializing Lambda", 2)
-            self.Lambda = float(data["Lambda"])
-        else:
-            self.error.log("No Lambda available in configuration file")
-            sys.exit(1)
+        if self.Lambda is None:
+            if "Lambda" in data.keys():
+                self.logger.log("Initializing Lambda", 2)
+                self.Lambda = float(data["Lambda"])
+            else:
+                self.error.log("No Lambda available in configuration file")
+                sys.exit(1)
                
         # initialize components and local constraints
         if "Components" in data.keys():
