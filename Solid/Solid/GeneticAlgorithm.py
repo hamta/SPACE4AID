@@ -87,7 +87,7 @@ class GeneticAlgorithm:
         self.best_fitness = None
 
     @abstractmethod
-    def _initial_population(self,K):
+    def _initial_population(self):
         """
         Generates initial population -
         members must be represented by a list of binary-values integers
@@ -174,7 +174,7 @@ class GeneticAlgorithm:
         """
         pass
 
-    def run(self, K,verbose=True):
+    def run(self, verbose=True):
         """
         Conducts genetic algorithm
 
@@ -182,7 +182,7 @@ class GeneticAlgorithm:
         :return: best state and best objective function value
         """
         self._clear()
-        self.population = self._initial_population(K)
+        self.population = self._initial_population()
         self._populate_fitness()
         self.best_member, self.best_fitness = self._most_fit()
         num_copy = max(int((1 - self.crossover_rate) * len(self.population)), 2)
@@ -225,4 +225,4 @@ class GeneticAlgorithm:
                 print("TERMINATING - REACHED MAXIMUM FITNESS")
                 return self.best_member, self.best_fitness
         print("TERMINATING - REACHED MAXIMUM STEPS")
-        return self.best_member, self.best_fitness, best_sol_cost_list, time_list, self.population
+        return self.best_member, self.best_fitness, self.population, best_sol_cost_list, time_list
