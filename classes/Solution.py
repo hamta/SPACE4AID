@@ -10,7 +10,7 @@ import sys
 import math
 import pathlib
 from operator import attrgetter
-import pdb
+import copy
 
 ## Configuration
 class Configuration:
@@ -782,10 +782,6 @@ class Configuration:
             with open(infeasible_file, "w") as f:
                 f.write(infeasible_json)
         # print
-        
-        
-       
-            
 
 
 
@@ -808,13 +804,13 @@ class Result:
     
     ## Result class constructor
     #   @param self The object pointer
-    def __init__(self):
+    def __init__(self, log=Logger()):
         self.ID = datetime.now().strftime("%Y%m%d-%H%M%S_") + str(uuid4())
         self.solution = None
         self.cost = np.infty
         self.performance = [False, None, None]
         self.violation_rate = np.infty
-        
+        self.logger = log
     
     ## Method to create a (cost, ID) pair to be used for comparison
     #   @param self The object pointer
@@ -841,7 +837,61 @@ class Result:
     #   @return True if lhs < rhs
     def __lt__(self, other):
         return self._cmp_key() < other._cmp_key()
-    
+
+    ## Method reduce the number of Resources.VirtualMachine objects in a
+    # cluster
+    #   @param self The object pointer
+    #   @param resource_idx The index of the Resources.VirtualMachine object
+    #   @param result The current Solution.Result object
+    #   @return The updated Solution.Result object
+    def reduce_cluster_size(self, resource_idx, system):
+
+        self.logger.level += 1
+
+        # check if the resource index corresponds to an edge/cloud resource
+        if resource_idx < system.FaaS_start_index:
+
+            # check if more than one resource of the given type is available
+            if system.resources[resource_idx].number > 1:
+
+                # get the max number of used resources
+                y_bar = self.solution.get_y_bar()
+
+                # update the current solution, always checking its feasibility
+                feasible = True
+                while feasible and y_bar[resource_idx].max() > 1:
+
+                    self.logger.log("y_bar[{}] = {}". \
+                                    format(resource_idx, y_bar[resource_idx].max()), 7)
+
+                    # create a copy of the current Y_hat matrix
+                    temp = copy.deepcopy(self.solution.Y_hat)
+
+                    # loop over all components
+                    for i in range(len(self.solution.Y_hat)):
+                        # loop over all component partitions
+                        for h in range(len(self.solution.Y_hat[i])):
+                            # decrease the number of resources (if > 1)
+                            if temp[i][h, resource_idx] > 1:
+                                temp[i][h, resource_idx] -= 1
+
+                    # create a new solution with the updated Y_hat
+                    new_solution = Configuration(temp)
+
+                    # check if the new solution is feasible
+                    new_performance = new_solution.check_feasibility(system)
+
+                    # if so, update the result
+                    feasible = new_performance[0]
+                    if feasible:
+                        # update the current solution
+                        self.solution = new_solution
+                        self.performance = new_performance
+                        y_bar = self.solution.get_y_bar()
+                        self.logger.log("feasible", 7)
+
+        self.logger.level -= 1
+
     ## Method to check the feasibility of the current Configuration
     #   @param self The object pointer
     #   @param S A System.System object
@@ -869,6 +919,7 @@ class Result:
     def objective_function(self, S):
         self.cost = self.solution.objective_function(S)
         return self.cost
+
     
     ## Method to print the result in json format, either on screen or on 
     # the file whose name is passed as parameter
