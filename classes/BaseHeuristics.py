@@ -868,11 +868,11 @@ class BinarySearch(BaseHeuristics):
     #   @param self The object pointer
     #   @param upper_bound_lambda The maximum Lambda
     #   @param epsilon The gap between highest feasible Lambda and lowes unfeasible Lambda
-    #   @param is_degraded Boolean parameter to indicate if the model is degraded or partitioned
     #   @param **parameters algorithm parameters
     #   @return result and highest feasible lambda
     def run_algorithm(self, upper_bound_lambda, epsilon, Y_hat=None,  **parameters):
         from classes.System import System
+
         initial_lambda = self.system.Lambda
         self.logger.log("Start binary search to find max feasible lambda under maximum configuration.", 3)
         if Y_hat is None:
@@ -880,13 +880,12 @@ class BinarySearch(BaseHeuristics):
         else:
             result = Result()
             result.solution = Configuration(Y_hat, self.logger)
-        Y_hat = self.increase_number_of_resource(result.solution)
+        #Y_hat = self.increase_number_of_resource(result.solution)
+        #Y_hat = result.solution.Y_hat
         eps = np.inf
         lowest_unfeasible_lambda = upper_bound_lambda
         highest_feasible_lambda = self.system.Lambda
         while eps > epsilon:
-            new_result = Result()
-            new_result.solution = Configuration(Y_hat, self.logger)
             self.logger.log("Start check feasibility: {}".format(time.time()), 3)
             performance = result.check_feasibility(self.system)
             self.logger.log("End check feasibility: {}".format(time.time()), 3)
@@ -907,10 +906,8 @@ class BinarySearch(BaseHeuristics):
             eps = abs(lowest_unfeasible_lambda - highest_feasible_lambda)
 
         self.system = System(system_file=self.system_file, Lambda=highest_feasible_lambda)
-        new_result = Result()
-        new_result.solution = Configuration(Y_hat, self.logger)
-        new_result.check_feasibility(self.system)
-        new_result.objective_function(self.system)
-        return new_result, highest_feasible_lambda
+        result.check_feasibility(self.system)
+        result.objective_function(self.system)
+        return result, highest_feasible_lambda
 
 
