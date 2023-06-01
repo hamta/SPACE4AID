@@ -270,7 +270,7 @@ def main(application_dir):
 
 
     #system_file = "/home/SPACE4AI/Output_Files/paper_results/with_branches/light_cons/Output_Files_1min_hyp_heu/large_scale/15Components/Ins1/system_description.json"#"/Users/hamtasedghani/Downloads/Video_search/space4ai-d/SystemFile.json"#"/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/light_cons/Output_Files_1min_hyp_heu/large_scale/15Components/Ins1/system_description.json"
-    #system_file = "/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/strict_cons/Output_Files_1min_hyp_heu/large_scale/10Components/Ins1/system_description.json"
+    #system_file = "/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/strict_cons/Output_Files_10min_hyp_heu/large_scale/7Components/Ins6/system_description.json"
     with open(input_json_dir, "r") as a_file:
         input_json = json.load(a_file)
     #input_json = json.loads(input_json)
@@ -433,7 +433,7 @@ def main(application_dir):
         json_object = json.load(a_file)
 
     MP = MultiProcessing(RG_method)
-    feasible_found, solutions, result= MP.run(system_file)
+    feasible_found, solutions, result = MP.run(system_file)
     #feasibility, starting_points, result, S = Random_Greedy_run(json_object, method1)
     if not feasible_found:
         error.log("No feasible solution is found by RG")
@@ -460,6 +460,7 @@ def main(application_dir):
         else:
             dep_list = ["original_deployment"]
         for dep_name in dep_list:
+
             parser_json_alt_generator = ParserYamlToJson(application_dir, "s4aid", alternative_deployment=dep_name)
             system_file = parser_json_alt_generator.make_system_file()
             BS_method["parameters"]["system"] = System(system_file=system_file)
