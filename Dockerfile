@@ -1,25 +1,32 @@
-FROM python:3.8
+FROM ubuntu:20.04 AS base
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y graphviz \
+			graphviz-dev \
+			doxygen nano \
+			git \
+        		python3-dev \
+        		python3-pip
+RUN python3 -m pip install --upgrade pip
 
-RUN apt-get update && apt-get install -y graphviz graphviz-dev doxygen
+WORKDIR /home/SPACE4AI-D
 
-WORKDIR /home/SPACE4AI
-# Install requirements for the SPACE4AI program
-COPY ./requirements.txt /home/SPACE4AI/requirements.txt
-RUN pip3 install -r /home/SPACE4AI/requirements.txt
+COPY ./Run_and_Evaluate_integrate_AISPRINT.py .
+COPY ./classes ./classes
+COPY ./Solid ./Solid
+COPY ./requirements.txt .
 
-# Install requirements for the aMLLibrary
-COPY ./aMLLibrary/requirements.txt /home/SPACE4AI/aMLLibrary/requirements.txt
-RUN pip3 install -r /home/SPACE4AI/aMLLibrary/requirements.txt
+# Install requirements for the SPACE4AI-D program
+RUN pip install -r ./requirements.txt
 
-WORKDIR /home/SPACE4AI
-
-#ENTRYPOINT ["/bin/bash"]
-
-# define parser url
+# define parser and aMLlibrary url
 ENV GITLAB=https://gitlab.polimi.it
 ENV PARSER_URL=${GITLAB}/ai-sprint/ai-sprint-parser.git
 ENV PROJECT_ID=776
+ENV aMLLibrary_URL=${GITLAB}/ai-sprint/a-mllibrary.git
 
+# install aMLLibrary
+RUN git clone --recurse-submodules ${aMLLibrary_URL} ./aMLLibrary
+RUN pip install -r ./aMLLibrary/requirements.txt
 ############################################################################
 #			build image for development                        #
 ############################################################################
@@ -32,8 +39,8 @@ ADD "${GITLAB}/api/v4/projects/${PROJECT_ID}/repository/branches/main" \
 
 # install parser (latest version)
 RUN git clone ${PARSER_URL} ./ai_sprint_parser
-RUN pip install --no-cache-dir -r ai_sprint_parser/requirements.txt
-ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-R/ai_sprint_parser"
+RUN pip install --no-cache-dir -r ./ai_sprint_parser/requirements.txt
+ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/ai_sprint_parser"
 
 # entrypoint
 CMD bash
@@ -52,7 +59,7 @@ RUN git clone	--depth 1 \
 		${PARSER_URL} \
 		./ai_sprint_parser
 RUN pip install --no-cache-dir -r ai_sprint_parser/requirements.txt
-ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-R/ai_sprint_parser"
+ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/ai_sprint_parser"
 
 # entrypoint
 CMD bash
