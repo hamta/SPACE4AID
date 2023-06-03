@@ -335,83 +335,6 @@ class System:
                 for n, c, data in self.graph.G.out_edges(node, data=True):
                     if c not in self.dic_map_com_idx.keys():
                         q.put(c)
-       
-        for c in C :
-            # check if the component is in the graph
-            if self.graph.G.has_node(c):
-                if len(C[c]) > 0:
-                    deployments = []
-                    partitions = []
-                    part_idx = 0
-                    temp = {}
-                # check if the node c has any input edge
-                if self.graph.G.in_edges(c):
-                    Sum = 0
-                    # The component is not verified yet
-                    component_verified=False
-                    # if the node c has some input edges, its Lambda is equal 
-                    # to the sum of products of lambda and weight of its 
-                    # input edges.
-                    for n, c, data in self.graph.G.in_edges(c, data=True):
-                        prob = float(data["transition_probability"])
-                        ll = self.components[self.dic_map_com_idx[n]].comp_Lambda
-                        Sum += prob * ll
-                        # loop over all candidate deployments
-                    for s in C[c]:
-                        part_Lambda = -1
-                        part_idx_list = []
-                        if len(C[c][s]) > 0:
-                            # loop over all partitions
-                            for h in C[c][s]:
-                                if part_Lambda > -1:
-                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
-                                    part_Lambda *= (1 - prob)
-                                else:
-                                    part_Lambda = copy.deepcopy(Sum)
-                                temp[h] = (comp_idx, part_idx)
-                                partitions.append(Component.Partition(h,part_Lambda,
-                                                                      float(C[c][s][h]["early_exit_probability"]),
-                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
-                                part_idx_list.append(part_idx)
-                                part_idx += 1
-                                prev_part = h
-                        deployments.append(Component.Deployment(s, part_idx_list))
-                    self.dic_map_part_idx[c] = temp
-                    comp = Component(c, deployments,partitions, Sum)
-                    self.components.append(comp)
-                else:
-                    # if the node c does not have any input edge, it is the 
-                    # first node of a path and its Lambda is equal to input 
-                    # lambda
-                    partitions = []
-                    for s in C[c]:
-                        part_Lambda = -1
-                        part_idx_list=[]
-                        if len(C[c][s]) > 0:
-                            
-                            # loop over all partitions
-                            for h in C[c][s]:
-                                if part_Lambda > -1:
-
-                                    prob = float(C[c][s][prev_part]["early_exit_probability"])
-                                    part_Lambda *= (1 - prob)
-                                else:
-                                    part_Lambda = copy.deepcopy(self.Lambda)
-                                temp[h] = (comp_idx, part_idx)
-                                partitions.append(Component.Partition(h,part_Lambda,
-                                                                      float(C[c][s][h]["early_exit_probability"]),
-                                                                      C[c][s][h]["next"],C[c][s][h]["data_size"]))
-                                part_idx_list.append(part_idx)
-                                part_idx += 1
-                                prev_part = h
-                        deployments.append(Component.Deployment(s, part_idx_list))    
-                    self.dic_map_part_idx[c] = temp
-                    self.components.append(Component(c, deployments,partitions, self.Lambda))
-            else:
-                self.error.log("No match between components in DAG and system input file")
-                sys.exit(1)
-            self.dic_map_com_idx[c] = comp_idx
-    
             # initialize local constraint
                 if LC and node in LC:
                     self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
@@ -879,4 +802,3 @@ class System:
     #   @param plot_file File where to plot the graph (optional)
     def plot_graph(self, plot_file = ""):
         self.graph.plot_DAG(plot_file)
-
