@@ -1,7 +1,10 @@
 from classes.Logger import Logger
 from classes.System import System
 from classes.Algorithm import Algorithm, RandomGreedy, Tabu_Search, Simulated_Annealing, Genetic_algorithm
+<<<<<<< HEAD
 from classes.Solution import Configuration, Result, EliteResults
+=======
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
 import time
 import sys
 import os
@@ -12,7 +15,10 @@ from multiprocessing import Pool
 import functools
 import argparse
 from difflib import SequenceMatcher
+<<<<<<< HEAD
 import pathlib
+=======
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
@@ -90,7 +96,11 @@ def fun_greedy(core_params, S, verbose, K=1):
         log_file = open(core_params[3], "a")
         core_logger.stream = log_file
     GA = RandomGreedy(S,seed=core_params[2], log=core_logger)
+<<<<<<< HEAD
     result = GA.random_greedy(MaxIt=core_params[0], K=K, MaxTime=core_params[1])
+=======
+    result = GA.random_greedy( MaxIt=core_params[0], K=1, MaxTime=core_params[1])
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
     if core_params[3] != "":
         log_file.close()
     return result
@@ -233,7 +243,11 @@ def GeneticAlgorithm_run(S,iteration_number_RG, max_iteration_number,seed,
 #   @param log_directory Directory for logging
 def main_diff_Lambda(dic, log_directory):
     # initialize logger
+<<<<<<< HEAD
     logger = Logger(verbose=1)
+=======
+    logger = Logger(verbose=args.verbose)
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
 
     methods_list=["Random_Greedy", "Local_Search", "Tabu_Search", "Simulated_Annealing", "Genetic_Algorithm"]
 
@@ -390,6 +404,7 @@ def main_diff_Lambda(dic, log_directory):
     if log_directory != "":
         log_file.close()
 
+<<<<<<< HEAD
 def parse_config_file(S, input_json_dir, system_file, logger):
 
     with open(input_json_dir, "r") as a_file:
@@ -492,6 +507,71 @@ def parse_config_file(S, input_json_dir, system_file, logger):
                     sys.exit(1)
 
     return result
+=======
+def Random_Greedy_run(system_file,iteration_number_RG,output_folder,seed,Max_time_RG,Lambda,K=1):
+
+    with open(system_file, "r") as a_file:
+         json_object = json.load(a_file)
+
+    json_object["Lambda"] = Lambda
+    S = System(system_json=json_object)
+    RG=RandomGreedy(S,seed)
+    best_result_no_update, elite, random_params=RG.random_greedy(K=K,MaxIt = iteration_number_RG, MaxTime= Max_time_RG)
+
+    RG_cost=elite.elite_results[0].solution.objective_function(S)
+    RG_solution=elite.elite_results[0].solution
+   # np.save(output_folder + "/random_greedy_" + str(round(float(Lambda), 5))+".npy",Max_time_RG)
+   # np.save(output_folder + "/random_greedy_cost_" +str(round(float(Lambda), 5))+".npy",RG_cost)
+   # np.save(output_folder + "/random_greedy_solution_" + str(round(float(Lambda), 5))+".npy",RG_solution ,allow_pickle=True)
+    elite_sol=[]
+    if len(elite.elite_results)<K:
+        K=len(elite.elite_results)
+    for i in range(K):
+        elite_sol.append(elite.elite_results[i].solution)
+    return elite_sol
+
+def TabuSearch(system_file,iteration_number_RG, max_iterations,
+                        output_folder, seed,Max_time_RG, Max_time, Lambda, K=1, besties_RG=None):
+
+
+              with open(system_file, "r") as a_file:
+                 json_object = json.load(a_file)
+              json_object["Lambda"] = Lambda
+              S = System(system_json=json_object)
+              method_list=["best"]# ,"random"
+
+              for method in method_list:
+
+                  #  start=time.time()
+                   # proc = mpp.current_process()
+                   # pid = proc.pid
+                   # seed=seed*pid
+
+                   # GA=RandomGreedy(S,2)
+                    #random_greedy_result=GA.random_greedy( MaxIt=iteration_number_RG)
+                    # initial_solution=random_greedy_result[1].elite_results[0].solution
+                    # initial_cost=random_greedy_result[1].elite_results[0].solution.objective_function(S)
+
+                    #
+                    #x=GA.change_component_placement(initial_solution)
+                    # y=GA.get_partitions_with_j(initial_solution,x[0])
+
+
+
+                    tabu_memory=50
+                    #pdb.set_trace()
+                    start=time.time()
+
+                    TS_Solid= Tabu_Search(iteration_number_RG,seed,system=S,Max_time_RG=Max_time_RG,K=K, besties_RG=besties_RG)
+                    result,result_list, Starting_points_results=TS_Solid.run_TS (method, tabu_memory, min_score=None, max_steps=max_iterations,Max_time=Max_time)
+                    TS_time=time.time()-start
+                    current_cost_list,best_cost_list, time_list=result_list
+                    Starting_point_solutions, Starting_point_costs=Starting_points_results
+                    #print()
+
+              return result
+
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
 
 
 ## Main function
@@ -612,12 +692,53 @@ if __name__ == '__main__':
         else:
             createFolder(args.log_directory)
 
+<<<<<<< HEAD
     #log_directory = "/Users/hamtasedghani/space4ai-d"
     #dic={}
     #dic["system_file"]= "/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/system_description.json"
     #dic["config_file"]="/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/Input.json"
     #dic["Lambda"]=1
     #dic["solution_file"]= "/Users/hamtasedghani/space4ai-d/ConfigFiles_demo/space4ai-d/Output.json"
+=======
+    # load data from the test configuration file
+    ''' config = {}
+    with open(args.config, "r") as config_file:
+        config = json.load(config_file)
+    
+    system_file = "ConfigFiles/Random_Greedy_Pacsltk.json"
+    system_file = "ConfigFiles/RG-MaskDetection.json" # "ConfigFiles/Random_Greedy.json"
+    iteration = 1000
+    start_lambda = 0.14
+    end_lambda = 0.15
+    step = 0.01
+    seed = 2
+    Lambda = start_lambda
+    system_file = create_pure_json(system_file)
+    with open(system_file, "r") as a_file:
+        json_object = json.load(a_file)
+
+
+    # set the current Lambda in the system description
+   # json_object["Lambda"] = Lambda
+
+    # initialize system
+    parser = argparse.ArgumentParser(description="SPACE4AI-D")
+    dic={}
+    args = parser.parse_args()
+    S = System(system_json=json_object)#, log=Logger(verbose=2))
+    # best_result_no_update, elite, random_params=fun_greedy(iteration, S, seed)
+    # generate_output_json(S.Lambda, elite.elite_results[0], S)
+
+    solution_file="Output_Files/Lambda_10.0_output_json.json"#"Output_Files/Lambda_0.16_output_json.json"
+    GA = RandomGreedy(S,seed )
+    MD_solution_file="Output_Files/RG-MaskDetection.json"
+    result = GA.random_greedy( MaxIt=10)
+    result[0].print_result(S,MD_solution_file)
+
+    A = Algorithm(S,seed)
+    result=A.create_solution_by_file(solution_file)
+    result.print_result(S, solution_file=solution_file)'''
+>>>>>>> ecae4798488919b61654dffff75cbc48736920ec
 
     main(dic, args.log_directory)
 

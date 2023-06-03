@@ -802,4 +802,3 @@ class System:
     #   @param plot_file File where to plot the graph (optional)
     def plot_graph(self, plot_file = ""):
         self.graph.plot_DAG(plot_file)
-
