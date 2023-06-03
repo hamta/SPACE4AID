@@ -398,11 +398,11 @@ class Configuration:
         costs = []
         # compute cost of edge
         for j in range(S.cloud_start_index):
-            costs.append(S.resources[j].cost * y_bar[j])
+            costs.append(S.resources[j].cost * y_bar[j] * S.T)
         #
         # compute cost of VMs
         for j in range(S.cloud_start_index, S.FaaS_start_index):
-            costs.append(S.resources[j].cost * y_bar[j])
+            costs.append(S.resources[j].cost * y_bar[j] * S.T)
         #
         # compute the cost of FaaS and transition cost if not using SCAR
         if S.FaaS_start_index < J:
