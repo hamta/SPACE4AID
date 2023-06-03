@@ -1,3 +1,5 @@
+import pdb
+
 from classes.Logger import Logger
 from classes.Graph import DAG, Component
 from classes.Resources import ComputationalLayer, VirtualMachine, EdgeNode, FaaS
@@ -10,12 +12,21 @@ import sys
 import numpy as np
 import copy
 import collections
+from queue import Queue
+from sortedcollections import OrderedSet
 
 def recursivedict():
     return collections.defaultdict(recursivedict)
 
 ## System
 #
+class OrderedSetQueue(Queue):
+    def _init(self, maxsize):
+        self.queue = OrderedSet()
+    def _put(self, item):
+        self.queue.add(item)
+    def _get(self):
+        return self.queue.pop()
 # Class to store the system description with all the relevant information
 class System:
     
@@ -117,9 +128,10 @@ class System:
     #   @param system_file Configuration file describing the system
     #   @param system_json Json object describing the system
     #   @param log Object of Logger.Logger type
-    def __init__(self, system_file = "", system_json = None, log = Logger()):
+    def __init__(self, system_file="", system_json=None, Lambda=None, log=Logger()):
         self.logger = log
         self.error = Logger(stream=sys.stderr, verbose=1, error=True)
+        self.Lambda = Lambda
         if system_file != "":
             self.logger.log("Loading system from configuration file", 1)
             self.read_configuration_file(system_file)
@@ -153,7 +165,7 @@ class System:
         
         # increase indentation level for logging
         self.logger.level += 1
-        
+        #pdb.set_trace()
         # initialize system DAG
         if "DirectedAcyclicGraph" in data.keys():
             self.logger.log("Initializing DAG", 2)
@@ -167,12 +179,13 @@ class System:
             sys.exit(1)
         
         # initialize lambda
-        if "Lambda" in data.keys():
-            self.logger.log("Initializing Lambda", 2)
-            self.Lambda = float(data["Lambda"])
-        else:
-            self.error.log("No Lambda available in configuration file")
-            sys.exit(1)
+        if self.Lambda is None:
+            if "Lambda" in data.keys():
+                self.logger.log("Initializing Lambda", 2)
+                self.Lambda = float(data["Lambda"])
+            else:
+                self.error.log("No Lambda available in configuration file")
+                sys.exit(1)
                
         # initialize components and local constraints
         if "Components" in data.keys():
@@ -215,11 +228,11 @@ class System:
             NT = data["NetworkTechnology"]
             # load Network Domains
             for ND in NT:
-                if "computationallayers" in NT[ND].keys() \
+                if "computationalLayers" in NT[ND].keys() \
                     and "AccessDelay" in NT[ND].keys() \
                         and "Bandwidth" in NT[ND].keys():
                     network_domain = NetworkDomain(ND,
-                                          list(NT[ND]["computationallayers"]),
+                                          list(NT[ND]["computationalLayers"]),
                                           float(NT[ND]["AccessDelay"]),
                                           float(NT[ND]["Bandwidth"]),
                                           NetworkPerformanceEvaluator())
@@ -293,6 +306,35 @@ class System:
         self.local_constraints = []
         comp_idx = 0
         # loop over components
+        first_node = [node for node, in_degree in self.graph.G.in_degree if in_degree == 0]
+        if len(first_node) > 1:
+            self.error.log("The application graph must not have more than one start node")
+            sys.exit(1)
+        elif len(first_node) == 0:
+            self.error.log("The application graph must have one start node")
+            sys.exit(1)
+
+        if set(self.graph.G.nodes) != set(C.keys()):
+            self.error.log("No match between components in DAG and system input file")
+            sys.exit(1)
+        # Define a queue of component to visit the nodes of application DAG
+        q = OrderedSetQueue(maxsize=len(self.graph.G.nodes))
+        q.put(first_node[0])
+        while not q.empty():
+            node = q.get()
+            can_handel = True
+            # If the nodes that come to current node are not visited yet, we cannot visit current node, put it on the queue
+            for n, c, data in self.graph.G.in_edges(node, data=True):
+                if n not in self.dic_map_com_idx.keys():
+                    q.put(node)
+                    can_handel = False
+                    break
+            if can_handel:
+                self.handel_component(C, node, comp_idx)
+                # All the nodes that the current node comes to them should be put on the queue if they are not already there
+                for n, c, data in self.graph.G.out_edges(node, data=True):
+                    if c not in self.dic_map_com_idx.keys():
+                        q.put(c)
        
         for c in C :
             # check if the component is in the graph
@@ -371,14 +413,85 @@ class System:
             self.dic_map_com_idx[c] = comp_idx
     
             # initialize local constraint
-            if LC and c in LC:
-                self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[c],
-                                                              float(LC[c]["local_res_time"])))
-                localconstraints[c] = self.local_constraints[-1]
-            
-            comp_idx += 1
-       
-    
+                if LC and node in LC:
+                    self.local_constraints.append(LocalConstraint(self.dic_map_com_idx[node],
+                                                                  float(LC[node]["local_res_time"])))
+                    localconstraints[node] = self.local_constraints[-1]
+                comp_idx += 1
+
+    def handel_component(self, C, node, comp_idx):
+        if len(C[node]) > 0:
+            deployments = []
+            partitions = []
+            part_idx = 0
+            temp = {}
+        # check if the node c has any input edge
+        if self.graph.G.in_edges(node):
+            Sum = 0
+            # The component is not verified yet
+            component_verified = False
+            # if the node c has some input edges, its Lambda is equal
+            # to the sum of products of lambda and weight of its
+            # input edges.
+            for n, c, data in self.graph.G.in_edges(node, data=True):
+                prob = float(data["transition_probability"])
+                ll = self.components[self.dic_map_com_idx[n]].comp_Lambda
+                Sum += prob * ll
+                # loop over all candidate deployments
+            for s in C[node]:
+                part_Lambda = -1
+                part_idx_list = []
+                if len(C[node][s]) > 0:
+                    # loop over all partitions
+                    for h in C[node][s]:
+                        if part_Lambda > -1:
+                            prob = float(C[node][s][prev_part]["early_exit_probability"])
+                            part_Lambda *= (1 - prob)
+                        else:
+                            part_Lambda = copy.deepcopy(Sum)
+                        temp[h] = (comp_idx, part_idx)
+                        partitions.append(Component.Partition(h, part_Lambda,
+                                                              float(C[node][s][h]["early_exit_probability"]),
+                                                              C[node][s][h]["next"],
+                                                              C[node][s][h]["data_size"]))
+                        part_idx_list.append(part_idx)
+                        part_idx += 1
+                        prev_part = h
+                deployments.append(Component.Deployment(s, part_idx_list))
+            self.dic_map_part_idx[node] = temp
+            comp = Component(node, deployments, partitions, Sum)
+            self.components.append(comp)
+        else:
+            # if the node c does not have any input edge, it is the
+            # first node of a path and its Lambda is equal to input
+            # lambda
+            partitions = []
+            for s in C[node]:
+                part_Lambda = -1
+                part_idx_list = []
+                if len(C[node][s]) > 0:
+
+                    # loop over all partitions
+                    for h in C[node][s]:
+                        if part_Lambda > -1:
+
+                            prob = float(C[node][s][prev_part]["early_exit_probability"])
+                            part_Lambda *= (1 - prob)
+                        else:
+                            part_Lambda = copy.deepcopy(self.Lambda)
+                        temp[h] = (comp_idx, part_idx)
+                        partitions.append(Component.Partition(h, part_Lambda,
+                                                              float(C[node][s][h]["early_exit_probability"]),
+                                                              C[node][s][h]["next"],
+                                                              C[node][s][h]["data_size"]))
+                        part_idx_list.append(part_idx)
+                        part_idx += 1
+                        prev_part = h
+                deployments.append(Component.Deployment(s, part_idx_list))
+            self.dic_map_part_idx[node] = temp
+            self.components.append(Component(node, deployments, partitions, self.Lambda))
+
+        self.dic_map_com_idx[node] = comp_idx
     ## Method to initialize resources, together with their description and the 
     # dictionary that maps their names to their indices, and 
     # computational layers
@@ -471,7 +584,7 @@ class System:
             FR = data["FaaSResources"]
             # loop over computational layers
             for CL in FR:
-                if CL.startswith("computationallayer"):
+                if CL.lower().startswith("computationallayer"):
                     cl = ComputationalLayer(CL)
                     # initialize transition cost
                     if "transition_cost" in FR[CL].keys():
@@ -510,8 +623,7 @@ class System:
 
         # restore indentation level for logging
         self.logger.level -= 1
-    
-    
+
     ## Method to convert the dictionary of global constraints to a list
     # @param self The object pointer   
     # @param GC Dictionary of global constraints
@@ -585,18 +697,20 @@ class System:
                     # For Edge and Cloud resources, the demand is taken 
                     # directly from the dictionary
                     if res_idx < self.FaaS_start_index and \
-                        "demand" in perf_data.keys():
+                            "demand" in perf_data.keys():
                         d = performance_dict[comp.name][part.name][res]["demand"]
                     else:
                         # for FaaS resources, it should be computed accordingly
+                        #
                         if "demandWarm" in perf_data.keys() and \
-                            "demandCold" in perf_data.keys():
+                                "demandCold" in perf_data.keys():
                             warm_service_time = perf_data["demandWarm"]
                             cold_service_time = perf_data["demandCold"]
                             # add the warm and cold service time to the 
                             # corresponding dictionary
                             self.faas_service_times[comp.name][part.name][res] = [warm_service_time,
                                                                                  cold_service_time]
+
                             # compute the demand
                             pm = self.performance_models[comp_idx][part_idx][res_idx]
                             features = pm.get_features(c_idx=comp_idx, 
@@ -604,6 +718,8 @@ class System:
                                                        r_idx=res_idx, 
                                                        S=self)
                             d = pm.predict(**features)
+
+
                     # write the demand into the matrix
                     self.demand_matrix[comp_idx][part_idx, res_idx] = d
     
@@ -613,9 +729,7 @@ class System:
     #   @return 1) The sorted list of resources by memory and cost, respectively. 
     #           Each item of list includes the index, memory and cost of the resource.
     #           The list is sorted by memory, but for the nodes with the same memory, it is sorted by cost
-    #           2) The sorted list of resources by cost and memory, respectively.  
-    #           Each item of list includes the index, utilization and cost of the resource.
-    #           The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
+    #
     def sort_FaaS_nodes(self):
         idx_min_memory_node=[]
         for i, c in enumerate(self.components):
@@ -638,9 +752,7 @@ class System:
         # Each item of list includes the index, utilization and cost of the resource.
         # The list is sorted by utilization, but for the nodes with same utilization, it is sorted by cost
 
-        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))  
-
-        self.sorted_FaaS_by_cost_memory= sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
+        self.sorted_FaaS_by_cost_memory = sorted(idx_min_memory_node, key=lambda element: (element[2], element[1]))
        
     def read_solution_file(self,solution_file):
          with open(solution_file) as f:
