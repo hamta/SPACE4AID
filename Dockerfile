@@ -22,6 +22,7 @@ RUN pip install -r ./requirements.txt
 ENV GITLAB=https://gitlab.polimi.it
 ENV PARSER_URL=${GITLAB}/ai-sprint/space4ai-parser.git
 ENV PROJECT_ID=776
+ENV PARSER_DIR=space4ai_parser
 ENV aMLLibrary_URL=${GITLAB}/ai-sprint/a-mllibrary.git
 
 # install aMLLibrary
@@ -38,9 +39,9 @@ ADD "${GITLAB}/api/v4/projects/${PROJECT_ID}/repository/branches/main" \
 	/tmp/devalidateCache
 
 # install parser (latest version)
-RUN git clone ${PARSER_URL} ./space4ai_parser
-RUN pip install --no-cache-dir -r ./space4ai_parser/requirements.txt
-ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/space4ai_parser"
+RUN git clone ${PARSER_URL} ./${PARSER_DIR}
+RUN pip install --no-cache-dir -r ./${PARSER_DIR}/requirements.txt
+ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/${PARSER_DIR}"
 
 # entrypoint
 CMD bash
@@ -57,9 +58,9 @@ ARG PARSER_TAG=23.05.03
 RUN git clone	--depth 1 \
 		--branch ${PARSER_TAG} \ 
 		${PARSER_URL} \
-		./space4ai_parser
-RUN pip install --no-cache-dir -r space4ai_parser/requirements.txt
-ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/space4ai_parser"
+		./${PARSER_DIR}
+RUN pip install --no-cache-dir -r ${PARSER_DIR}/requirements.txt
+ENV PYTHONPATH="${PYTHONPATH}:/home/SPACE4AI-D/${PARSER_DIR}"
 
 # entrypoint
 CMD bash
