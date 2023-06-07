@@ -1,8 +1,8 @@
 import pdb
 from classes.Logger import Logger
 from classes.System import System
-from ai_sprint_parser.YamlGenerator import ParserJsonToYaml
-from ai_sprint_parser.JsonGenerator import ParserYamlToJson
+from space4ai_parser.YamlGenerator import ParserJsonToYaml
+from space4ai_parser.JsonGenerator import ParserYamlToJson
 from classes.AlgorithmPool import AlgPool
 import sys
 import os
