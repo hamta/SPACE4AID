@@ -52,7 +52,7 @@ CMD bash
 FROM base as image-prod
 
 # define parser tag
-ARG PARSER_TAG=23.05.03
+ARG PARSER_TAG=23.06.08
 
 # install parser 
 RUN git clone	--depth 1 \
