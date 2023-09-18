@@ -1,6 +1,7 @@
 from classes.PerformancePredictors import FaaSPredictorPacsltk
 from classes.PerformancePredictors import FaaSPredictorMLlib
 from classes.PerformancePredictors import CoreBasedPredictor
+from classes.PerformancePredictors import LambdaBasedPredictor
 from classes.PerformanceEvaluators import NetworkPerformanceEvaluator
 from classes.PerformanceEvaluators import ServerFarmPE, EdgePE
 
@@ -47,5 +48,6 @@ Pfactory.register("MLLIBfaas", FaaSPredictorMLlib)
 Pfactory.register("QTcloud", ServerFarmPE)
 Pfactory.register("QTedge", EdgePE)
 Pfactory.register("CoreBasedPredictor", CoreBasedPredictor)
+Pfactory.register("LambdaBasedPredictor", LambdaBasedPredictor)
 Pfactory.register("NETWORK", NetworkPerformanceEvaluator)
 

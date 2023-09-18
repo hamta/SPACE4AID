@@ -32,7 +32,7 @@ RUN pip install -r ./aMLLibrary/requirements.txt
 ############################################################################
 FROM base as image-dev
 
-# copy the last change from your brach to invalidate the cache if there 
+# copy the last change from your brach to invalidate the cache if there
 # was a new change
 ADD "${GITLAB}/api/v4/projects/${PROJECT_ID}/repository/branches/main" \
 	/tmp/devalidateCache
@@ -51,11 +51,11 @@ CMD bash
 FROM base as image-prod
 
 # define parser tag
-ARG PARSER_TAG=23.05.03
+ARG PARSER_TAG=23.06.30
 
-# install parser 
+# install parser
 RUN git clone	--depth 1 \
-		--branch ${PARSER_TAG} \ 
+		--branch ${PARSER_TAG} \
 		${PARSER_URL} \
 		./ai_sprint_parser
 RUN pip install --no-cache-dir -r ai_sprint_parser/requirements.txt

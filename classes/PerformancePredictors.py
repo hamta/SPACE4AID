@@ -310,3 +310,99 @@ class CoreBasedPredictor(BasePredictor):
             format(self.keyword, self.regressor_file)
         return s
 
+
+## LambdaBasedPredictor
+#
+# Specialization of FaaSPredictor class to predict the response time of 
+# Graph.Component.Partition objects executed on Resources.Resource instances 
+# depending on the number of used cores
+class LambdaBasedPredictor(BasePredictor):
+    
+    ## @var predictor
+    # Object that performs the prediction
+    
+    ## @var regressor_file
+    # Path to the Pickle binary file that stores the model to be used 
+    # for prediction
+    
+    ## CoreBasedPredictor class constructor
+    #   @param self The object pointer
+    #   @param regressor_file Path to the Pickle binary file that stores the 
+    #                         model to be used for prediction
+    #   @param **kwargs Additional (unused) keyword arguments
+    def __init__(self, regressor_file, meanTime, **kwargs):
+        super().__init__("LambdaBasedPredictor", 
+                         "aMLLibrary.model_building.predictor")
+        self.regressor_file = regressor_file
+        ### New ###
+        self.mean_time = meanTime
+        predictor_module = importlib.import_module(self.module_name)
+        self.predictor = predictor_module.Predictor(regressor_file,
+                                                    "/tmp", False)
+    
+    ## Method to get a dictionary with the features required by the predict 
+    # method
+    #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
+    #   @param c_idx Index of the Graph.Component object
+    #   @param p_idx Index of the Graph.Component.Partition object
+    #   @param r_idx Index of the Resources.Resource object
+    #   @param S A System.System object
+    #   @param Y_hat Matrix denoting the amount of Resources assigned to each 
+    #                Graph.Component.Partition object
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return The dictionary of the required features
+    def get_features(self, *, c_idx, p_idx, r_idx, S, Y_hat, **kwargs):
+        n_res = Y_hat[c_idx][p_idx, r_idx]
+        cores_per_res = S.resources[r_idx].n_cores
+        cores = n_res * cores_per_res
+        part_lambda = S.components[c_idx].partitions[p_idx].part_Lambda
+        ### New ###
+        # Check if the component is a part of constraints
+        flag = False
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame)
+        class_name = caller_frame[2].frame.f_locals["self"].__class__.__name__
+        if len(S.global_constraints) > 0 and class_name == S.global_constraints[0].__class__.__name__:
+            #pdb.set_trace()
+            if c_idx in caller_frame[2].frame.f_locals["self"].path and c_idx != \
+                    caller_frame[2].frame.f_locals["self"].path[-1]:
+                flag = True
+
+        elif len(S.local_constraints) > 0 and class_name == S.local_constraints[0].__class__.__name__:
+            for LC in S.local_constraints:
+                if c_idx == LC.component_idx:
+                    for dep in S.components[c_idx].deployments:
+                        if p_idx in dep.partitions_indices and len(dep.partitions_indices) > 1:
+                            if p_idx != dep.partitions_indices[-1]:
+                                flag = True
+                                break
+
+        features = {"cores": cores,
+                    "mean_time_required": flag,
+                    "observed_throughput": part_lambda}
+        return features
+
+    ## Method to evaluate the object performance through the class predictor
+    #   @param self The object pointer
+    #   @param * Positional arguments are not accepted
+    #   @param cores Number of cores assigned to the object
+    #   @param observed_throughput Observed throughput
+    #   @param **kwargs Additional (unused) keyword arguments
+    #   @return Predicted response time
+    def predict(self, *, cores, observed_throughput, mean_time_required, **kwargs):
+        ### New ###
+        if mean_time_required:
+            return self.mean_time
+        pd = importlib.import_module("pandas")
+        columns = "cores,observed_throughput".split(",")
+        data = pd.DataFrame(data=[[cores, observed_throughput]], columns=columns)
+        return self.predictor.predict_from_df(data, self.regressor_file)
+    
+    ## Operator to convert a FaaSPredictorMLlib object into a string
+    #   @param self The object pointer
+    def __str__(self):
+        s = '"model":"{}", "regressor_file":"{}"'.\
+            format(self.keyword, self.regressor_file)
+        return s
+

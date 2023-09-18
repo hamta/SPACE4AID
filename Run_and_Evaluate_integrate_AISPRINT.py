@@ -1,8 +1,8 @@
 import pdb
 from classes.Logger import Logger
 from classes.System import System
-from ai_sprint_parser.YamlGenerator import ParserJsonToYaml
-from ai_sprint_parser.JsonGenerator import ParserYamlToJson
+from space4ai_parser.YamlGenerator import ParserJsonToYaml
+from space4ai_parser.JsonGenerator import ParserYamlToJson
 from classes.AlgorithmPool import AlgPool
 import sys
 import os
@@ -467,7 +467,7 @@ def main(application_dir):
             BS_method["parameters"]["system_file"] = system_file
             algorithm = AlgPool.create(BS_method["name"], **BS_method["parameters"])
             result, highest_feasible_lambda = algorithm.run_algorithm(upper_bound_lambda, epsilon, Y_hat=Y_hat)
-            output_json_max_lambda = application_dir + "/space4ai-r/Output_max_Lambda" + dep_name + ".json"
+            output_json_max_lambda = application_dir + "/space4ai-r/Output_max_Lambda_" + dep_name + ".json"
             result.print_result(algorithm.system, output_json_max_lambda)
 
         ################### find highest Lambda #######################
