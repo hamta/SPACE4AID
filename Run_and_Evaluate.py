@@ -98,6 +98,7 @@ class MultiProcessing:
     def run_alg(self, core_params, system_file, method):
         with open(system_file, "r") as a_file:
             json_object = json.load(a_file)
+        Lambda = json_object["Lambda"]
         S = System(system_json=json_object, log=self.method["parameters"]["log"])
         method["parameters"]["system"] = S
         method["parameters"]["seed"] = core_params[2]
@@ -131,11 +132,17 @@ class MultiProcessing:
                     elite_sol.add(result[0])
             results = elite_sol.elite_results[0], elite_sol
         else:
-
             method["parameters"]["max_steps"] = core_params[0]
             method["parameters"]["max_time"] = core_params[1]
             algorithm = AlgPool.create(method["name"], **method["parameters"])
             results = algorithm.run_algorithm()
+
+        path = pathlib.Path(system_file).parent.resolve()
+        output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
+        if results[0].solution is None:
+            print("No solution is found.")
+        else:
+            results[0].print_result(S, output_json)
 
         return results
 
@@ -258,7 +265,7 @@ def generate_output_json(Lambda, result, S, onFile=True):
 def main(dic, log_directory):
     error = Logger(stream=sys.stderr, verbose=1, error=True)
     system_file = dic["system_file"]
-    dep_list = []
+    Lambda_list = []
 
     # system_file = "/home/SPACE4AI/Output_Files/paper_results/with_branches/light_cons/Output_Files_1min_hyp_heu/large_scale/15Components/Ins1/system_description.json"#"/Users/hamtasedghani/Downloads/Video_search/space4ai-d/SystemFile.json"#"/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/light_cons/Output_Files_1min_hyp_heu/large_scale/15Components/Ins1/system_description.json"
     # system_file = "/Users/hamtasedghani/space4ai-d/Output_Files/paper_results/with_branches/strict_cons/Output_Files_10min_hyp_heu/large_scale/7Components/Ins6/system_description.json"
@@ -275,7 +282,6 @@ def main(dic, log_directory):
         logger = Logger(stream=sys.stderr, verbose=verbose)
         separate_loggers = (logger.verbose > 0 and log_directory != "")
         Lambda = dic["Lambda"]
-
         json_object["Lambda"] = Lambda
         print("\n" + str(Lambda))
         print("\n" + solution_file)
@@ -301,25 +307,32 @@ def main(dic, log_directory):
         RG_method["parameters"]["system"] = S
         algorithm = AlgPool.create(RG_method["name"], **RG_method["parameters"])
         result = algorithm.create_solution_by_file(solution_file)
-
+        path = pathlib.Path(system_file).parent.resolve()
+        output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
+        if result.solution is None:
+            print("No solution is found.")
+        else:
+            result.print_result(S, output_json)
     # generate_output_json(Lambda,result, S)
     else:
         config_file = dic["config_file"]
         with open(config_file, "r") as a_file:
             input_json = json.load(a_file)
-
+        if "LambdaBound" in input_json.keys():
+            start_lambda = input_json["LambdaBound"]["start"]
+            end_lambda = input_json["LambdaBound"]["end"]
+            step = input_json["LambdaBound"]["step"]
+            for Lambda in np.arange(start_lambda, end_lambda, step):
+                Lambda_list.append(Lambda)
         if "VerboseLevel" in input_json.keys():
             logger = Logger(stream=sys.stderr, verbose=input_json["VerboseLevel"])
         else:
             error.log("{} does not exist.".format("VerboseLevel"))
             sys.exit(1)
         if "Lambda" in dic.keys():
-            Lambda = dic["Lambda"]
+            Lambda_list.append(dic["Lambda"])
             # print("Lambda: " + str(Lambda))
-            json_object["Lambda"] = Lambda
-        S = System(system_json=json_object, log=logger)
 
-############################
         if "Methods" in input_json.keys():
             Methods = input_json["Methods"]
             RG_list = list(i for i in AlgPool.algorithms if AlgPool.algorithms[i] == AlgPool.algorithms["RG"])
@@ -444,33 +457,26 @@ def main(dic, log_directory):
                 Heu_method["parameters"]["log"] = logger
         RG_method["parameters"]["k_best"] = startingPointNumber
         RG_method["parameters"]["log"] = logger
+        for Lambda in Lambda_list:
+            with open(system_file, 'r') as f:
+                data = json.load(f)
+            data["Lambda"] = Lambda
+            system = json.dumps(data, indent=2)
+            with open(system_file, "w") as f:
+                f.write(system)
 
-        print("\nStart parsing YAML files... ")
-        # parser_s4aid = ParserJsonToYaml(application_dir,"s4air","space4ai-r/deployment1")
-        # parser_s4aid.main_function()
-
-        # system_file = create_pure_json(system_file)
-        with open(system_file, "r") as a_file:
-            json_object = json.load(a_file)
-
-        MP = MultiProcessing(RG_method)
-        feasible_found, solutions, result = MP.run(system_file)
-        # feasibility, starting_points, result, S = Random_Greedy_run(json_object, method1)
-        if not feasible_found:
-            error.log("No feasible solution is found by RG")
-        else:
-            if Heu_method != {}:
-                Heu_method["parameters"]["starting_point"] = solutions
-                MP = MultiProcessing(Heu_method)
-                feasible_found, solutions, result = MP.run(system_file)
+            MP = MultiProcessing(RG_method)
+            feasible_found, solutions, result = MP.run(system_file)
+            # feasibility, starting_points, result, S = Random_Greedy_run(json_object, method1)
+            if not feasible_found:
+                error.log("No feasible solution is found by RG")
+            else:
+                if Heu_method != {}:
+                    Heu_method["parameters"]["starting_point"] = solutions
+                    MP = MultiProcessing(Heu_method)
+                    feasible_found, solutions, result = MP.run(system_file)
 
 
-    path = pathlib.Path(system_file).parent.resolve()
-    output_json = str(path) + "/Output.json"
-    if result.solution is None:
-        print("No solution is found.")
-    else:
-        result.print_result(S,output_json)
 
 if __name__ == '__main__':
 
@@ -513,8 +519,6 @@ if __name__ == '__main__':
 
             if args.Lambda is not None:
                 dic["Lambda"] = float(args.Lambda)
-
-
     else:
         try:
             Lambda = float(args.evaluation_lambda[0])
