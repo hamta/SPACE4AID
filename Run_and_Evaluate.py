@@ -137,13 +137,6 @@ class MultiProcessing:
             algorithm = AlgPool.create(method["name"], **method["parameters"])
             results = algorithm.run_algorithm()
 
-        path = pathlib.Path(system_file).parent.resolve()
-        output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
-        if results[0].solution is None:
-            print("No solution is found.")
-        else:
-            results[0].print_result(S, output_json)
-
         return results
 
     ## Method to run the algorithems in multi-processing manner
@@ -475,6 +468,14 @@ def main(dic, log_directory):
                     Heu_method["parameters"]["starting_point"] = solutions
                     MP = MultiProcessing(Heu_method)
                     feasible_found, solutions, result = MP.run(system_file)
+
+        path = pathlib.Path(system_file).parent.resolve()
+        output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
+        if result.solution is None:
+            print("No solution is found.")
+        else:
+            S = System(system_json=data)
+            result.print_result(S, output_json)
 
 
 
