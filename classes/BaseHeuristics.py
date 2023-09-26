@@ -129,12 +129,11 @@ class BaseHeuristics(BaseAlgorithm):
                 self.error.log(
                     "ERROR: there is no selected deployment for component " + c + " in the solution file", 1)
                 sys.exit(1)
-        result = Result()
+        result = Result(self.logger)
         result.solution = Configuration(Y_hat, self.logger)
-        self.logger.log("Start check feasibility: {}".format(time.time()), 3)
-        print("Start check feasibility...")
+        self.logger.log("Start check feasibility: {}".format(time.time()))
         performance = result.check_feasibility(self.system)
-        self.logger.log("End check feasibility: {}".format(time.time()), 3)
+        self.logger.log("End check feasibility: {}".format(time.time()))
         if performance[0]:
             self.logger.log("Solution is feasible", 3)
             self.logger.log("Compute cost", 3)
@@ -209,12 +208,12 @@ class BaseHeuristics(BaseAlgorithm):
                 new_temp_Y_hat[comp_part_j[0]][comp_part_j[1]][j] = 1
                 new_temp_Y_hat[comp_part_j[0]][comp_part_j[1]][comp_part_j[2]] = 0
                 # create a solution by new Y_hat
-                new_temp_solution = Configuration(new_temp_Y_hat)
+                new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                 # check the feasibility of new solution
                 performance = new_temp_solution.check_feasibility(self.system)
                 # if the new solution is feasible, add it to the neighbor result list
                 if performance[0]:
-                    result = Result()
+                    result = Result(self.logger)
                     result.solution = new_temp_solution
                     result.cost = result.objective_function(self.system)
                     counter_obj_evaluation += 1
@@ -375,12 +374,12 @@ class BaseHeuristics(BaseAlgorithm):
                                     new_temp_Y_hat[part_min[0]][part_min[1]][des_node_idx] = self.system.resources[
                                         des_node_idx].number
                             # creat a solution by new assignment (Y_hat)
-                            new_temp_solution = Configuration(new_temp_Y_hat)
+                            new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                             # check if new solution is feasible
                             performance = new_temp_solution.check_feasibility(self.system)
                             if performance[0]:
                                 # creat new result
-                                result = Result()
+                                result = Result(self.logger)
                                 result.solution = new_temp_solution
                                 # reduce cluster size of source and destination nodes
                                 result.reduce_cluster_size(idx_source_node, self.system)
@@ -475,14 +474,14 @@ class BaseHeuristics(BaseAlgorithm):
                             for part_cand in partitions_on_candidate:
                                 new_temp_Y_hat[part[0]][part[1]][des] = self.system.resources[des].number
                         # create new solution by new assignment
-                        new_temp_solution = Configuration(new_temp_Y_hat)
+                        new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                         # check feasibility
 
                         performance = new_temp_solution.check_feasibility(self.system)
 
                         if performance[0]:
                             # create a new result
-                            result = Result()
+                            result = Result(self.logger)
                             result.solution = new_temp_solution
                             # reduce the cluster size of destination node
                             result.reduce_cluster_size(des, self.system)
@@ -560,13 +559,13 @@ class BaseHeuristics(BaseAlgorithm):
 
                     new_temp_Y_hat[part[0]][part[1]][des] = 1
                 # create new solution by new assignment
-                new_temp_solution = Configuration(new_temp_Y_hat)
+                new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                 # check feasibility
                 performance = new_temp_solution.check_feasibility(self.system)
 
                 if performance[0]:
                     # create a new result
-                    new_result = Result()
+                    new_result = Result(self.logger)
                     new_result.solution = new_temp_solution
                     new_result.cost = new_result.objective_function(self.system)
                     counter_obj_evaluation += 1
@@ -586,13 +585,13 @@ class BaseHeuristics(BaseAlgorithm):
 
                         new_temp_Y_hat[part[0]][part[1]][des] = 1
                         # create new solution by new assignment
-                        new_temp_solution = Configuration(new_temp_Y_hat)
+                        new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                         # check feasibility
                         performance = new_temp_solution.check_feasibility(self.system)
 
                         if performance[0]:
                             # create a new result
-                            result = Result()
+                            result = Result(self.logger)
                             result.solution = new_temp_solution
                             # reduce the cluster size of destination node
                             result.reduce_cluster_size(idx_source_node, self.system)
@@ -672,12 +671,12 @@ class BaseHeuristics(BaseAlgorithm):
                                 new_temp_Y_hat[part_des[0]][part_des[1]][des_node_idx] = self.system.resources[
                                     des_node_idx].number
                         # creat a solution by new assignment (Y_hat)
-                        new_temp_solution = Configuration(new_temp_Y_hat)
+                        new_temp_solution = Configuration(new_temp_Y_hat, self.logger)
                         # check if new solution is feasible
                         performance = new_temp_solution.check_feasibility(self.system)
                         if performance[0]:
                             # creat new result
-                            result = Result()
+                            result = Result(self.logger)
                             result.solution = new_temp_solution
                             # reduce cluster size of the destination node
                             result.reduce_cluster_size(des_node_idx, self.system)
@@ -878,7 +877,7 @@ class BinarySearch(BaseHeuristics):
         if Y_hat is None:
             result = self.create_solution_by_file(self.solution_file)
         else:
-            result = Result()
+            result = Result(self.logger)
             result.solution = Configuration(Y_hat, self.logger)
         #Y_hat = self.increase_number_of_resource(result.solution)
         #Y_hat = result.solution.Y_hat
@@ -892,7 +891,7 @@ class BinarySearch(BaseHeuristics):
             if performance[0]:
                 next_lambda = (lowest_unfeasible_lambda + self.system.Lambda) / 2
                 highest_feasible_lambda = self.system.Lambda
-                self.system = System(system_file=self.system_file, Lambda=next_lambda)
+                self.system = System(system_file=self.system_file, Lambda=next_lambda, log=self.logger)
 
             else:
                 if self.system.Lambda == initial_lambda:
@@ -901,11 +900,11 @@ class BinarySearch(BaseHeuristics):
                 else:
                     next_lambda = (highest_feasible_lambda + self.system.Lambda) / 2
                     lowest_unfeasible_lambda = self.system.Lambda
-                    self.system = System(system_file=self.system_file, Lambda=next_lambda)
+                    self.system = System(system_file=self.system_file, Lambda=next_lambda, log=self.logger)
 
             eps = abs(lowest_unfeasible_lambda - highest_feasible_lambda)
 
-        self.system = System(system_file=self.system_file, Lambda=highest_feasible_lambda)
+        self.system = System(system_file=self.system_file, Lambda=highest_feasible_lambda, log=self.logger)
         result.check_feasibility(self.system)
         result.objective_function(self.system)
         return result, highest_feasible_lambda

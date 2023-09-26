@@ -339,28 +339,26 @@ class RandomGreedy(BaseAlgorithm):
         self.logger.log("Randomized Greedy step", 3)
 
         # initialize results
-        result = Result()
+        result = Result(self.logger)
 
         # generate random solution and check its feasibility
         self.logger.level += 1
         self.logger.log("Generate random solution", 3)
         y_hat, res_parts_random, VM_numbers_random, CL_res_random = self.create_random_initial_solution()
         if y_hat == None:
-            print("The random solution is None")
+            self.logger.log("The random solution is None")
             new_result = copy.deepcopy(result)
         else:
-            print("Random solution is generated")
+            self.logger.log("Random solution is generated")
             result.solution = Configuration(y_hat, self.logger)
-            self.logger.log("Start check feasibility: {}".format(time.time()), 3)
-            print("Start check feasibility...")
+            self.logger.log("Start check feasibility: {}".format(time.time()))
             performance = result.check_feasibility(self.system)
-            self.logger.log("End check feasibility: {}".format(time.time()), 3)
+            self.logger.log("End check feasibility: {}".format(time.time()))
 
             # if the solution is feasible, compute the corresponding cost
             # before and after updating the clusters size
             if performance[0]:
-                print("The solution is feasible.")
-                self.logger.log("Solution is feasible", 3)
+                self.logger.log("Solution is feasible")
                 # compute cost
                 self.logger.log("Compute cost", 3)
                 result.objective_function(self.system)
@@ -377,9 +375,8 @@ class RandomGreedy(BaseAlgorithm):
                 for j in range(self.system.FaaS_start_index):
                     if y_bar[j] > 0:
                         VM_numbers_random[j] = copy.deepcopy(min(y_bar[j], VM_numbers_random[j]))
-
             else:
-                print("The solution is not feasible.")
+                self.logger.log("The solution is not feasible.")
                 new_result = copy.deepcopy(result)
             self.logger.level -= 2
 
@@ -397,7 +394,7 @@ class RandomGreedy(BaseAlgorithm):
         # and the lists of random parameters
         elite = EliteResults(self.k_best, Logger(self.logger.stream,
                              self.logger.verbose, self.logger.level + 1))
-        best_result_no_update = Result()
+        best_result_no_update = Result(self.logger)
         # add initial unfeasible sol with inf cost and violation ratio
         elite.elite_results.add(best_result_no_update)
         res_parts_random_list = []
@@ -412,8 +409,7 @@ class RandomGreedy(BaseAlgorithm):
         start = time.time()
         lowest_violation = np.inf
         while iteration < self.max_iterations or time.time() - start < self.max_time:
-            print("Iteration: " + str(iteration) + "   Seed: " + str(self.seed) + "\n")
-            self.logger.log("#iter {}: {}".format(iteration, time.time()), 3)
+            self.logger.log("Iteration {} --> time: {}, seed: {}".format(iteration, time.time(), self.seed))
             # perform a step
             result, new_result, random_param = self.step()
 
@@ -426,7 +422,7 @@ class RandomGreedy(BaseAlgorithm):
                     feasible_sol_found = True
                     elite = EliteResults(self.k_best, Logger(self.logger.stream,
                                          self.logger.verbose, self.logger.level + 1))
-                    best_result_no_update = Result()
+                    best_result_no_update = Result(self.logger)
                     elite.elite_results.add(best_result_no_update)
             # update the results and the lists of random parameters
             elite.add(new_result, feasible_sol_found)

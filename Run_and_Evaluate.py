@@ -99,20 +99,20 @@ class MultiProcessing:
         with open(system_file, "r") as a_file:
             json_object = json.load(a_file)
         Lambda = json_object["Lambda"]
-        S = System(system_json=json_object, log=self.method["parameters"]["log"])
-        method["parameters"]["system"] = S
         method["parameters"]["seed"] = core_params[2]
-        print("\n Seed: " + str(core_params[2]))
-        print("\n Iteration number: " + str(core_params[0]))
         core_logger = method["parameters"]["log"]
         if core_params[3] != "":
             log_file = open(core_params[3], "a")
             core_logger.stream = log_file
             method["parameters"]["log"] = core_logger
+        core_logger.log("\n Seed: " + str(core_params[2]))
+        core_logger.log("\n Iteration number: " + str(core_params[0]))
+        S = System(system_json=json_object, log=core_logger)
+        method["parameters"]["system"] = S
         if self.StartingPoints:
-            elite_sol = EliteResults(1, Logger(self.logger.stream,
-                                               self.logger.verbose, self.logger.level + 1))
-            elite_sol.elite_results.add(Result())
+            elite_sol = EliteResults(1, Logger(core_logger.stream,
+                                               core_logger.verbose, core_logger.level + 1))
+            elite_sol.elite_results.add(Result(core_logger))
             if self.method["name"] in list(
                     i for i in AlgPool.algorithms if AlgPool.algorithms[i] == AlgPool.algorithms["GA"]):
                 if len(core_params[4]) > 0:
@@ -269,24 +269,25 @@ def main(dic, log_directory):
 ##############################
     with open(system_file, "r") as a_file:
         json_object = json.load(a_file)
+    # evaluate-only scenario
     if not "config_file" in dic.keys():
+        # get solution file and lambda
         solution_file = dic["solution_file"]
-        verbose = dic["VerboseLevel"]
-        logger = Logger(stream=sys.stderr, verbose=verbose)
-        separate_loggers = (logger.verbose > 0 and log_directory != "")
         Lambda = dic["Lambda"]
         json_object["Lambda"] = Lambda
-        print("\n" + str(Lambda))
-        print("\n" + solution_file)
-        if separate_loggers:
+        # initialize logger
+        verbose = dic["VerboseLevel"]
+        if log_directory != "":
             log_file_lambda = "LOG_" + str(Lambda) + ".log"
             log_file_lambda = os.path.join(log_directory, log_file_lambda)
             log_file_lambda = open(log_file_lambda, "a")
-            logger_lambda = Logger(stream=log_file_lambda,
-                                   verbose=logger.verbose)
         else:
-            logger_lambda = logger
-        S = System(system_json=json_object, log=logger_lambda)
+            log_file_lambda = sys.stdout
+        logger = Logger(stream=log_file_lambda, verbose=verbose)
+        logger.log("\n" + str(Lambda))
+        logger.log("\n" + solution_file)
+        # initialize system
+        S = System(system_json=json_object, log=logger)
         # Create a fake LS to use create_solution_by_file function
         RG_method = {}
         RG_method["name"] = "LS"
@@ -303,11 +304,20 @@ def main(dic, log_directory):
         path = pathlib.Path(system_file).parent.resolve()
         output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
         if result.solution is None:
-            print("No solution is found.")
+            logger.log("No solution is found.")
         else:
             result.print_result(S, output_json)
-    # generate_output_json(Lambda,result, S)
+    # run-algorithms scenario
     else:
+        # initialize general logger
+        verbose = dic["VerboseLevel"]
+        if log_directory != "":
+            general_log_file = os.path.join(log_directory, "LOG.log")
+            general_log_file = open(general_log_file, "a")
+        else:
+            general_log_file = sys.stdout
+        logger = Logger(stream=general_log_file, verbose=verbose)
+        # load configuration
         config_file = dic["config_file"]
         with open(config_file, "r") as a_file:
             input_json = json.load(a_file)
@@ -318,7 +328,11 @@ def main(dic, log_directory):
             for Lambda in np.arange(start_lambda, end_lambda, step):
                 Lambda_list.append(Lambda)
         if "VerboseLevel" in input_json.keys():
-            logger = Logger(stream=sys.stderr, verbose=input_json["VerboseLevel"])
+            verbose = input_json["VerboseLevel"]
+            logger.log(f"Using verbosity level from configuration file ({verbose})")
+        elif "VerboseLevel" in dic.keys():
+            verbose = dic["VerboseLevel"]
+            logger.log(f"Using verbosity level provided at command-line ({verbose})")
         else:
             error.log("{} does not exist.".format("VerboseLevel"))
             sys.exit(1)
@@ -391,7 +405,7 @@ def main(dic, log_directory):
                         i for i in AlgPool.algorithms if AlgPool.algorithms[i] == AlgPool.algorithms["LS"]):
                     if "specialParameters" in Heu:
                         if "minScore" not in Heu["specialParameters"]:
-                            print("minScore is optional fild for Local Search. The default value is None.")
+                            logger.log("minScore is optional fild for Local Search. The default value is None.")
                         else:
                             Heu_method["parameters"]["max_score"] = Heu["specialParameters"]["minScore"]
 
@@ -404,7 +418,7 @@ def main(dic, log_directory):
                         error.log(" tabuSize should be specified")
                         sys.exit(1)
                     if "minScore" not in Heu["specialParameters"]:
-                        print("minScore is optional fild for Tabu Search. The default value is None.")
+                        logger.log("minScore is optional fild for Tabu Search. The default value is None.")
                     else:
                         Heu_method["parameters"]["max_score"] = Heu["specialParameters"]["minScore"]
                 ############## SA parameters #####################
@@ -422,7 +436,7 @@ def main(dic, log_directory):
                             " scheduleConstant, which is the annealing constant to reduce the temperature, should be specified")
                         sys.exit(1)
                     if "minEnergy" not in Heu["specialParameters"]:
-                        print("minEnergy is optional fild for Local Search. The initial value is None.")
+                        logger.log("minEnergy is optional fild for Local Search. The initial value is None.")
                     else:
                         Heu_method["parameters"]["min_energy"] = Heu["specialParameters"]["minEnergy"]
                     if "schedule" in Heu["specialParameters"]:
@@ -444,12 +458,10 @@ def main(dic, log_directory):
                         error.log(" mutationRate is a mandatory parameter for GA and it should be specified")
                         sys.exit(1)
                     if "minFitness" not in Heu["specialParameters"]:
-                        print("minFitness is optional fild for Local Search. The initial value is None.")
+                        logger.log("minFitness is optional fild for Local Search. The initial value is None.")
                     else:
                         Heu_method["parameters"]["min_fitness"] = Heu["specialParameters"]["minFitness"]
-                Heu_method["parameters"]["log"] = logger
         RG_method["parameters"]["k_best"] = startingPointNumber
-        RG_method["parameters"]["log"] = logger
         for Lambda in Lambda_list:
             with open(system_file, 'r') as f:
                 data = json.load(f)
@@ -457,7 +469,19 @@ def main(dic, log_directory):
             system = json.dumps(data, indent=2)
             with open(system_file, "w") as f:
                 f.write(system)
-
+            # initialize logger for the current load
+            if log_directory != "":
+                log_file_lambda = "LOG_" + str(Lambda) + ".log"
+                log_file_lambda = os.path.join(log_directory, log_file_lambda)
+                log_file_lambda = open(log_file_lambda, "a")
+            else:
+                log_file_lambda = sys.stdout
+            lambda_logger = Logger(stream=log_file_lambda, verbose=verbose)
+            # set logger for methods
+            if len(Heu_method) > 0:
+                Heu_method["parameters"]["log"] = lambda_logger
+            RG_method["parameters"]["log"] = lambda_logger
+            # initialize multiprocessing
             MP = MultiProcessing(RG_method)
             feasible_found, solutions, result = MP.run(system_file)
             # feasibility, starting_points, result, S = Random_Greedy_run(json_object, method1)
@@ -472,11 +496,13 @@ def main(dic, log_directory):
         path = pathlib.Path(system_file).parent.resolve()
         output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
         if result.solution is None:
-            print("No solution is found.")
+            logger.log("No solution is found.")
         else:
-            S = System(system_json=data)
+            S = System(system_json=data, log=logger)
             result.print_result(S, output_json)
-
+        if log_directory != "":
+            general_log_file.close()
+            log_file_lambda.close()
 
 
 if __name__ == '__main__':
@@ -511,7 +537,6 @@ if __name__ == '__main__':
         dic["system_file"] = args.system_file
     # check if the test configuration file exists or we need an evaluation
     if args.evaluation_lambda is None:
-
         if not os.path.exists(args.config):
             error.log("{} does not exist".format(args.config))
             sys.exit(1)
@@ -520,6 +545,7 @@ if __name__ == '__main__':
 
             if args.Lambda is not None:
                 dic["Lambda"] = float(args.Lambda)
+        dic["VerboseLevel"] = args.verbose
     else:
         try:
             Lambda = float(args.evaluation_lambda[0])
