@@ -343,6 +343,10 @@ def main(dic, log_directory):
         if "Lambda" in dic.keys():
             Lambda_list.append(dic["Lambda"])
 
+        if len(Lambda_list) == 0:
+            error.log("No values provided for Lambda. Specify -L from the command-line or LambdaBound in the config file")
+            sys.exit(1)
+
         if "Methods" in input_json.keys():
             Methods = input_json["Methods"]
             RG_list = list(i for i in AlgPool.algorithms if AlgPool.algorithms[i] == AlgPool.algorithms["RG"])
