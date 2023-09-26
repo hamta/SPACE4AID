@@ -244,15 +244,19 @@ def create_pure_json(main_json_file):
 #   @param result The optimal Solution.Result returned by fun_greedy
 #   @param S An instance of System.System class including system description
 #   @param onFile True if the result should be printed on file (default: True)
-def generate_output_json(Lambda, result, S, onFile=True):
+def generate_output_json(system_file, Lambda, result, logger, onFile=True):
     # generate name of output file (if required)
     if onFile:
-        output_json = "Output_Files/Lambda_" + \
-                      str(round(float(Lambda), 10)) + \
-                      '_output_json.json'
+        path = pathlib.Path(system_file).parent.resolve()
+        output_json = str(path) + "/Lambda_" + str(round(float(Lambda), 4)) + ".json"
     else:
         output_json = ""
-
+    # load system
+    with open(system_file, 'r') as f:
+        data = json.load(f)
+    data["Lambda"] = Lambda
+    S = System(system_json=data, log=logger)
+    # print
     result.print_result(S, solution_file=output_json)
 
 def main(dic, log_directory):
@@ -338,7 +342,6 @@ def main(dic, log_directory):
             sys.exit(1)
         if "Lambda" in dic.keys():
             Lambda_list.append(dic["Lambda"])
-            # print("Lambda: " + str(Lambda))
 
         if "Methods" in input_json.keys():
             Methods = input_json["Methods"]
@@ -471,7 +474,7 @@ def main(dic, log_directory):
                 f.write(system)
             # initialize logger for the current load
             if log_directory != "":
-                log_file_lambda = "LOG_" + str(Lambda) + ".log"
+                log_file_lambda = "LOG_" + str(round(float(Lambda),4)) + ".log"
                 log_file_lambda = os.path.join(log_directory, log_file_lambda)
                 log_file_lambda = open(log_file_lambda, "a")
             else:
@@ -492,17 +495,14 @@ def main(dic, log_directory):
                     Heu_method["parameters"]["starting_point"] = solutions
                     MP = MultiProcessing(Heu_method)
                     feasible_found, solutions, result = MP.run(system_file)
-
-        path = pathlib.Path(system_file).parent.resolve()
-        output_json = str(path) + "/Lambda_" + str(Lambda) + ".json"
-        if result.solution is None:
-            logger.log("No solution is found.")
-        else:
-            S = System(system_json=data, log=logger)
-            result.print_result(S, output_json)
-        if log_directory != "":
-            general_log_file.close()
-            log_file_lambda.close()
+            # print result
+            if result.solution is None:
+                logger.log("No solution is found.")
+            else:
+                generate_output_json(system_file, Lambda, result, logger)
+            if log_directory != "":
+                general_log_file.close()
+                log_file_lambda.close()
 
 
 if __name__ == '__main__':
