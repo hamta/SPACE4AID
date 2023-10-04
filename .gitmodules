@@ -1,3 +1,6 @@
 [submodule "aMLLibrary"]
 	path = aMLLibrary
 	url = https://github.com/aMLLibrary/aMLLibrary
+[submodule "space4ai-parser"]
+	path = space4ai-parser
+	url = git@gitlab.polimi.it:ai-sprint/space4ai-parser.git
