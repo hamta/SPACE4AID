@@ -154,43 +154,43 @@ class MultiProcessing:
         feasible_found = False
         elite_sol = []
         start = time.time()
-        if __name__ == "__main__":
-            with Pool(processes=self.cpuCore) as pool:
-                partial_gp = functools.partial(self.run_alg, system_file=system_file, method=self.method)
-                full_result = pool.map(partial_gp, self._core_params)
-            print("Multiprocessing ends.")
+        #if __name__ == "__main__":
+        with Pool(processes=self.cpuCore) as pool:
+            partial_gp = functools.partial(self.run_alg, system_file=system_file, method=self.method)
+            full_result = pool.map(partial_gp, self._core_params)
+        print("Multiprocessing ends.")
             #S = full_result[0][1]
-            first_unfeasible = False
+        first_unfeasible = False
             # get final list combining the results of all threads
-            for tid in range(self.cpuCore):
-                if feasible_found:
-                    if full_result[tid][1].elite_results[0].performance[0]:
-                        elite_sol.merge(full_result[tid][1], True)
+        for tid in range(self.cpuCore):
+            if feasible_found:
+                if full_result[tid][1].elite_results[0].performance[0]:
+                    elite_sol.merge(full_result[tid][1], True)
+            else:
+                if full_result[tid][1].elite_results[0].performance[0]:
+                    feasible_found = True
+                    elite_sol = EliteResults(full_result[tid][1].K)
+                    elite_sol.elite_results.add(Result())
+                    elite_sol.add(full_result[tid][1].elite_results[0])
                 else:
-                    if full_result[tid][1].elite_results[0].performance[0]:
-                        feasible_found = True
+                    if not first_unfeasible:
                         elite_sol = EliteResults(full_result[tid][1].K)
                         elite_sol.elite_results.add(Result())
-                        elite_sol.add(full_result[tid][1].elite_results[0])
+                        elite_sol.add(full_result[tid][1].elite_results[0], feasible_found)
+                        first_unfeasible = True
                     else:
-                        if not first_unfeasible:
-                            elite_sol = EliteResults(full_result[tid][1].K)
-                            elite_sol.elite_results.add(Result())
-                            elite_sol.add(full_result[tid][1].elite_results[0], feasible_found)
-                            first_unfeasible = True
-                        else:
-                            elite_sol.merge(full_result[tid][1], False)
-                # if len(elite_sol.elite_results)<K:
-                #    K=len(elite_sol.elite_results)
+                        elite_sol.merge(full_result[tid][1], False)
+            # if len(elite_sol.elite_results)<K:
+            #    K=len(elite_sol.elite_results)
 
-            if feasible_found:
-                for sol in elite_sol.elite_results:
-                    if sol.cost < np.inf:
-                        solutions.append(sol.solution)
-            else:
-                for sol in elite_sol.elite_results:
-                    if sol.violation_rate < np.inf:
-                        solutions.append(sol.solution)
+        if feasible_found:
+            for sol in elite_sol.elite_results:
+                if sol.cost < np.inf:
+                    solutions.append(sol.solution)
+        else:
+            for sol in elite_sol.elite_results:
+                if sol.violation_rate < np.inf:
+                    solutions.append(sol.solution)
 
         return feasible_found, solutions, elite_sol.elite_results[0]
 
