@@ -26,6 +26,8 @@ ENV PARSER_URL=${GITLAB}/ai-sprint/space4ai-parser.git
 ENV LOGGER_URL=${GITLAB}/ai-sprint/space4ai-logger.git
 ENV aMLLibrary_URL=${GITLAB}/ai-sprint/a-mllibrary.git
 ENV PROJECT_ID=776
+
+# define parser, logger and aMLlibrary path
 ENV PARSER_DIR=external/space4ai_parser
 ENV LOGGER_DIR=external/space4ai_logger
 ENV aMLLibrary_DIR=external/aMLLibrary
