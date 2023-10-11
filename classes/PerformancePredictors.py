@@ -173,7 +173,9 @@ class FaaSPredictorMLlib(FaaSPredictor):
     #                         model to be used for prediction
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, regressor_file, meanTime, **kwargs):
-        super().__init__("MLLIBfaas", "aMLLibrary.model_building.predictor")
+        super().__init__(
+            "MLLIBfaas", "external.aMLLibrary.model_building.predictor"
+        )
         self.regressor_file = regressor_file
         self.mean_time = meanTime
         predictor_module = importlib.import_module(self.module_name)
@@ -237,7 +239,7 @@ class CoreBasedPredictor(BasePredictor):
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, regressor_file, meanTime, **kwargs):
         super().__init__("CoreBasedPredictor", 
-                         "aMLLibrary.model_building.predictor")
+                         "external.aMLLibrary.model_building.predictor")
         self.regressor_file = regressor_file
         ### New ###
         self.mean_time = meanTime
@@ -332,7 +334,7 @@ class LambdaBasedPredictor(BasePredictor):
     #   @param **kwargs Additional (unused) keyword arguments
     def __init__(self, regressor_file, meanTime, **kwargs):
         super().__init__("LambdaBasedPredictor", 
-                         "aMLLibrary.model_building.predictor")
+                         "external.aMLLibrary.model_building.predictor")
         self.regressor_file = regressor_file
         ### New ###
         self.mean_time = meanTime
