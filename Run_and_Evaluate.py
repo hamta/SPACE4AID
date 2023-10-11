@@ -104,10 +104,10 @@ class MultiProcessing:
         core_logger = method["parameters"]["log"]
         if core_params[3] != "":
             log_file = open(core_params[3], "a")
-            core_logger.stream = log_file
+            core_logger.out_stream = log_file
             method["parameters"]["log"] = core_logger
-        core_logger.log("\n Seed: " + str(core_params[2]))
-        core_logger.log("\n Iteration number: " + str(core_params[0]))
+        core_logger.log("Seed: " + str(core_params[2]))
+        core_logger.log("Iteration number: " + str(core_params[0]))
         S = System(system_json=json_object, log=core_logger)
         method["parameters"]["system"] = S
         if self.StartingPoints:
@@ -293,8 +293,8 @@ def main(dic, logger, log_directory):
             log_file_lambda = os.path.join(log_directory, log_file_lambda)
             log_file_lambda = open(log_file_lambda, "a")
             logger.out_stream = log_file_lambda
-        logger.log("\n" + str(Lambda))
-        logger.log("\n" + solution_file)
+        logger.log(f"Current Lambda is {Lambda} req/s")
+        logger.log(f"Solution will be printed on {solution_file}")
         # initialize system
         S = System(system_json=json_object, log=logger)
         # Create a fake LS to use create_solution_by_file function
@@ -484,11 +484,18 @@ def main(dic, logger, log_directory):
                 log_file_lambda = "LOG_" + str(round(float(Lambda), 4)) + ".log"
                 log_file_lambda = os.path.join(log_directory, log_file_lambda)
                 log_file_lambda = open(log_file_lambda, "a")
-                logger.out_stream = log_file_lambda
+            else:
+                log_file_lambda = sys.stdout
+            lambda_logger = space4ai_logger.Logger(
+                name=logger.name, 
+                out_stream=log_file_lambda, 
+                verbose=logger.verbose
+            )
+            logger.log(f"Current Lambda is {Lambda} req/s")
             # set logger for methods
             if len(Heu_method) > 0:
-                Heu_method["parameters"]["log"] = logger
-            RG_method["parameters"]["log"] = logger
+                Heu_method["parameters"]["log"] = lambda_logger
+            RG_method["parameters"]["log"] = lambda_logger
             # initialize multiprocessing
             MP = MultiProcessing(RG_method)
             feasible_found, solutions, result = MP.run(system_file)
@@ -502,7 +509,7 @@ def main(dic, logger, log_directory):
                     feasible_found, solutions, result = MP.run(system_file)
             # print result
             if result.solution is None:
-                logger.log("No solution is found.")
+                lambda_logger.log("No solution is found.")
             else:
                 generate_output_json(system_file, Lambda, result, logger)
             if log_directory != "":

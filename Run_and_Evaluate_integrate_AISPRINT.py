@@ -105,7 +105,7 @@ class MultiProcessing:
         core_logger = method["parameters"]["log"]
         if core_params[3] != "":
             log_file = open(core_params[3], "a")
-            core_logger.stream = log_file
+            core_logger.out_stream = log_file
             method["parameters"]["log"] = core_logger
         if self.StartingPoints:
             elite_sol = EliteResults(
