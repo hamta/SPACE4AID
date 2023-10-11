@@ -1,12 +1,13 @@
 from external import space4ai_logger
 
-from Solid.Solid.TabuSearch import TabuSearch
-from Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
-from Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
+from external.Solid.Solid.TabuSearch import TabuSearch
+from external.Solid.Solid.SimulatedAnnealing import SimulatedAnnealing
+from external.Solid.Solid.GeneticAlgorithm import GeneticAlgorithm
+
 from classes.BaseHeuristics import BaseHeuristics
+from classes.Solution import Configuration, Result
 import numpy as np
 import copy
-from classes.Solution import Configuration, Result
 import time
 
 ## Tabu Search
