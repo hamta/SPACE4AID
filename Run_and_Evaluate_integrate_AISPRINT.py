@@ -266,7 +266,8 @@ def generate_output_json(Lambda, result, S, onFile = True):
     result.print_result(S, solution_file=output_json)
 
 
-def main(application_dir, logger):
+def main(application_dir):
+    logger = space4ai_logger.Logger(name="SPACE4AI-D")
     parser_json_generator = space4ai_parser.ParserYamlToJson(
         application_dir, "s4aid", log = space4ai_logger.Logger(
             name="S4AIParser",
@@ -506,11 +507,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # initialize error stream
-    logger = space4ai_logger.Logger(name="SPACE4AI-D")
     dic = {}
     # check if the system configuration file exists
     if not os.path.exists(args.application_dir):
-        logger.err("{} does not exist".format(args.application_dir))
+        print("{} does not exist".format(args.application_dir))
         sys.exit(1)
     else:
         application_dir = args.application_dir
@@ -518,4 +518,4 @@ if __name__ == '__main__':
 
     #application_dir="/Users/hamtasedghani/space4ai-d/filter_classifier_degraded_performance/step_4"
     #error = Logger(stream = sys.stderr, verbose=1, error=True)
-    main(application_dir, logger)
+    main(application_dir)
