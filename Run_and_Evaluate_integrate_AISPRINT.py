@@ -100,13 +100,13 @@ class MultiProcessing:
         S = System(system_json=json_object, log=self.method["parameters"]["log"])
         method["parameters"]["system"] = S
         method["parameters"]["seed"] = core_params[2]
-        print("\n Seed: " + str(core_params[2]))
-        print("\n Iteration number: " + str(core_params[0]))
         core_logger = method["parameters"]["log"]
         if core_params[3] != "":
             log_file = open(core_params[3], "a")
             core_logger.out_stream = log_file
             method["parameters"]["log"] = core_logger
+        core_logger.log("Seed: " + str(core_params[2]))
+        core_logger.log("Iteration number: " + str(core_params[0]))
         if self.StartingPoints:
             elite_sol = EliteResults(
                 1, 
@@ -376,7 +376,7 @@ def main(application_dir):
             if Heu_method["name"] in list(i for i in AlgPool.algorithms if AlgPool.algorithms[i] == AlgPool.algorithms["LS"]):
                 if "specialParameters" in Heu:
                     if "minScore" not in Heu["specialParameters"]:
-                        print("minScore is optional fild for Local Search. The default value is None.")
+                        logger.warn("minScore is optional fild for Local Search. The default value is None.")
                     else:
                         Heu_method["parameters"]["max_score"] = Heu["specialParameters"]["minScore"]
 
@@ -389,7 +389,7 @@ def main(application_dir):
                     logger.err(" tabuSize should be specified")
                     sys.exit(1)
                 if "minScore" not in Heu["specialParameters"]:
-                    print("minScore is optional fild for Tabu Search. The default value is None.")
+                    logger.warn("minScore is optional fild for Tabu Search. The default value is None.")
                 else:
                     Heu_method["parameters"]["max_score"] = Heu["specialParameters"]["minScore"]
             ############## SA parameters #####################
@@ -406,7 +406,7 @@ def main(application_dir):
                     logger.err(" scheduleConstant, which is the annealing constant to reduce the temperature, should be specified")
                     sys.exit(1)
                 if "minEnergy" not in Heu["specialParameters"]:
-                    print("minEnergy is optional fild for Local Search. The initial value is None.")
+                    logger.warn("minEnergy is optional fild for Local Search. The initial value is None.")
                 else:
                     Heu_method["parameters"]["min_energy"] = Heu["specialParameters"]["minEnergy"]
                 if "schedule" in Heu["specialParameters"]:
@@ -427,7 +427,7 @@ def main(application_dir):
                     logger.err(" mutationRate is a mandatory parameter for GA and it should be specified")
                     sys.exit(1)
                 if "minFitness" not in Heu["specialParameters"]:
-                    print("minFitness is optional fild for Local Search. The initial value is None.")
+                    logger.warn("minFitness is optional fild for Local Search. The initial value is None.")
                 else:
                     Heu_method["parameters"]["min_fitness"] = Heu["specialParameters"]["minFitness"]
             Heu_method["parameters"]["log"] = logger
@@ -435,7 +435,7 @@ def main(application_dir):
     RG_method["parameters"]["log"] = logger
 
 
-    print("\nStart parsing YAML files... ")
+    logger.log("Start parsing YAML files... ")
     #parser_s4aid = ParserJsonToYaml(application_dir,"s4air","space4ai-r/deployment1")
     #parser_s4aid.main_function()
 
@@ -455,7 +455,7 @@ def main(application_dir):
             feasible_found, solutions, result = MP.run(system_file)
     output_json=application_dir+"/space4ai-d/Output.json"
     if result.solution is None:
-        print("No solution is found.")
+        logger.log("No solution is found.")
     else:
         Y_hat = result.solution.Y_hat
         S = System(system_json=json_object, log=logger)
